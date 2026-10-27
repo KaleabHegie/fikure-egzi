@@ -39,6 +39,7 @@ jobs:
       - name: Build web and API bundles
         env:
           VITE_API_BASE_URL: ${{ secrets.PRODUCTION_API_URL }}
+          DATABASE_URL: mysql://build:build@localhost:3306/build
         run: scripts/build-release.sh
 
       - name: Package release

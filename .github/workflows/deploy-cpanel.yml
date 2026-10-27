@@ -102,6 +102,7 @@ jobs:
           cd "$api_root"
           npm ci --omit=dev
           npx prisma migrate deploy
+          npm run db:seed
 
           # Standard cPanel Passenger restart signal.
           mkdir -p tmp

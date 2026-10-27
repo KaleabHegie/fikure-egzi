@@ -105,6 +105,8 @@ jobs:
           cp -R "$release_dir/web/." "$web_root/"
 
           cd "$api_root"
+          # cPanel exposes the selected Node version through this per-app venv.
+          . "$HOME/nodevenv/fikure-api/22/bin/activate"
           npm ci --omit=dev
           # cPanel stores Node application variables in node-selector.json;
           # non-interactive SSH sessions do not inherit them.

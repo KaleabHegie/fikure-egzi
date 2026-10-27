@@ -1,0 +1,110 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-cpanel
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix frontend
+
+      - name: Build web and API bundles
+        env:
+          VITE_API_BASE_URL: ${{ secrets.PRODUCTION_API_URL }}
+        run: scripts/build-release.sh
+
+      - name: Package release
+        run: tar -C deploy/build -czf cpanel-release.tar.gz api web
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cpanel-release
+          path: cpanel-release.tar.gz
+          retention-days: 7
+
+  deploy:
+    name: Deploy release
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cpanel-release
+
+      - name: Configure SSH
+        env:
+          CPANEL_SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$CPANEL_SSH_PORT" -H "$CPANEL_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release bundle
+        env:
+          CPANEL_SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          CPANEL_SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+        run: |
+          scp -P "$CPANEL_SSH_PORT" cpanel-release.tar.gz \
+            "$CPANEL_SSH_USER@$CPANEL_SSH_HOST:~/fikure-egzi-release.tar.gz"
+
+      - name: Activate release and restart API
+        env:
+          CPANEL_SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          CPANEL_SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          CPANEL_API_ROOT: ${{ secrets.CPANEL_API_ROOT }}
+          CPANEL_WEB_ROOT: ${{ secrets.CPANEL_WEB_ROOT }}
+        run: |
+          ssh -p "$CPANEL_SSH_PORT" "$CPANEL_SSH_USER@$CPANEL_SSH_HOST" \
+            "bash -s -- '$CPANEL_API_ROOT' '$CPANEL_WEB_ROOT'" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          api_root="$1"
+          web_root="$2"
+          release_dir="$HOME/.fikure-egzi-release"
+
+          rm -rf "$release_dir"
+          mkdir -p "$release_dir" "$api_root" "$web_root"
+          tar -xzf "$HOME/fikure-egzi-release.tar.gz" -C "$release_dir"
+
+          # .env and uploads stay on the server; they are never overwritten by CI.
+          cp -R "$release_dir/api/." "$api_root/"
+          cp -R "$release_dir/web/." "$web_root/"
+
+          cd "$api_root"
+          npm ci --omit=dev
+          npx prisma migrate deploy
+
+          # Standard cPanel Passenger restart signal.
+          mkdir -p tmp
+          touch tmp/restart.txt
+          rm -f "$HOME/fikure-egzi-release.tar.gz"
+          REMOTE_SCRIPT

@@ -28,6 +28,10 @@ jobs:
             frontend/package-lock.json
 
       - name: Install dependencies
+        env:
+          # Prisma generates its client during npm install and only validates
+          # that a syntactically valid URL exists; it never connects here.
+          DATABASE_URL: mysql://build:build@localhost:3306/build
         run: |
           npm ci --prefix backend
           npm ci --prefix frontend

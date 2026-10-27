@@ -95,14 +95,17 @@ jobs:
           mkdir -p "$release_dir" "$api_root" "$web_root"
           tar -xzf "$HOME/fikure-egzi-release.tar.gz" -C "$release_dir"
 
-          # .env and uploads stay on the server; they are never overwritten by CI.
+          # Uploads stay on the server; they are never overwritten by CI.
           cp -R "$release_dir/api/." "$api_root/"
           cp -R "$release_dir/web/." "$web_root/"
 
           cd "$api_root"
           npm ci --omit=dev
-          npx prisma migrate deploy
-          npm run db:seed
+          # cPanel stores Node application variables in node-selector.json;
+          # non-interactive SSH sessions do not inherit them.
+          database_url="$(node -e 'const fs=require("fs"); const app=JSON.parse(fs.readFileSync(process.env.HOME+"/.cl.selector/node-selector.json")); process.stdout.write(app["fikure-api"].env_vars.DATABASE_URL)')"
+          DATABASE_URL="$database_url" npx prisma migrate deploy
+          DATABASE_URL="$database_url" npm run db:seed
 
           # Standard cPanel Passenger restart signal.
           mkdir -p tmp

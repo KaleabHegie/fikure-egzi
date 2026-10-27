@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fikure Egzi Sunday School</string>
+    <string name="title_activity_main">Fikure Egzi Sunday School</string>
+    <string name="package_name">org.fikureegzi.sundayschool</string>
+    <string name="custom_url_scheme">org.fikureegzi.sundayschool</string>
+</resources>

@@ -1,0 +1,790 @@
+// Fikure Egzi Sunday School Management System — database schema.
+//
+// Conventions (keep these as new modules are added):
+//   * Models are PascalCase singular; tables are snake_case plural via @@map.
+//   * Columns are snake_case via @map; Prisma fields stay camelCase.
+//   * Every business table carries created_at / updated_at; records people
+//     care about also carry created_by_id / updated_by_id and deleted_at
+//     (soft delete) so history is never lost.
+//   * Group models by module with a banner comment.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity & access (auth, RBAC)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(191)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  fullName     String    @map("full_name") @db.VarChar(150)
+  phone        String?   @db.VarChar(20)
+  isActive     Boolean   @default(true) @map("is_active")
+  /// The member record of a teacher (one login per member).
+  memberId     Int?      @unique @map("member_id")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  roles          UserRole[]
+  /// Departments a department-scoped user (department admin, attendance taker) works in.
+  departments    UserDepartment[]
+  refreshTokens  RefreshToken[]
+  auditLogs      AuditLog[]
+  membersCreated Member[]         @relation("MemberCreatedBy")
+  membersUpdated Member[]         @relation("MemberUpdatedBy")
+  member         Member?          @relation("UserMember", fields: [memberId], references: [id], onDelete: SetNull)
+  teaching       CourseTeacher[]
+
+  @@map("users")
+}
+
+model Role {
+  id               Int      @id @default(autoincrement())
+  /// Stable machine code, e.g. SUPER_ADMIN. Authorization never checks this — it checks permissions.
+  code             String   @unique @db.VarChar(50)
+  name             String   @db.VarChar(100)
+  description      String?  @db.VarChar(255)
+  /// System roles are seeded and cannot be deleted from the UI.
+  isSystem         Boolean  @default(false) @map("is_system")
+  /// Holders only act within their assigned departments (see UserDepartment).
+  departmentScoped Boolean  @default(false) @map("department_scoped")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int     @id @default(autoincrement())
+  /// "<module>.<action>", e.g. members.create. Source of truth: src/common/auth/permissions.ts
+  code        String  @unique @db.VarChar(100)
+  module      String  @db.VarChar(50)
+  description String? @db.VarChar(255)
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// The departments a department-scoped user works in.
+model UserDepartment {
+  userId       Int      @map("user_id")
+  departmentId Int      @map("department_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, departmentId])
+  @@index([departmentId])
+  @@map("user_departments")
+}
+
+model UserRole {
+  userId     Int      @map("user_id")
+  roleId     Int      @map("role_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+/// Opaque refresh tokens (only the SHA-256 hash is stored), rotated on every use.
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime  @map("expires_at")
+  /// Set by logout / reuse detection: the token is dead.
+  revokedAt DateTime? @map("revoked_at")
+  /// Set when exchanged for a new pair. Briefly still accepted (AuthService ROTATION_GRACE_MS).
+  rotatedAt DateTime? @map("rotated_at")
+  userAgent String?   @map("user_agent") @db.VarChar(255)
+  ipAddress String?   @map("ip_address") @db.VarChar(45)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// Append-only trail of who changed what. Shared by every module.
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  action    String   @db.VarChar(50)
+  entity    String   @db.VarChar(50)
+  entityId  String?  @map("entity_id") @db.VarChar(50)
+  changes   Json?
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Members (registration)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EducationLevel {
+  NONE
+  PRIMARY
+  SECONDARY
+  CERTIFICATE
+  DIPLOMA
+  BACHELORS
+  MASTERS
+  DOCTORATE
+  OTHER
+}
+
+model Member {
+  id         Int    @id @default(autoincrement())
+  /// Human-facing registration number, e.g. FE-00042. Assigned by the API on create.
+  memberCode String @unique @map("member_code") @db.VarChar(20)
+
+  // Identity — Ethiopian naming: given name, father's name, grandfather's name.
+  firstName       String         @map("first_name") @db.VarChar(100)
+  fatherName      String         @map("father_name") @db.VarChar(100)
+  grandfatherName String?        @map("grandfather_name") @db.VarChar(100)
+  /// Baptismal (Christian) name.
+  christianName   String?        @map("christian_name") @db.VarChar(100)
+  gender          Gender
+  dateOfBirth     DateTime?      @map("date_of_birth") @db.Date
+  placeOfBirth    String?        @map("place_of_birth") @db.VarChar(100)
+  maritalStatus   MaritalStatus? @map("marital_status")
+
+  // Contact
+  phone          String? @db.VarChar(20)
+  alternatePhone String? @map("alternate_phone") @db.VarChar(20)
+  email          String? @db.VarChar(191)
+
+  // Address
+  city        String? @db.VarChar(100)
+  subCity     String? @map("sub_city") @db.VarChar(100)
+  woreda      String? @db.VarChar(50)
+  kebele      String? @db.VarChar(50)
+  houseNumber String? @map("house_number") @db.VarChar(30)
+
+  // Education & work
+  educationLevel EducationLevel? @map("education_level")
+  occupation     String?         @db.VarChar(100)
+
+  // Church
+  spiritualFatherName String?          @map("spiritual_father_name") @db.VarChar(150)
+  status              MembershipStatus @default(ACTIVE)
+  joinedAt            DateTime         @map("joined_at") @db.Date
+
+  // Emergency contact (guardian, for children)
+  emergencyContactName     String? @map("emergency_contact_name") @db.VarChar(150)
+  emergencyContactPhone    String? @map("emergency_contact_phone") @db.VarChar(20)
+  emergencyContactRelation String? @map("emergency_contact_relation") @db.VarChar(50)
+
+  /// Storage key under UPLOAD_DIR (e.g. members/42-ab12cd.jpg). Served only via GET /members/:id/photo.
+  photoPath String? @map("photo_path") @db.VarChar(255)
+  notes     String? @db.Text
+
+  createdById Int?      @map("created_by_id")
+  updatedById Int?      @map("updated_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  classEnrollments MemberClassEnrollment[]
+  departmentRoles  DepartmentMembership[]
+  classHistory     ClassPlacementHistory[]
+  attendance       AttendanceRecord[]
+  serviceGroups    ServiceGroupMember[]
+  serviceHistory   DepartmentServiceHistory[]
+  courseScores     CourseScore[]
+  /// Login of a member who teaches.
+  user             User?                      @relation("UserMember")
+
+  createdBy User? @relation("MemberCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy User? @relation("MemberUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([firstName, fatherName])
+  @@index([phone])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([createdById])
+  @@index([updatedById])
+  @@map("members")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Classes (configurable: types like Mezmur / Course, each with ordered grades)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A kind of class the Sunday school runs (e.g. Mezmur, Course). Managed in the app, not hard-coded.
+model ClassType {
+  id            Int      @id @default(autoincrement())
+  /// Stable machine code, e.g. MEZMUR. Uppercase, unique.
+  code          String   @unique @db.VarChar(40)
+  nameEn        String   @map("name_en") @db.VarChar(100)
+  nameAm        String   @map("name_am") @db.VarChar(100)
+  descriptionEn String?  @map("description_en") @db.VarChar(255)
+  descriptionAm String?  @map("description_am") @db.VarChar(255)
+  sortOrder     Int      @default(0) @map("sort_order")
+  /// Inactive types are hidden from forms but keep their history.
+  isActive      Boolean  @default(true) @map("is_active")
+  /// Department that runs this class (required); its admins and attendance takers handle its attendance.
+  departmentId  Int      @map("department_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  department  Department              @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  grades      ClassGrade[]
+  enrollments MemberClassEnrollment[]
+  history     ClassPlacementHistory[]
+
+  @@index([isActive, sortOrder])
+  @@index([departmentId])
+  @@map("class_types")
+}
+
+/// A grade/level within a class type (e.g. Mezmur → Ge'ez ሐ; Course → Grade 5).
+model ClassGrade {
+  id          Int      @id @default(autoincrement())
+  classTypeId Int      @map("class_type_id")
+  /// Unique within its class type, e.g. GEEZ or G05.
+  code        String   @db.VarChar(40)
+  nameEn      String   @map("name_en") @db.VarChar(100)
+  nameAm      String   @map("name_am") @db.VarChar(100)
+  /// Optional compact label shown as a badge, e.g. ሐ.
+  shortLabel  String?  @map("short_label") @db.VarChar(10)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  classType     ClassType               @relation(fields: [classTypeId], references: [id], onDelete: Restrict)
+  enrollments   MemberClassEnrollment[]
+  history       ClassPlacementHistory[]
+  sessions      AttendanceSession[]
+  /// Service groups usually drawn from this grade (e.g. Mezmur · Araray).
+  serviceGroups ServiceGroup[]
+  courses       CourseOffering[]
+
+  @@unique([classTypeId, code])
+  @@index([classTypeId, sortOrder])
+  @@map("class_grades")
+}
+
+/// A member's current grade in one class type (at most one grade per type).
+model MemberClassEnrollment {
+  memberId     Int      @map("member_id")
+  classTypeId  Int      @map("class_type_id")
+  classGradeId Int      @map("class_grade_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+  assignedById Int?     @map("assigned_by_id")
+
+  member     Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  classType  ClassType  @relation(fields: [classTypeId], references: [id], onDelete: Restrict)
+  classGrade ClassGrade @relation(fields: [classGradeId], references: [id], onDelete: Restrict)
+
+  @@id([memberId, classTypeId])
+  @@index([classGradeId])
+  @@index([classTypeId])
+  @@map("member_class_enrollments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Departments (configurable hierarchy; ፅህፈት ቤት administers the rest)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A Sunday school department. Departments form a tree: the office (ፅህፈት ቤት)
+/// is the root that administers the others. Managed in the app, not hard-coded.
+model Department {
+  id            Int      @id @default(autoincrement())
+  /// Stable machine code, e.g. EDUCATION. Uppercase, unique.
+  code          String   @unique @db.VarChar(40)
+  nameEn        String   @map("name_en") @db.VarChar(120)
+  nameAm        String   @map("name_am") @db.VarChar(120)
+  descriptionEn String?  @map("description_en") @db.VarChar(500)
+  descriptionAm String?  @map("description_am") @db.VarChar(500)
+  /// The administering department; null for the top (ፅህፈት ቤት).
+  parentId      Int?     @map("parent_id")
+  sortOrder     Int      @default(0) @map("sort_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  parent      Department?                @relation("DepartmentTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Department[]               @relation("DepartmentTree")
+  memberships DepartmentMembership[]
+  history     DepartmentServiceHistory[]
+  sessions    AttendanceSession[]        @relation("SessionAudience")
+  organised   AttendanceSession[]        @relation("SessionOrganiser")
+  classTypes  ClassType[]
+  assets      Asset[]
+  users       UserDepartment[]
+  courses     Course[]
+
+  @@index([parentId, sortOrder])
+  @@map("departments")
+}
+
+enum DepartmentRole {
+  HEAD
+  DEPUTY
+  SECRETARY
+  MEMBER
+}
+
+/// A member serving in a department, with a role. A member may serve in several departments.
+model DepartmentMembership {
+  id           Int            @id @default(autoincrement())
+  departmentId Int            @map("department_id")
+  memberId     Int            @map("member_id")
+  role         DepartmentRole @default(MEMBER)
+  joinedAt     DateTime       @map("joined_at") @db.Date
+  createdById  Int?           @map("created_by_id")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  member     Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, memberId])
+  @@index([memberId])
+  @@index([departmentId, role])
+  @@map("department_memberships")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// History (append-only). The tables above hold the CURRENT state; these keep
+// every period, so moves between grades/departments and role changes are kept.
+// A row with endedAt = null is the current period.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One period a member spent in a class grade (e.g. Course Grade 1 → closed when promoted to Grade 2).
+model ClassPlacementHistory {
+  id           Int       @id @default(autoincrement())
+  memberId     Int       @map("member_id")
+  classTypeId  Int       @map("class_type_id")
+  classGradeId Int       @map("class_grade_id")
+  startedAt    DateTime  @map("started_at") @db.Date
+  endedAt      DateTime? @map("ended_at") @db.Date
+  recordedById Int?      @map("recorded_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  member     Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  classType  ClassType  @relation(fields: [classTypeId], references: [id], onDelete: Restrict)
+  classGrade ClassGrade @relation(fields: [classGradeId], references: [id], onDelete: Restrict)
+
+  @@index([memberId, classTypeId, endedAt])
+  @@index([classGradeId])
+  @@map("class_placement_history")
+}
+
+/// One period a member served in a department with a given role (a role change starts a new period).
+model DepartmentServiceHistory {
+  id           Int            @id @default(autoincrement())
+  memberId     Int            @map("member_id")
+  departmentId Int            @map("department_id")
+  role         DepartmentRole
+  startedAt    DateTime       @map("started_at") @db.Date
+  endedAt      DateTime?      @map("ended_at") @db.Date
+  recordedById Int?           @map("recorded_by_id")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  member     Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  @@index([memberId, departmentId, endedAt])
+  @@index([departmentId, endedAt])
+  @@map("department_service_history")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Attendance
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AttendanceSessionKind {
+  /// A class grade's session (roster = members in that grade, e.g. Course · Grade 5).
+  CLASS
+  /// A service group's session (roster = the group's members in its term).
+  SERVICE_GROUP
+  /// Anything else: gatherings, department meetings, events (roster = optional filters, else everyone).
+  OTHER
+}
+
+enum AttendanceSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  EXCUSED
+}
+
+enum AttendanceMethod {
+  QR
+  MANUAL
+}
+
+/// One occasion attendance is taken for. Its audience fields decide the roster.
+model AttendanceSession {
+  id               Int                     @id @default(autoincrement())
+  kind             AttendanceSessionKind
+  title            String                  @db.VarChar(150)
+  startsAt         DateTime                @map("starts_at")
+  endsAt           DateTime                @map("ends_at")
+  /// Check-ins later than startsAt + this many minutes are marked Late.
+  lateAfterMinutes Int                     @default(15) @map("late_after_minutes")
+  /// Audience: a class grade, a service group, or a department; all null = every active member.
+  classGradeId     Int?                    @map("class_grade_id")
+  serviceGroupId   Int?                    @map("service_group_id")
+  departmentId     Int?                    @map("department_id")
+  /// OTHER sessions: the department running it (null = the office). CLASS / SERVICE_GROUP
+  /// sessions belong to the department that runs their class.
+  organiserId      Int?                    @map("organiser_id")
+  location         String?                 @db.VarChar(150)
+  notes            String?                 @db.Text
+  status           AttendanceSessionStatus @default(OPEN)
+  closedAt         DateTime?               @map("closed_at")
+  /// Close automatically when endsAt passes (regular sessions created before they ended;
+  /// turned off when someone reopens the session to correct it).
+  autoClose        Boolean                 @default(true) @map("auto_close")
+  createdById      Int?                    @map("created_by_id")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  classGrade   ClassGrade?        @relation(fields: [classGradeId], references: [id], onDelete: Restrict)
+  serviceGroup ServiceGroup?      @relation(fields: [serviceGroupId], references: [id], onDelete: Restrict)
+  department   Department?        @relation("SessionAudience", fields: [departmentId], references: [id], onDelete: Restrict)
+  organiser    Department?        @relation("SessionOrganiser", fields: [organiserId], references: [id], onDelete: SetNull)
+  records      AttendanceRecord[]
+
+  @@index([startsAt])
+  @@index([kind, startsAt])
+  @@index([classGradeId])
+  @@index([departmentId])
+  @@index([organiserId])
+  @@index([serviceGroupId])
+  @@map("attendance_sessions")
+}
+
+/// One member's attendance at one session.
+model AttendanceRecord {
+  id           Int              @id @default(autoincrement())
+  sessionId    Int              @map("session_id")
+  memberId     Int              @map("member_id")
+  status       AttendanceStatus
+  /// When they checked in (scan or manual Present/Late); drives Late and time attended.
+  checkedInAt  DateTime?        @map("checked_in_at")
+  method       AttendanceMethod
+  /// Reason for Excused, or any remark.
+  note         String?          @db.VarChar(255)
+  /// False when the member was recorded but was not in the session's audience (e.g. a visitor from another class).
+  inRoster     Boolean          @default(true) @map("in_roster")
+  recordedById Int?             @map("recorded_by_id")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, memberId])
+  @@index([memberId, status])
+  @@map("attendance_records")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Service groups (Mezmur students' service rotations, reorganised each term)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A period the service groups are organised for (usually a year, e.g. 2019 E.C.).
+model ServiceTerm {
+  id        Int      @id @default(autoincrement())
+  nameEn    String   @map("name_en") @db.VarChar(100)
+  nameAm    String   @map("name_am") @db.VarChar(100)
+  startsOn  DateTime @map("starts_on") @db.Date
+  endsOn    DateTime @map("ends_on") @db.Date
+  /// The term new attendance and assignments default to. At most one is current.
+  isCurrent Boolean  @default(false) @map("is_current")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  groups  ServiceGroup[]
+  members ServiceGroupMember[]
+
+  @@index([isCurrent])
+  @@map("service_terms")
+}
+
+/// A service group within a term (e.g. "Group 1"), usually drawn from one class grade.
+model ServiceGroup {
+  id           Int      @id @default(autoincrement())
+  termId       Int      @map("term_id")
+  nameEn       String   @map("name_en") @db.VarChar(100)
+  nameAm       String   @map("name_am") @db.VarChar(100)
+  /// The class grade members are mostly drawn from (e.g. Mezmur · Araray); a hint, not a rule.
+  classGradeId Int?     @map("class_grade_id")
+  notes        String?  @db.VarChar(500)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  term       ServiceTerm          @relation(fields: [termId], references: [id], onDelete: Restrict)
+  classGrade ClassGrade?          @relation(fields: [classGradeId], references: [id], onDelete: SetNull)
+  members    ServiceGroupMember[]
+  sessions   AttendanceSession[]
+
+  @@index([termId, sortOrder])
+  @@index([classGradeId])
+  @@map("service_groups")
+}
+
+/// A member's group in a term — one group per member per term.
+model ServiceGroupMember {
+  id           Int      @id @default(autoincrement())
+  termId       Int      @map("term_id")
+  groupId      Int      @map("group_id")
+  memberId     Int      @map("member_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+  assignedById Int?     @map("assigned_by_id")
+
+  term   ServiceTerm  @relation(fields: [termId], references: [id], onDelete: Restrict)
+  group  ServiceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([termId, memberId])
+  @@index([groupId])
+  @@index([memberId])
+  @@map("service_group_members")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assets — the Sunday school's property, each the responsibility of a department
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AssetCategory {
+  FURNITURE
+  ELECTRONICS
+  MUSICAL_INSTRUMENT
+  LITURGICAL
+  BOOKS
+  CLOTHING
+  VEHICLE
+  OTHER
+}
+
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  BROKEN
+}
+
+enum AssetStatus {
+  IN_USE
+  IN_STORE
+  UNDER_REPAIR
+  LOST
+  DISPOSED
+}
+
+enum AssetAcquisition {
+  PURCHASED
+  DONATED
+}
+
+model Asset {
+  id           Int               @id @default(autoincrement())
+  /// AS-00001, derived from the id.
+  assetCode    String            @unique @map("asset_code") @db.VarChar(20)
+  name         String            @db.VarChar(150)
+  category     AssetCategory
+  description  String?           @db.VarChar(1000)
+  quantity     Int               @default(1)
+  condition    AssetCondition    @default(GOOD)
+  status       AssetStatus       @default(IN_USE)
+  location     String?           @db.VarChar(150)
+  serialNumber String?           @map("serial_number") @db.VarChar(100)
+  acquisition  AssetAcquisition?
+  acquiredOn   DateTime?         @map("acquired_on") @db.Date
+  /// Purchase price or estimated value, in birr.
+  cost         Decimal?          @db.Decimal(12, 2)
+  donorName    String?           @map("donor_name") @db.VarChar(150)
+  /// The department responsible for the asset.
+  departmentId Int               @map("department_id")
+  notes        String?           @db.Text
+  photoPath    String?           @map("photo_path") @db.VarChar(255)
+  createdById  Int?              @map("created_by_id")
+  updatedById  Int?              @map("updated_by_id")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  @@index([departmentId])
+  @@index([category])
+  @@index([status])
+  @@index([name])
+  @@map("assets")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Courses (subjects taught to class grades by teachers, with assessments and marks)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// How long one run of a course lasts.
+enum CourseDuration {
+  THREE_MONTHS
+  SIX_MONTHS
+  ONE_YEAR
+}
+
+/// A subject the Sunday school teaches, owned by a department (usually ትምህርት).
+model Course {
+  id           Int            @id @default(autoincrement())
+  /// CRS-00001, derived from the id.
+  courseCode   String         @unique @map("course_code") @db.VarChar(20)
+  nameEn       String         @map("name_en") @db.VarChar(150)
+  nameAm       String         @map("name_am") @db.VarChar(150)
+  description  String?        @db.VarChar(1000)
+  duration     CourseDuration
+  /// Lowest total (out of 100) that passes.
+  passMark     Int            @default(50) @map("pass_mark")
+  departmentId Int            @map("department_id")
+  isActive     Boolean        @default(true) @map("is_active")
+  createdById  Int?           @map("created_by_id")
+  updatedById  Int?           @map("updated_by_id")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  department Department       @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  offerings  CourseOffering[]
+
+  @@index([departmentId])
+  @@index([nameAm])
+  @@map("courses")
+}
+
+/// One run of a course for a class grade over a period, with its teachers.
+/// Teachers and periods change from run to run; past runs keep their marks.
+model CourseOffering {
+  id           Int      @id @default(autoincrement())
+  courseId     Int      @map("course_id")
+  classGradeId Int      @map("class_grade_id")
+  startDate    DateTime @map("start_date") @db.Date
+  endDate      DateTime @map("end_date") @db.Date
+  notes        String?  @db.VarChar(1000)
+  createdById  Int?     @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  course      Course             @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  classGrade  ClassGrade         @relation(fields: [classGradeId], references: [id], onDelete: Restrict)
+  teachers    CourseTeacher[]
+  assessments CourseAssessment[]
+
+  @@index([courseId, startDate])
+  @@index([classGradeId])
+  @@map("course_offerings")
+}
+
+model CourseTeacher {
+  offeringId Int      @map("offering_id")
+  userId     Int      @map("user_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([offeringId, userId])
+  @@index([userId])
+  @@map("course_teachers")
+}
+
+/// A marked piece of work in a run (e.g. Quiz 10, Mid exam 30, Final 60); maxima add up to at most 100.
+model CourseAssessment {
+  id         Int      @id @default(autoincrement())
+  offeringId Int      @map("offering_id")
+  name       String   @db.VarChar(100)
+  maxScore   Decimal  @map("max_score") @db.Decimal(5, 2)
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  scores   CourseScore[]
+
+  @@index([offeringId, sortOrder])
+  @@map("course_assessments")
+}
+
+model CourseScore {
+  assessmentId Int      @map("assessment_id")
+  memberId     Int      @map("member_id")
+  score        Decimal  @db.Decimal(5, 2)
+  updatedById  Int?     @map("updated_by_id")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  assessment CourseAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  member     Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([assessmentId, memberId])
+  @@index([memberId])
+  @@map("course_scores")
+}

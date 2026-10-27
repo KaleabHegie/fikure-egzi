@@ -1,0 +1,12 @@
+{
+  "name": "Fikure Egzi Sunday School",
+  "short_name": "Fikure Egzi",
+  "description": "Sunday school members, classes, departments and attendance.",
+  "lang": "am",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fbf9f7",
+  "theme_color": "#076b13",
+  "icons": [{ "src": "/logo.png", "sizes": "225x225", "type": "image/png", "purpose": "any maskable" }]
+}

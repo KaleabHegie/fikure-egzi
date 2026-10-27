@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="am">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="apple-touch-icon" href="/logo.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbf9f7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#18332a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="robots" content="noindex" />
+    <script>
+      // Apply the saved theme before first paint (no light→dark flash). Mirrors src/lib/theme.tsx.
+      try {
+        var t = localStorage.getItem('fe.theme') || 'system'
+        if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches))
+          document.documentElement.classList.add('dark')
+        document.documentElement.lang = localStorage.getItem('fe.lang') || 'am'
+      } catch (e) {}
+    </script>
+    <title>Fikure Egzi Sunday School · ፍቁረ እግዚእ ሰንበት ትምህርት ቤት</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

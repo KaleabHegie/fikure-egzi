@@ -1,0 +1,18 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+# Prisma generated client
+backend/src/generated/
+# Deployment bundles
+deploy/build/
+*.tsbuildinfo
+backend/uploads/
+backend/uploads-test/

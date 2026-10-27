@@ -1,3 +1,4 @@
+
 name: Deploy to cPanel
 
 on:
@@ -16,6 +17,7 @@ jobs:
   build:
     name: Build release
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,8 +31,6 @@ jobs:
 
       - name: Install dependencies
         env:
-          # Prisma generates its client during npm install and only validates
-          # that a syntactically valid URL exists; it never connects here.
           DATABASE_URL: mysql://build:build@localhost:3306/build
         run: |
           npm ci --prefix backend
@@ -56,6 +56,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: production
+
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -70,7 +71,9 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$CPANEL_SSH_PORT" -H "$CPANEL_SSH_HOST" >> ~/.ssh/known_hosts
+
+          ssh-keyscan -p "$CPANEL_SSH_PORT" -H "$CPANEL_SSH_HOST" \
+            >> ~/.ssh/known_hosts
 
       - name: Upload release bundle
         env:
@@ -89,33 +92,61 @@ jobs:
           CPANEL_API_ROOT: ${{ secrets.CPANEL_API_ROOT }}
           CPANEL_WEB_ROOT: ${{ secrets.CPANEL_WEB_ROOT }}
         run: |
-          ssh -p "$CPANEL_SSH_PORT" "$CPANEL_SSH_USER@$CPANEL_SSH_HOST" \
+          ssh -p "$CPANEL_SSH_PORT" \
+            "$CPANEL_SSH_USER@$CPANEL_SSH_HOST" \
             "bash -s -- '$CPANEL_API_ROOT' '$CPANEL_WEB_ROOT'" <<'REMOTE_SCRIPT'
           set -euo pipefail
+
           api_root="$1"
           web_root="$2"
           release_dir="$HOME/.fikure-egzi-release"
 
+          # Extract the release.
           rm -rf "$release_dir"
           mkdir -p "$release_dir" "$api_root" "$web_root"
           tar -xzf "$HOME/fikure-egzi-release.tar.gz" -C "$release_dir"
 
-          # Uploads stay on the server; they are never overwritten by CI.
+          # Deploy API and frontend files.
+          # Existing uploads outside the release remain untouched.
           cp -R "$release_dir/api/." "$api_root/"
           cp -R "$release_dir/web/." "$web_root/"
 
           cd "$api_root"
-          # cPanel exposes the selected Node version through this per-app venv.
+
+          # Activate the cPanel Node.js environment.
+          # cPanel's activation script may reference unset variables.
+          # Avoid cPanel activation script's CL_VIRTUAL_ENV error.
+          set +u
+          unset CL_VIRTUAL_ENV
           . "$HOME/nodevenv/fikure-api/22/bin/activate"
+          set +u
+
+          # Install production dependencies.
           npm ci --omit=dev
-          # cPanel stores Node application variables in node-selector.json;
-          # non-interactive SSH sessions do not inherit them.
-          database_url="$(node -e 'const fs=require("fs"); const app=JSON.parse(fs.readFileSync(process.env.HOME+"/.cl.selector/node-selector.json")); process.stdout.write(app["fikure-api"].env_vars.DATABASE_URL)')"
+
+          # Read DATABASE_URL from cPanel's Node.js application config.
+          database_url="$(node -e '
+            const fs = require("fs");
+            const path = process.env.HOME + "/.cl.selector/node-selector.json";
+            const config = JSON.parse(fs.readFileSync(path, "utf8"));
+            const value = config["fikure-api"]?.env_vars?.DATABASE_URL;
+
+            if (!value) {
+              console.error("DATABASE_URL is missing from node-selector.json");
+              process.exit(1);
+            }
+
+            process.stdout.write(value);
+          ')"
+
+          # Apply database migrations and seed data.
           DATABASE_URL="$database_url" npx prisma migrate deploy
           DATABASE_URL="$database_url" npm run db:seed
 
-          # Standard cPanel Passenger restart signal.
+          # Restart the application through cPanel Passenger.
           mkdir -p tmp
           touch tmp/restart.txt
+
+          # Remove the uploaded archive after successful deployment.
           rm -f "$HOME/fikure-egzi-release.tar.gz"
           REMOTE_SCRIPT

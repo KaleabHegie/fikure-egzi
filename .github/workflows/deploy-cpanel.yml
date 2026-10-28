@@ -14,8 +14,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: mysql://build:build@localhost:3306/build
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix frontend
+
+      - name: Check API
+        env:
+          DATABASE_URL: mysql://build:build@localhost:3306/build
+        working-directory: backend
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+
+      - name: Check web app
+        working-directory: frontend
+        run: |
+          npm run lint
+          npx tsc -b --noEmit
+          npx vitest run
+
   build:
     name: Build release
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -124,24 +163,34 @@ jobs:
           # Install production dependencies.
           npm ci --omit=dev
 
-          # Read DATABASE_URL from cPanel's Node.js application config.
-          database_url="$(node -e '
+          # Use the environment variables set on cPanel's Node.js application page
+          # (DATABASE_URL, SEED_ADMIN_*, ...), so migrations and the seed see
+          # exactly what the running API sees.
+          eval "$(node -e '
             const fs = require("fs");
             const path = process.env.HOME + "/.cl.selector/node-selector.json";
             const config = JSON.parse(fs.readFileSync(path, "utf8"));
-            const value = config["fikure-api"]?.env_vars?.DATABASE_URL;
+            const vars = config["fikure-api"]?.env_vars ?? {};
 
-            if (!value) {
-              console.error("DATABASE_URL is missing from node-selector.json");
+            if (!vars.DATABASE_URL) {
+              console.error("DATABASE_URL is missing from the cPanel Node.js application");
               process.exit(1);
             }
 
-            process.stdout.write(value);
+            const quote = (v) => "\x27" + String(v).replace(/\x27/g, "\x27\\\x27\x27") + "\x27";
+            for (const [name, value] of Object.entries(vars)) {
+              if (/^[A-Z_][A-Z0-9_]*$/.test(name)) console.log(`export ${name}=${quote(value)}`);
+            }
           ')"
+          : "${DATABASE_URL:?Could not read the cPanel Node.js application settings}"
 
-          # Apply database migrations and seed data.
-          DATABASE_URL="$database_url" npx prisma migrate deploy
-          DATABASE_URL="$database_url" npm run db:seed
+          if [ -z "${SEED_ADMIN_EMAIL:-}" ] || [ -z "${SEED_ADMIN_PASSWORD:-}" ]; then
+            echo "::warning::SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD are not set on the cPanel app; no admin account will be created."
+          fi
+
+          # Apply database migrations and sync roles, permissions and reference data.
+          npx prisma migrate deploy
+          npm run db:seed
 
           # Restart the application through cPanel Passenger.
           mkdir -p tmp

@@ -2,6 +2,7 @@ import { type Control, type FieldPath, type FieldValues, useController } from 'r
 import { useTranslation } from 'react-i18next'
 import { EthDatePicker } from '@/components/common/eth-date-picker'
 import { EthTimePicker } from '@/components/common/eth-time-picker'
+import { PasswordInput } from '@/components/form/password-input'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -59,28 +60,36 @@ export function TextField<T extends FieldValues>({
   description,
   required,
   className,
+  type,
   ...inputProps
 }: TextFieldProps<T>) {
+  // Password fields get a show/hide toggle.
+  const isPassword = type === 'password'
   // Destructured so lint's ref analysis doesn't treat the whole `field` object as a ref.
   const {
     field: { ref, name: fieldName, value: fieldValue, onChange, onBlur },
     fieldState,
   } = useController({ control, name })
   const id = `field-${name}`
+  const shared = {
+    ...inputProps,
+    id,
+    name: fieldName,
+    ref,
+    value: (fieldValue as string | undefined) ?? '',
+    onChange,
+    onBlur,
+    'aria-invalid': fieldState.invalid || undefined,
+    'aria-required': required || undefined,
+  }
   return (
     <Field data-invalid={fieldState.invalid || undefined} className={className}>
       <Label htmlFor={id} label={label} required={required} />
-      <Input
-        {...inputProps}
-        id={id}
-        name={fieldName}
-        ref={ref}
-        value={(fieldValue as string | undefined) ?? ''}
-        onChange={onChange}
-        onBlur={onBlur}
-        aria-invalid={fieldState.invalid || undefined}
-        aria-required={required || undefined}
-      />
+      {isPassword ? (
+        <PasswordInput {...shared} />
+      ) : (
+        <Input {...shared} type={type} />
+      )}
       {description && !fieldState.error && <FieldDescription>{description}</FieldDescription>}
       <TranslatedError message={fieldState.error?.message} />
     </Field>

@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Field, FieldLabel } from '@/components/ui/field'
+import { PasswordInput } from '@/components/form/password-input'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -69,9 +70,8 @@ function PasswordDialog({ user, onClose }: { user: SystemUser; onClose: () => vo
         <form onSubmit={submit} noValidate className="grid gap-4">
           <Field>
             <FieldLabel htmlFor="new-password">{t('users.fields.password')}</FieldLabel>
-            <Input
+            <PasswordInput
               id="new-password"
-              type="password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

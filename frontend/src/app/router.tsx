@@ -104,6 +104,11 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            // Every signed-in user's own account page.
+            path: 'profile',
+            ...page(() => import('@/features/profile/pages/profile-page'), (m) => m.ProfilePage),
+          },
+          {
             path: 'courses',
             children: [
               {

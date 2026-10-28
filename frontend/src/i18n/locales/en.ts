@@ -4,6 +4,8 @@
  */
 export const en = {
   common: {
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
     minutes: 'Minutes',
     hour: 'Hour',
     dayOrNight: 'Day or night',
@@ -51,6 +53,7 @@ export const en = {
   },
   userMenu: {
     signOut: 'Sign out',
+    profile: 'My profile',
     roles: {
       SUPER_ADMIN: 'Office admin',
       DEPARTMENT_ADMIN: 'Department admin',
@@ -859,6 +862,26 @@ export const en = {
       AttendanceSession: 'Attendance session',
       User: 'User',
     },
+  },
+  profile: {
+    title: 'My profile',
+    description: 'Your account details and password.',
+    details: 'Account details',
+    detailsHint: 'Your name and phone are shown to other staff. The email is what you sign in with.',
+    password: 'Password',
+    passwordHint: 'Changing it signs you out on your other devices; this one stays signed in.',
+    member: 'Member record',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    confirmPassword: 'Repeat new password',
+    passwordForEmail: 'Enter your current password to change the email you sign in with.',
+    mismatch: 'The two passwords don’t match',
+    wrongPassword: 'The current password is not correct',
+    samePassword: 'Choose a password different from the current one',
+    save: 'Save changes',
+    saved: 'Profile saved',
+    changePassword: 'Change password',
+    passwordChanged: 'Password changed. Other devices were signed out.',
   },
   courses: {
     title: 'Courses',

@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
@@ -6,8 +6,10 @@ import type { RequestMeta } from '../../common/decorators/request-meta.decorator
 import type { AuthenticatedUser, JwtPayload } from '../../common/types/authenticated-user.js';
 import { AppConfigService } from '../../config/app-config.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthTokensDto } from './dto/auth-response.dto.js';
+import type { ChangePasswordDto, UpdateProfileDto } from './dto/profile.dto.js';
 import { toAuthenticatedUser, USER_WITH_ACCESS } from './user-principal.js';
 
 const INVALID_CREDENTIALS = 'Invalid email or password';
@@ -122,6 +124,121 @@ export class AuthService {
       entityId: user.id,
       ipAddress: meta.ipAddress,
     });
+  }
+
+  // ── Own profile ──────────────────────────────────────────────────────────
+
+  /** The signed-in user's own account details (profile page). */
+  async profile(userId: number) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        lastLoginAt: true,
+        createdAt: true,
+        roles: { select: { role: { select: { code: true, name: true } } } },
+        departments: {
+          select: { department: { select: { id: true, nameEn: true, nameAm: true } } },
+          orderBy: { department: { sortOrder: 'asc' } },
+        },
+        member: {
+          select: {
+            id: true,
+            memberCode: true,
+            firstName: true,
+            fatherName: true,
+            grandfatherName: true,
+          },
+        },
+      },
+    });
+    const { roles, departments, ...rest } = user;
+    return {
+      ...rest,
+      role: roles[0]?.role ?? null,
+      departments: departments.map((d) => d.department),
+    };
+  }
+
+  /** Name, phone and email of one's own account; a new email needs the current password. */
+  async updateProfile(userId: number, dto: UpdateProfileDto, meta: RequestMeta) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { email: true, passwordHash: true },
+    });
+    const emailChanges = dto.email !== undefined && dto.email !== user.email;
+    if (emailChanges) {
+      await this.assertPassword(dto.currentPassword, user.passwordHash);
+      if (await this.prisma.user.count({ where: { email: dto.email } })) {
+        throw new ConflictException({
+          message: 'A user with this email already exists.',
+          code: 'emailTaken',
+        });
+      }
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.fullName && { fullName: dto.fullName }),
+        ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(emailChanges && { email: dto.email }),
+      },
+    });
+    const fields = Object.keys(dto).filter((k) => k !== 'currentPassword');
+    await this.audit.record({
+      userId,
+      action: 'UPDATE',
+      entity: 'User',
+      entityId: userId,
+      changes: { fields, ownProfile: true },
+      ipAddress: meta.ipAddress,
+    });
+    return this.profile(userId);
+  }
+
+  /**
+   * Changes one's own password. Other devices are signed out; this one stays
+   * signed in when it passes its refresh token.
+   */
+  async changePassword(userId: number, dto: ChangePasswordDto, meta: RequestMeta): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+    await this.assertPassword(dto.currentPassword, user.passwordHash);
+    if (await bcrypt.compare(dto.newPassword, user.passwordHash)) {
+      throw new ValidationFailedException([
+        { field: 'newPassword', messages: ['profile.samePassword'] },
+      ]);
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, this.config.auth.bcryptRounds);
+    const keep = dto.refreshToken ? hashToken(dto.refreshToken) : null;
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null, ...(keep && { tokenHash: { not: keep } }) },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    await this.audit.record({
+      userId,
+      action: 'UPDATE',
+      entity: 'User',
+      entityId: userId,
+      changes: { passwordChanged: true, ownProfile: true },
+      ipAddress: meta.ipAddress,
+    });
+  }
+
+  private async assertPassword(password: string | undefined, hash: string): Promise<void> {
+    if (!password || !(await bcrypt.compare(password, hash))) {
+      throw new ValidationFailedException([
+        { field: 'currentPassword', messages: ['profile.wrongPassword'] },
+      ]);
+    }
   }
 
   private async revokeAllForUser(userId: number): Promise<void> {

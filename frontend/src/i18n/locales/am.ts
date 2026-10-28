@@ -3,6 +3,8 @@ import type { Translations } from './en'
 /** Amharic strings. Must mirror en.ts key-for-key (enforced by the type). */
 export const am: Translations = {
   common: {
+    showPassword: 'የይለፍ ቃሉን አሳይ',
+    hidePassword: 'የይለፍ ቃሉን ደብቅ',
     minutes: 'ደቂቃ',
     hour: 'ሰዓት',
     dayOrNight: 'ቀን ወይም ማታ',
@@ -50,6 +52,7 @@ export const am: Translations = {
   },
   userMenu: {
     signOut: 'ውጣ',
+    profile: 'የእኔ መገለጫ',
     roles: {
       SUPER_ADMIN: 'የፅህፈት ቤት አስተዳዳሪ',
       DEPARTMENT_ADMIN: 'የአገልግሎት ክፍል አስተዳዳሪ',
@@ -858,6 +861,26 @@ export const am: Translations = {
       AttendanceSession: 'የአቴንዳንስ ክፍለ ጊዜ',
       User: 'ተጠቃሚ',
     },
+  },
+  profile: {
+    title: 'የእኔ መገለጫ',
+    description: 'የመለያዎ መረጃና የይለፍ ቃል።',
+    details: 'የመለያ መረጃ',
+    detailsHint: 'ስምዎና ስልክዎ ለሌሎች ሠራተኞች ይታያሉ። ኢሜይሉ የሚገቡበት ነው።',
+    password: 'የይለፍ ቃል',
+    passwordHint: 'ሲቀይሩት በሌሎች መሣሪያዎች ይወጣሉ፤ በዚህኛው እንደገቡ ይቆያሉ።',
+    member: 'የአባልነት መዝገብ',
+    currentPassword: 'የአሁኑ የይለፍ ቃል',
+    newPassword: 'አዲስ የይለፍ ቃል',
+    confirmPassword: 'አዲሱን የይለፍ ቃል ይድገሙ',
+    passwordForEmail: 'የሚገቡበትን ኢሜይል ለመቀየር የአሁኑን የይለፍ ቃል ያስገቡ።',
+    mismatch: 'ሁለቱ የይለፍ ቃሎች አይመሳሰሉም',
+    wrongPassword: 'የአሁኑ የይለፍ ቃል ትክክል አይደለም',
+    samePassword: 'ከአሁኑ የተለየ የይለፍ ቃል ይምረጡ',
+    save: 'ለውጦቹን አስቀምጥ',
+    saved: 'መገለጫው ተቀምጧል',
+    changePassword: 'የይለፍ ቃል ቀይር',
+    passwordChanged: 'የይለፍ ቃሉ ተቀይሯል። ሌሎች መሣሪያዎች ወጥተዋል።',
   },
   courses: {
     title: 'ኮርሶች',

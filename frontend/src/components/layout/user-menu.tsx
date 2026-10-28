@@ -1,4 +1,4 @@
-import { LogOut } from 'lucide-react'
+import { LogOut, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -45,6 +45,10 @@ export function UserMenu() {
           <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate('/profile')}>
+          <UserRound />
+          {t('userMenu.profile')}
+        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={async () => {
             await logout()

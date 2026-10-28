@@ -16,10 +16,10 @@ echo "› Building API"
 (cd backend && npm run -s prisma:generate && npm run -s build)
 cp -r backend/dist backend/prisma backend/prisma.config.ts backend/package.json \
   backend/package-lock.json backend/app.cjs backend/.env.example "$OUT/api/"
-mkdir -p "$OUT/api/src/common/auth" "$OUT/api/src/prisma"
-# The seed script imports these from src/ (run via tsx on the server).
-cp backend/src/common/auth/permissions.ts "$OUT/api/src/common/auth/"
-cp backend/src/prisma/database-url.ts "$OUT/api/src/prisma/"
+# The seed script (run via tsx on the server) imports modules from src/;
+# ship the sources so it never misses one. The Prisma client under
+# src/generated is rebuilt by `npm ci` (postinstall) on the server.
+rsync -a --exclude generated backend/src "$OUT/api/"
 
 echo "› Building web (API: $VITE_API_BASE_URL)"
 (cd frontend && VITE_API_BASE_URL="$VITE_API_BASE_URL" npm run -s build)

@@ -47,7 +47,7 @@ export function RunDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  course: Pick<Course, 'id' | 'duration' | 'nameAm' | 'nameEn'>
+  course: Pick<Course, 'id' | 'duration' | 'nameAm' | 'nameEn' | 'departmentId'>
   run?: CourseRun
   onSave: (input: RunInput) => Promise<void>
 }) {
@@ -75,7 +75,10 @@ export function RunDialog({
   }, [run, suggestedEnd, form, setValue])
   const teacherError = form.formState.errors.teacherIds?.message
 
-  const grades = (classTypes ?? []).flatMap((ct) =>
+  // Only the classes the course's department runs (a run keeps the grade it already has).
+  const grades = (classTypes ?? [])
+    .filter((ct) => ct.departmentId === course.departmentId || ct.grades.some((g) => g.id === run?.classGradeId))
+    .flatMap((ct) =>
     ct.grades.filter((g) => g.isActive || g.id === run?.classGradeId).map((g) => ({
       value: String(g.id),
       label: `${name(ct)} · ${name(g)}`,
@@ -117,7 +120,7 @@ export function RunDialog({
             control={control}
             name="classGradeId"
             label={t('courses.runs.grade')}
-            description={t('courses.runs.gradeHint')}
+            description={grades.length === 0 && classTypes ? t('courses.runs.noGrades') : t('courses.runs.gradeHint')}
             required
             options={grades}
           />

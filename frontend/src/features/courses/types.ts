@@ -118,6 +118,24 @@ export interface ScoreInput {
   score: number | null
 }
 
+/** A run the member teaches (current or upcoming). */
+export interface MemberTeachingRun {
+  id: number
+  course: CourseRun['course']
+  classGrade: CourseRun['classGrade']
+  startDate: string
+  endDate: string
+  phase: RunPhase
+  teachers: Teacher[]
+  students: number
+}
+
+/** GET /courses/member/:id and /portal/me/courses. */
+export interface MemberCourses {
+  taking: MemberCourseResult[]
+  teaching: MemberTeachingRun[]
+}
+
 export interface MemberCourseResult {
   id: number
   course: CourseRun['course']

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
 import { env } from '@/config/env'
 import type { MemberAttendanceSummary } from '@/features/attendance/types'
+import type { MemberCourses } from '@/features/courses/types'
 import type { Member } from '@/features/members/types'
 import type { ApiEnvelope } from '@/lib/api/types'
 
@@ -60,6 +61,7 @@ export const portalApi = {
       .get<ApiEnvelope<MemberAttendanceSummary>>('/portal/me/attendance', { params: range })
       .then((r) => r.data.data),
   photo: () => portalHttp.get<Blob>('/portal/me/photo', { responseType: 'blob' }).then((r) => r.data),
+  courses: () => portalHttp.get<ApiEnvelope<MemberCourses>>('/portal/me/courses').then((r) => r.data.data),
 }
 
 export function usePortalMember() {

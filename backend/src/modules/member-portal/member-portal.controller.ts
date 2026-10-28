@@ -15,6 +15,7 @@ import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { ReqMeta, type RequestMeta } from '../../common/decorators/request-meta.decorator.js';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator.js';
+import { CoursesService } from '../courses/courses.service.js';
 import { MemberPortalGuard, type PortalRequest } from './member-portal.guard.js';
 import { MemberPortalService } from './member-portal.service.js';
 
@@ -39,7 +40,10 @@ const valid = (d?: string) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefine
 @Controller({ path: 'portal', version: '1' })
 @Public()
 export class MemberPortalController {
-  constructor(private readonly portal: MemberPortalService) {}
+  constructor(
+    private readonly portal: MemberPortalService,
+    private readonly courses: CoursesService,
+  ) {}
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -63,6 +67,14 @@ export class MemberPortalController {
   @ApiQuery({ name: 'to', required: false })
   attendance(@Req() req: PortalRequest, @Query('from') from?: string, @Query('to') to?: string) {
     return this.portal.attendance(req.portalMemberId!, valid(from), valid(to));
+  }
+
+  /** Courses the member is taking (with marks) and, for teachers, the ones they teach now. */
+  @Get('me/courses')
+  @UseGuards(MemberPortalGuard)
+  @ApiBearerAuth()
+  courseList(@Req() req: PortalRequest) {
+    return this.courses.memberCourses(req.portalMemberId!);
   }
 
   @Get('me/photo')

@@ -1,4 +1,4 @@
-import { ClipboardList, ListChecks, Pencil, Trash2 } from 'lucide-react'
+import { ClipboardList, FileSpreadsheet, ListChecks, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router'
@@ -17,6 +17,7 @@ import { PERMISSIONS } from '@/lib/permissions'
 import { coursesApi, useCourseMutation, useGradebook } from '../api'
 import { AssessmentsDialog } from '../components/assessments-dialog'
 import { PhaseBadge } from '../components/course-badges'
+import { MarksImportDialog } from '../components/marks-import-dialog'
 import { MarksSheet } from '../components/marks-sheet'
 import { RunDialog } from '../components/run-dialog'
 
@@ -40,6 +41,7 @@ export function RunPage() {
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [assessing, setAssessing] = useState(false)
+  const [importing, setImporting] = useState(false)
   const updateRun = useCourseMutation((input: Parameters<typeof coursesApi.updateRun>[1]) => coursesApi.updateRun(id, input))
   const removeRun = useCourseMutation(() => coursesApi.removeRun(id))
   const setAssessments = useCourseMutation((list: Parameters<typeof coursesApi.setAssessments>[1]) =>
@@ -81,6 +83,12 @@ export function RunPage() {
               <Button variant="outline" onClick={() => setAssessing(true)}>
                 <ListChecks />
                 {t('courses.assessments.title')}
+              </Button>
+            )}
+            {canMark && run.assessments.length > 0 && (
+              <Button variant="outline" onClick={() => setImporting(true)}>
+                <FileSpreadsheet />
+                {t('courses.import.button')}
               </Button>
             )}
             {canManage && (
@@ -160,6 +168,7 @@ export function RunPage() {
         </section>
       )}
 
+      <MarksImportDialog runId={id} open={importing} onOpenChange={setImporting} />
       <AssessmentsDialog
         open={assessing}
         onOpenChange={setAssessing}

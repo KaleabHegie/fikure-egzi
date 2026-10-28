@@ -8,6 +8,7 @@ import { BrandMark } from '@/components/layout/brand-mark'
 import { LanguageSwitch, ThemeToggle } from '@/components/layout/preferences'
 import { Button } from '@/components/ui/button'
 import { MemberAttendancePanel } from '@/features/attendance/components/member-attendance-panel'
+import { MemberCoursesPanel } from '@/features/courses/components/member-courses-panel'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { RoleBadge } from '@/features/departments/components/role-badge'
 import { useMemberLabels } from '@/features/members/labels'
@@ -182,6 +183,7 @@ export function PortalHomePage() {
               </ul>
             )}
           </Card>
+          <MemberCoursesPanel memberId={m.id} load={portalApi.courses} linkRuns={false} />
           <MemberAttendancePanel memberId={m.id} load={portalApi.attendance} linkSessions={false} />
         </div>
       </main>

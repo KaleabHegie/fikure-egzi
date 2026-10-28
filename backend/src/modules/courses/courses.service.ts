@@ -302,7 +302,7 @@ export class CoursesService {
     if (!course.isActive) {
       throw new ValidationFailedException([{ field: 'courseId', messages: ['courses.inactive'] }]);
     }
-    const data = await this.offeringData(dto, course.duration, actor);
+    const data = await this.offeringData(dto, course, actor);
     await this.assertNoOverlap(dto.courseId, data.classGradeId, data.startDate, data.endDate);
     const row = await this.prisma.courseOffering.create({
       data: {
@@ -342,8 +342,9 @@ export class CoursesService {
         endDate: dto.endDate ?? (dto.startDate ? undefined : isoDate(current.endDate)),
         teacherIds: dto.teacherIds ?? current.teachers.map((t) => t.user.id),
       },
-      current.course.duration,
+      current.course,
       actor,
+      current.classGradeId,
     );
     await this.assertNoOverlap(
       current.courseId,
@@ -585,10 +586,62 @@ export class CoursesService {
     this.assertCanMark(actor, run);
   }
 
-  /** A member's course results (member detail page). */
-  async memberResults(memberId: number) {
+  /**
+   * A member's courses (member detail page and the member portal):
+   * `taking` — runs they have marks in, plus current and upcoming runs of the
+   * class grades they're in; `teaching` — current and upcoming runs they teach.
+   */
+  async memberCourses(memberId: number) {
+    const now = today();
+    const [taking, teaching] = await Promise.all([
+      this.memberResults(memberId, now),
+      this.prisma.courseOffering.findMany({
+        where: {
+          endDate: { gte: now },
+          teachers: { some: { user: { memberId, isActive: true } } },
+        },
+        select: {
+          ...OFFERING_SELECT,
+          classGrade: {
+            select: {
+              ...NAME,
+              classType: { select: NAME },
+              _count: { select: { enrollments: true } },
+            },
+          },
+        },
+        orderBy: { startDate: 'asc' },
+      }),
+    ]);
+    return {
+      taking,
+      teaching: teaching.map((run) => {
+        const offering = toOffering(run);
+        return {
+          id: run.id,
+          course: run.course,
+          classGrade: run.classGrade,
+          startDate: run.startDate,
+          endDate: run.endDate,
+          phase: offering.phase,
+          teachers: offering.teachers,
+          students: run.classGrade._count.enrollments,
+        };
+      }),
+    };
+  }
+
+  private async memberResults(memberId: number, now: Date) {
     const runs = await this.prisma.courseOffering.findMany({
-      where: { assessments: { some: { scores: { some: { memberId } } } } },
+      where: {
+        OR: [
+          { assessments: { some: { scores: { some: { memberId } } } } },
+          {
+            endDate: { gte: now },
+            classGrade: { enrollments: { some: { memberId, member: { deletedAt: null } } } },
+          },
+        ],
+      },
       select: {
         ...OFFERING_SELECT,
         assessments: {
@@ -703,16 +756,24 @@ export class CoursesService {
   /** Validates grade, dates and teachers of a run. */
   private async offeringData(
     dto: { classGradeId?: number; startDate?: string; endDate?: string; teacherIds?: number[] },
-    duration: CourseDuration,
+    course: { duration: CourseDuration; departmentId: number },
     actor: AuthenticatedUser,
+    currentGradeId?: number,
   ) {
+    const { duration } = course;
     const grade = await this.prisma.classGrade.findUnique({
       where: { id: dto.classGradeId ?? 0 },
-      select: { id: true },
+      select: { id: true, classType: { select: { departmentId: true } } },
     });
     if (!grade) {
       throw new ValidationFailedException([
         { field: 'classGradeId', messages: ['Unknown class grade'] },
+      ]);
+    }
+    // A course is taught to the classes of its own department (a run keeps the grade it already has).
+    if (grade.classType.departmentId !== course.departmentId && grade.id !== currentGradeId) {
+      throw new ValidationFailedException([
+        { field: 'classGradeId', messages: ['courses.gradeOutsideDepartment'] },
       ]);
     }
     const start = dto.startDate!;

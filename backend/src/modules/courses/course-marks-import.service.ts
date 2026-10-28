@@ -12,12 +12,7 @@ const SHEET_MARKER = 'fikure-egzi-course-marks';
 const EXTRA_ROWS = 40;
 
 export type MarkIssueCode =
-  | 'required'
-  | 'unknownMember'
-  | 'duplicateMember'
-  | 'notStudent'
-  | 'invalidNumber'
-  | 'overMax';
+  'required' | 'unknownMember' | 'duplicateMember' | 'notStudent' | 'invalidNumber' | 'overMax';
 
 export interface MarkIssue {
   /** 'code', or the assessment's name. */
@@ -193,7 +188,11 @@ export class CourseMarksImportService {
       else if (memberId === undefined) {
         errors.push({ column: 'code', code: 'notStudent', params: { value: code } });
       } else if (seen.has(memberId)) {
-        errors.push({ column: 'code', code: 'duplicateMember', params: { row: seen.get(memberId)! } });
+        errors.push({
+          column: 'code',
+          code: 'duplicateMember',
+          params: { row: seen.get(memberId)! },
+        });
       } else seen.set(memberId, r);
 
       const rowScores: Score[] = [];

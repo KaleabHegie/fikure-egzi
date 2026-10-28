@@ -1,5 +1,6 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
+import ExcelJS from 'exceljs';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
@@ -155,6 +156,31 @@ describe('Courses (e2e)', () => {
     const run = runRes.body.data;
     expect(run.endDate.slice(0, 10)).toBe('2026-12-09');
     expect(run.teachers.map((t: { id: number }) => t.id)).toEqual([teacher.id]);
+    // Only classes of the course's department can take it.
+    const mezmurType = await prisma.classType.upsert({
+      where: { code: 'E2E_COURSES_MEZMUR' },
+      update: {},
+      create: {
+        code: 'E2E_COURSES_MEZMUR',
+        nameEn: 'Mezmur course test',
+        nameAm: 'የመዝሙር ሙከራ',
+        isActive: false,
+        departmentId: mezmur.id,
+      },
+    });
+    const mezmurGrade = await prisma.classGrade.create({
+      data: { classTypeId: mezmurType.id, code: `MZ${Date.now() % 1e6}`, nameEn: 'M', nameAm: 'መ' },
+    });
+    await request(http)
+      .post('/api/v1/course-runs')
+      .set(as(admin))
+      .send({
+        courseId: course.id,
+        classGradeId: mezmurGrade.id,
+        startDate: '2030-01-01',
+        teacherIds: [teacher.id],
+      })
+      .expect(422);
     // The same course can't run twice for a grade at once.
     await request(http)
       .post('/api/v1/course-runs')
@@ -265,7 +291,79 @@ describe('Courses (e2e)', () => {
     const results = (
       await request(http).get(`/api/v1/courses/member/${abel}`).set(as(admin)).expect(200)
     ).body.data;
-    expect(results[0]).toMatchObject({ total: 83, result: 'PASS', course: { id: course.id } });
+    expect(results.taking.find((r: { id: number }) => r.id === run.id)).toMatchObject({
+      total: 83,
+      result: 'PASS',
+      course: { id: course.id },
+    });
+    // The teacher's member record lists the runs they teach now (not finished ones).
+    const teacherCourses = (
+      await request(http).get(`/api/v1/courses/member/${teacherMember}`).set(as(admin)).expect(200)
+    ).body.data;
+    expect(teacherCourses.teaching.map((r: { id: number }) => r.id)).toContain(run.id);
+
+    // Marks can also come from the run's Excel sheet: blank cells keep marks, bad cells block the save.
+    const binary = (res: request.Response, cb: (err: Error | null, body: Buffer) => void) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    };
+    const sheetRes = await request(http)
+      .get(`/api/v1/course-runs/${run.id}/marks/sheet?lang=en`)
+      .set(as(t))
+      .buffer(true)
+      .parse(binary)
+      .expect(200);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(sheetRes.body as unknown as ArrayBuffer);
+    const ws = wb.getWorksheet('Marks')!;
+    expect(ws.getRow(1).getCell(3).value).toBe('Quiz (/20)');
+    const abelCode = (await prisma.member.findUniqueOrThrow({ where: { id: abel } })).memberCode;
+    let abelRow = 0;
+    ws.eachRow((row, n) => {
+      if (row.getCell(1).value === abelCode) abelRow = n;
+    });
+    expect(ws.getRow(abelRow).getCell(4).value).toBe(25);
+    const upload = async (edit: (sheet: ExcelJS.Worksheet) => void) => {
+      edit(ws);
+      return Buffer.from(await wb.xlsx.writeBuffer());
+    };
+    const bad = await upload((sheet) => {
+      sheet.getRow(abelRow).getCell(4).value = 26;
+      sheet.getRow(abelRow + 1).getCell(5).value = 999;
+    });
+    const badPreview = (
+      await request(http)
+        .post(`/api/v1/course-runs/${run.id}/marks/sheet/preview`)
+        .set(as(t))
+        .attach('file', bad, 'marks.xlsx')
+        .expect(200)
+    ).body.data;
+    expect(badPreview.errorRows).toBe(1);
+    await request(http)
+      .put(`/api/v1/course-runs/${run.id}/marks/sheet`)
+      .set(as(t))
+      .attach('file', bad, 'marks.xlsx')
+      .expect(422);
+    const good = await upload((sheet) => {
+      sheet.getRow(abelRow + 1).getCell(5).value = null;
+    });
+    const saved = (
+      await request(http)
+        .put(`/api/v1/course-runs/${run.id}/marks/sheet`)
+        .set(as(t))
+        .attach('file', good, 'marks.xlsx')
+        .expect(200)
+    ).body.data;
+    expect(saved.saved).toBeGreaterThan(0);
+    const afterImport = (
+      await request(http).get(`/api/v1/course-runs/${run.id}/marks`).set(as(t)).expect(200)
+    ).body.data;
+    expect(
+      afterImport.students.find((s: { member: { id: number } }) => s.member.id === abel),
+    ).toMatchObject({ total: 84, result: 'PASS' });
+    // Another teacher can't download this run's sheet.
+    await request(http).get(`/api/v1/course-runs/${run.id}/marks/sheet`).set(as(o)).expect(404);
 
     // Once a run is closed, teachers retain read access but only the department admin can amend it.
     await prisma.courseOffering.update({

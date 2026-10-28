@@ -49,7 +49,7 @@ export class CoursesController {
   @Get('member/:memberId')
   @RequirePermissions(PERMISSIONS.MEMBERS_READ)
   memberResults(@Param('memberId', ParseIntPipe) memberId: number) {
-    return this.courses.memberResults(memberId);
+    return this.courses.memberCourses(memberId);
   }
 
   @Get(':id')

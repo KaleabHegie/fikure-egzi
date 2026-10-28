@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:phone": "DEV_PHONE=1 vite",
     "build": "tsc -b && vite build",
-    "android:sync": "npm run build && npx cap sync android",
+    "android:sync": "VITE_API_BASE_URL=${ANDROID_API_URL:-https://api.fikureegzi4.com/api/v1} npm run build && npx cap sync android",
     "android:open": "npx cap open android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "preview": "vite preview --port 5180",

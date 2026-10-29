@@ -88,10 +88,11 @@ export class TelegramApi {
     filename: string,
     caption: string,
     replyMarkup?: ReplyMarkup,
+    mime = 'image/png',
   ) {
     const form = new FormData();
     form.append('chat_id', String(chatId));
-    form.append('photo', new Blob([new Uint8Array(photo)], { type: 'image/png' }), filename);
+    form.append('photo', new Blob([new Uint8Array(photo)], { type: mime }), filename);
     form.append('caption', caption);
     form.append('parse_mode', 'HTML');
     if (replyMarkup) form.append('reply_markup', JSON.stringify(replyMarkup));

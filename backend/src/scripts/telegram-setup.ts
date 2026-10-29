@@ -46,17 +46,17 @@ async function main() {
     drop_pending_updates: false,
   });
   if (!ok) throw new Error('setWebhook failed');
-  // Amharic is the default; English for Telegram apps set to English.
-  for (const [lang, code] of [
-    ['am', undefined],
-    ['en', 'en'],
-  ] as const) {
-    const scope = code ? { language_code: code } : {};
-    await call('setMyCommands', { commands: COMMANDS[lang], ...scope });
-    await call('setMyName', { name: BOT_PROFILE[lang].name, ...scope });
-    await call('setMyDescription', { description: BOT_PROFILE[lang].description, ...scope });
-    await call('setMyShortDescription', { short_description: BOT_PROFILE[lang].short, ...scope });
-  }
+  // Amharic for everyone, whatever language their Telegram app uses.
+  await call('setMyCommands', { commands: COMMANDS.am });
+  await call('setMyName', { name: BOT_PROFILE.am.name });
+  await call('setMyDescription', { description: BOT_PROFILE.am.description });
+  await call('setMyShortDescription', { short_description: BOT_PROFILE.am.short });
+  // Clear English versions set by earlier releases, so English-language apps see Amharic too.
+  const en = { language_code: 'en' };
+  await call('deleteMyCommands', { scope: { type: 'default' }, ...en });
+  await call('setMyName', { name: '', ...en });
+  await call('setMyDescription', { description: '', ...en });
+  await call('setMyShortDescription', { short_description: '', ...en });
 }
 
 main().catch((error: unknown) => {

@@ -95,11 +95,8 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     if (message.chat.type !== 'private' || !message.from) return;
     const chatId = BigInt(message.chat.id);
     const link = await this.prisma.telegramLink.findUnique({ where: { chatId } });
-    const lang: BotLang = link
-      ? toLang(link.language)
-      : message.from.language_code?.startsWith('en')
-        ? 'en'
-        : 'am';
+    // Amharic for everyone until they switch with 🌐.
+    const lang: BotLang = link ? toLang(link.language) : 'am';
 
     if (message.contact) return this.onContact(message, lang, link);
     if (!link) return this.welcome(chatId, lang);
@@ -258,8 +255,7 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
   private async welcome(chatId: bigint, lang: BotLang) {
     const caption = TEXT[lang].welcome(BRAND[lang]);
     const seal = await this.sealImage();
-    if (seal)
-      return this.api.sendPhoto(chatId, seal, 'fikure-egzi.png', caption, shareKeyboard(lang));
+    if (seal) return this.api.sendPhoto(chatId, seal.data, seal.name, caption, shareKeyboard(lang));
     return this.api.sendMessage(chatId, caption, shareKeyboard(lang));
   }
 
@@ -277,38 +273,110 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
 
   // ── Screens ──────────────────────────────────────────────────────────────
 
+  /** The member's card: their photo (or the seal) with their details laid out by section. */
   private async profile(link: Link, who: PhoneMember, count: number, lang: BotLang) {
     const t = TEXT[lang];
+    const p = t.profile;
+    const sep = lang === 'am' ? '፦' : ':';
     const m = await this.members.findOne(who.id);
     const name = (x: { nameAm: string; nameEn: string }) => (lang === 'am' ? x.nameAm : x.nameEn);
     const group = await this.prisma.serviceGroupMember.findFirst({
       where: { memberId: who.id, term: { isCurrent: true } },
       select: { group: { select: { nameAm: true, nameEn: true } } },
     });
-    const line = (label: string, value: unknown) =>
-      `<b>${label}:</b> ${esc(value || t.profile.none)}`;
-    const lines = [
-      `${t.profile.title}`,
-      `<b>${esc(fullName(m))}</b>`,
-      '',
-      line(t.profile.code, m.memberCode),
-      line(t.profile.christianName, m.christianName),
-      line(t.profile.gender, t.gender[m.gender]),
-      line(t.profile.birth, m.dateOfBirth ? ecDate(m.dateOfBirth, lang) : null),
-      line(t.profile.phone, m.phone),
-      line(t.profile.status, t.memberStatus[m.status]),
-      line(t.profile.joined, m.joinedAt ? ecDate(m.joinedAt, lang) : null),
-      line(
-        t.profile.classes,
-        m.classes.map((c) => `${name(c.classType)} · ${name(c.classGrade)}`).join('، '),
-      ),
-      line(
-        t.profile.departments,
-        m.departments.map((d) => `${name(d.department)} (${t.roles[d.role] ?? d.role})`).join('، '),
-      ),
-      ...(group ? [line(t.profile.group, name(group.group))] : []),
+    const age = m.dateOfBirth ? yearsSince(m.dateOfBirth) : null;
+    const address = [
+      m.houseNumber && `${p.house} ${m.houseNumber}`,
+      m.woreda && `${p.woreda} ${m.woreda}`,
+      m.subCity,
+      m.city,
+    ]
+      .filter(Boolean)
+      .join(lang === 'am' ? '፣ ' : ', ');
+    const row = (icon: string, label: string, value: string | null | undefined) =>
+      value ? `${icon} ${label}${sep} <b>${esc(value)}</b>` : null;
+
+    const identity = [
+      `🪪 <b>${p.card}</b>`,
+      DIVIDER,
+      `👤 <b>${esc(fullName(m))}</b>`,
+      m.christianName ? `✝️ ${p.christianName}${sep} <b>${esc(m.christianName)}</b>` : null,
+      `🆔 <code>${esc(m.memberCode)}</code>   ${m.status === 'ACTIVE' ? '🟢' : '⚪'} ${t.memberStatus[m.status] ?? m.status}`,
     ];
-    return this.api.sendMessage(link.chatId, lines.join('\n'), menu(lang, count));
+    const personal = [
+      row(m.gender === 'FEMALE' ? '👩' : '👨', p.gender, t.gender[m.gender]),
+      row(
+        '🎂',
+        p.birth,
+        m.dateOfBirth
+          ? `${ecDate(m.dateOfBirth, lang)}${age !== null ? ` (${p.age(age)})` : ''}`
+          : null,
+      ),
+      row('📍', p.birthPlace, m.placeOfBirth),
+      row('🗓', p.joined, m.joinedAt ? ecDate(m.joinedAt, lang) : null),
+    ];
+    const contact = [
+      row('📞', p.phone, m.phone ? prettyPhone(m.phone) : null),
+      row('✉️', p.email, m.email),
+      row('🏠', p.address, address || null),
+    ];
+    const classes = [
+      `📚 <b>${p.classes}</b>`,
+      ...(m.classes.length
+        ? m.classes.map((c) => `   ▸ ${esc(name(c.classType))} — <b>${esc(name(c.classGrade))}</b>`)
+        : [`   ${p.none}`]),
+    ];
+    const service = [
+      `⛪ <b>${p.departments}</b>`,
+      ...(m.departments.length
+        ? m.departments.map(
+            (d) => `   ▸ ${esc(name(d.department))} · <i>${t.roles[d.role] ?? d.role}</i>`,
+          )
+        : [`   ${p.none}`]),
+      group ? `🎶 ${p.group}${sep} <b>${esc(name(group.group))}</b>` : null,
+    ];
+    const card = [identity, personal, contact, classes, service, [DIVIDER, `<i>${BRAND[lang]}</i>`]]
+      .map((lines) => lines.filter((l): l is string => Boolean(l)))
+      .filter((lines) => lines.length > 0)
+      .map((lines) => lines.join('\n'))
+      .join('\n\n');
+
+    const photo = (await this.memberPhoto(who.id)) ?? (await this.sealImage());
+    // Telegram captions hold 1024 characters; a longer card goes in its own message.
+    if (photo && card.length <= 1024) {
+      return this.api.sendPhoto(
+        link.chatId,
+        photo.data,
+        photo.name,
+        card,
+        menu(lang, count),
+        photo.mime,
+      );
+    }
+    if (photo) {
+      await this.api.sendPhoto(
+        link.chatId,
+        photo.data,
+        photo.name,
+        `👤 <b>${esc(fullName(m))}</b>`,
+        undefined,
+        photo.mime,
+      );
+    }
+    return this.api.sendMessage(link.chatId, card, menu(lang, count));
+  }
+
+  private async memberPhoto(
+    memberId: number,
+  ): Promise<{ data: Buffer; name: string; mime: string } | null> {
+    try {
+      const { stream, mime } = await this.members.openPhoto(memberId);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream as AsyncIterable<Buffer>) chunks.push(Buffer.from(chunk));
+      return { data: Buffer.concat(chunks), name: `member-${memberId}`, mime };
+    } catch {
+      return null;
+    }
   }
 
   private async attendanceReport(link: Link, who: PhoneMember, count: number, lang: BotLang) {
@@ -405,11 +473,10 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
 
   // ── Plumbing ─────────────────────────────────────────────────────────────
 
-  private async sealImage(): Promise<Buffer | null> {
-    if (this.seal) return this.seal;
+  private async sealImage(): Promise<{ data: Buffer; name: string; mime: string } | null> {
     try {
-      this.seal = await readFile(resolve(process.cwd(), 'assets', 'telegram-seal.png'));
-      return this.seal;
+      this.seal ??= await readFile(resolve(process.cwd(), 'assets', 'telegram-seal.png'));
+      return { data: this.seal, name: 'fikure-egzi.png', mime: 'image/png' };
     } catch {
       return null;
     }
@@ -440,6 +507,21 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
 }
 
 const toLang = (value: string): BotLang => (value === 'en' ? 'en' : 'am');
+
+const DIVIDER = '━━━━━━━━━━━━━━━';
+
+/** 0969146494 → 0969 14 64 94 */
+const prettyPhone = (phone: string) =>
+  phone.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})$/, '$1 $2 $3 $4');
+
+function yearsSince(date: Date | string): number {
+  const born = new Date(date);
+  const now = new Date();
+  const beforeBirthday =
+    now.getUTCMonth() < born.getUTCMonth() ||
+    (now.getUTCMonth() === born.getUTCMonth() && now.getUTCDate() < born.getUTCDate());
+  return now.getUTCFullYear() - born.getUTCFullYear() - (beforeBirthday ? 1 : 0);
+}
 
 function shareKeyboard(lang: BotLang): ReplyMarkup {
   return {

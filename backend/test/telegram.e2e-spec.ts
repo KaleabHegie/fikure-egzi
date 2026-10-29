@@ -66,7 +66,8 @@ describe('Telegram bot (e2e)', () => {
       .send({ update_id: updateId++, ...body });
   const userId = 700_000_000 + Math.floor(Math.random() * 1e6);
   const chat = { id: userId, type: 'private' };
-  const from = { id: userId, first_name: 'Test' };
+  // An English-language Telegram app still gets Amharic by default.
+  const from = { id: userId, first_name: 'Test', language_code: 'en' };
   const say = (text: string) => post({ message: { message_id: 1, chat, from, text } }).expect(200);
   const share = (phone: string, contactUser = userId) =>
     post({
@@ -130,6 +131,9 @@ describe('Telegram bot (e2e)', () => {
 
     // Read-only screens.
     await say('👤 መረጃዬ');
+    // The card: a photo (the seal when the member has none) with the details as caption.
+    expect(last()).toMatchObject({ method: 'sendPhoto' });
+    expect(last().text).toContain('የአባልነት መታወቂያ');
     expect(last().text).toContain(bethel.memberCode);
     await say('/attendance');
     expect(last().text).toContain('📅');
@@ -141,7 +145,7 @@ describe('Telegram bot (e2e)', () => {
     await say('/language');
     expect(last().text).toContain('English');
     await say('👤 My details');
-    expect(last().text).toContain('Membership details');
+    expect(last().text).toContain('Membership card');
 
     // Group chats are ignored (personal data).
     const before = sent.length;

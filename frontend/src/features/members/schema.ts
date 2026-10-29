@@ -64,6 +64,7 @@ const memberFields = z.object({
 
   educationLevel: optionalEnum(EDUCATION_LEVELS),
   occupation: optionalText(100),
+  spiritualFatherName: optionalText(150),
 
   emergencyContactName: optionalText(150),
   emergencyContactPhone: optionalPhone,
@@ -103,6 +104,7 @@ export const emptyMemberForm = (): MemberFormValues => ({
   houseNumber: '',
   educationLevel: '',
   occupation: '',
+  spiritualFatherName: '',
   emergencyContactName: '',
   emergencyContactPhone: '',
   emergencyContactRelation: '',
@@ -132,6 +134,7 @@ export function memberToForm(m: Member): MemberFormValues {
     houseNumber: s(m.houseNumber),
     educationLevel: m.educationLevel ?? '',
     occupation: s(m.occupation),
+    spiritualFatherName: s(m.spiritualFatherName),
     emergencyContactName: s(m.emergencyContactName),
     emergencyContactPhone: s(m.emergencyContactPhone),
     emergencyContactRelation: s(m.emergencyContactRelation),

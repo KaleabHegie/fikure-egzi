@@ -320,6 +320,8 @@ export const en = {
       },
     },
     detail: {
+      memberSince: 'Member since {{date}}',
+      service: 'Service',
       house: 'House {{value}}',
       kebele: 'Kebele {{value}}',
       woreda: 'Woreda {{value}}',

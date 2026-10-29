@@ -319,6 +319,8 @@ export const am: Translations = {
       },
     },
     detail: {
+      memberSince: 'ከ{{date}} ጀምሮ አባል',
+      service: 'አገልግሎት',
       house: 'የቤት ቁ. {{value}}',
       kebele: 'ቀበሌ {{value}}',
       woreda: 'ወረዳ {{value}}',

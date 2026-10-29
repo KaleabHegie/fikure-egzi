@@ -3,13 +3,18 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/karla";
 @import "@fontsource-variable/noto-sans-ethiopic";
+/* Member names on the record card: a Ge'ez manuscript serif, Latin falls back to Noto Serif. */
+@import "@fontsource-variable/noto-serif-ethiopic";
+@import "@fontsource-variable/noto-serif";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: 'Karla Variable', 'Noto Sans Ethiopic Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-record: 'Noto Serif Ethiopic Variable', 'Noto Serif Variable', ui-serif, Georgia, serif;
     --color-gold: var(--gold);
+    --color-gilt-ink: var(--gilt-ink);
     --color-brand: var(--brand);
     --color-brand-foreground: var(--brand-foreground);
     --color-success: var(--success);
@@ -76,6 +81,8 @@
     --input: oklch(0.88 0.014 120);
     --ring: oklch(0.46 0.14 144 / 55%);
     --gold: oklch(0.76 0.1 75);
+    /* Gilt dark enough to read as text (the brand gilt is decorative only). */
+    --gilt-ink: oklch(0.52 0.09 70);
     --success: oklch(0.52 0.12 155);
     --warning: oklch(0.68 0.14 70);
     --chart-1: oklch(0.46 0.14 144);
@@ -118,6 +125,8 @@
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.7 0.15 145 / 55%);
     --gold: oklch(0.8 0.11 78);
+    /* Gilt dark enough to read as text (the brand gilt is decorative only). */
+    --gilt-ink: oklch(0.84 0.1 80);
     --success: oklch(0.74 0.14 150);
     --warning: oklch(0.8 0.13 75);
     --chart-1: #4fa85e; /* validated: L 0.48–0.67 band, ≥3:1 on dark surface */

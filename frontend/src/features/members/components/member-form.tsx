@@ -132,6 +132,7 @@ export function MemberForm({
           description={t('members.fields.christianNameHint')}
           autoComplete="off"
         />
+        <TextField control={control} name="spiritualFatherName" label={t('members.fields.spiritualFather')} autoComplete="off" />
         <SelectField control={control} name="gender" label={t('members.fields.gender')} required options={labels.genderOptions} />
         <DateField
           control={control}

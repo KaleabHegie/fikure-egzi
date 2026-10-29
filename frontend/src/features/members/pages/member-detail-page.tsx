@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
-import { EthiopianCross, Tibeb } from '@/components/brand/tibeb'
+import { EthiopianCross } from '@/components/brand/tibeb'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { ErrorState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
@@ -97,10 +97,9 @@ function MemberCard({ member: m }: { member: Member }) {
   const age = ageFrom(m.dateOfBirth)
   return (
     <section
-      className="overflow-hidden rounded-2xl border bg-card shadow-sm motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500"
+      className="overflow-hidden rounded-2xl border border-t-4 border-t-brand bg-card shadow-sm motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500"
       aria-labelledby="member-name"
     >
-      <Tibeb />
       <div className="grid gap-5 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-7 sm:p-7">
         <MemberAvatar
           member={m}

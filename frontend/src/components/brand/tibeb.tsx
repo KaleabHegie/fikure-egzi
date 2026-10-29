@@ -5,12 +5,18 @@ import { cn } from '@/lib/utils'
  * ጥበብ — the woven border of a netela or kemis, drawn as a band: rows of gilt
  * diamonds and seal-green crosses between two threads. Decorative only.
  */
-export function Tibeb({ className }: { className?: string }) {
+export function Tibeb({ className, scale = 1 }: { className?: string; scale?: number }) {
   const id = `tibeb-${useId().replace(/:/g, '')}`
   return (
-    <svg aria-hidden focusable="false" className={cn('block h-4 w-full', className)}>
+    <svg aria-hidden focusable="false" className={cn('block w-full shrink-0', className)} style={{ height: 16 * scale }}>
       <defs>
-        <pattern id={id} width="28" height="16" patternUnits="userSpaceOnUse">
+        <pattern
+          id={id}
+          width="28"
+          height="16"
+          patternUnits="userSpaceOnUse"
+          patternTransform={scale === 1 ? undefined : `scale(${scale})`}
+        >
           <rect x="0" y="1" width="28" height="1.25" fill="var(--brand)" />
           <rect x="0" y="13.75" width="28" height="1.25" fill="var(--brand)" />
           {/* Diamond, with a seal-green eye. */}

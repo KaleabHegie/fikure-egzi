@@ -29,7 +29,7 @@ export function BrandMark({
       />
       {!compact && (
         <span className="min-w-0 leading-tight">
-          <span className="block text-[15px] font-bold tracking-tight">
+          <span className="block font-record text-base leading-tight font-semibold">
             {amharic ? am.common.shortName : 'Fikure Egzi'}
           </span>
           <span

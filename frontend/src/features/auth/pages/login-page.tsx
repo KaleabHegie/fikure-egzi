@@ -64,7 +64,7 @@ export function LoginPage() {
           <p lang="am" className="text-lg font-semibold text-gold">
             {AMHARIC_NAME}
           </p>
-          <h1 className="text-4xl leading-tight font-bold text-balance">{t('auth.heroTitle')}</h1>
+          <h1 className="font-record text-4xl leading-tight font-semibold text-balance">{t('auth.heroTitle')}</h1>
           <p className="text-pretty text-brand-foreground/75">{t('auth.heroBody')}</p>
         </div>
         <p className="relative text-sm text-brand-foreground/60">{t('common.appName')}</p>
@@ -78,7 +78,7 @@ export function LoginPage() {
         <div className="w-full max-w-sm space-y-8">
           <BrandMark className="lg:hidden" />
           <div className="space-y-1.5">
-            <h2 className="text-2xl font-semibold">{t('auth.signIn')}</h2>
+            <h2 className="font-record text-3xl font-semibold">{t('auth.signIn')}</h2>
             <p className="text-sm text-muted-foreground">{t('auth.signInHint')}</p>
           </div>
 

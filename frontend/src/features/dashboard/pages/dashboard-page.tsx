@@ -56,7 +56,7 @@ function Card({
     <section className={cn('rounded-xl border bg-card p-5', className)}>
       <header className="mb-4 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-medium">
-          {Icon && <Icon className="size-4 text-muted-foreground" />}
+          {Icon && <Icon className="size-4 text-brand" />}
           {title}
         </h2>
         {action}
@@ -95,11 +95,11 @@ function KpiTile({
     <div className="rounded-xl border bg-card p-5">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <span className="grid size-8 place-items-center rounded-lg bg-accent text-accent-foreground">
+        <span className="grid size-8 place-items-center rounded-lg bg-accent text-brand">
           <Icon className="size-4" />
         </span>
       </div>
-      <p className="tabular mt-2 text-3xl font-semibold tracking-tight">{value.toLocaleString()}</p>
+      <p className="tabular mt-2 font-record text-4xl leading-none font-semibold">{value.toLocaleString()}</p>
       {meter !== undefined && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
           <div className="h-full rounded-full bg-chart-1" style={{ width: `${meter}%` }} />

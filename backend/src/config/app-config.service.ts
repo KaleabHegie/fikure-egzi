@@ -60,6 +60,15 @@ export class AppConfigService {
     return resolve(this.get('UPLOAD_DIR'));
   }
 
+  get telegram() {
+    return {
+      token: this.get('TELEGRAM_BOT_TOKEN') ?? null,
+      webhookSecret: this.get('TELEGRAM_WEBHOOK_SECRET') ?? null,
+      polling: this.get('TELEGRAM_POLLING'),
+      publicUrl: this.get('API_PUBLIC_URL') ?? null,
+    };
+  }
+
   get throttle() {
     return {
       ttlMs: this.get('THROTTLE_TTL_SECONDS') * 1000,

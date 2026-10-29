@@ -267,6 +267,29 @@ Permissions: `courses.read`, `courses.manage` (courses, runs, teachers), `course
 marks of the runs one teaches; managers can also mark). API: `/courses`, `/courses/teachers`,
 `/courses/member/:memberId`, `/course-runs`, `/course-runs/:id/assessments`, `/course-runs/:id/marks`.
 
+## Telegram bot
+
+A read-only self-service bot for members, branded with the seal, in Amharic and English
+(`backend/src/modules/telegram`). A chat is let in only after tapping **📱 Share my phone
+number**: the contact must be the chat's own (Telegram verifies it) and the number must be a
+member's phone or alternate phone. Several members on one number (siblings) can switch between
+them. It shows **details**, **attendance** (last 90 days), **courses** (marks, results, and what a
+teacher is teaching) and the member's **QR code**. Access is re-checked on every message, so
+removing the number from the record ends it; group chats are ignored.
+
+Setup:
+
+1. Create the bot with **@BotFather** (`/newbot`), and set its picture with `/setuserpic`
+   using `frontend/public/icons/icon-512.png`.
+2. On the cPanel Node.js app add `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
+   (`openssl rand -hex 24`) and `API_PUBLIC_URL=https://api.fikureegzi4.com`, then save.
+3. Deploy (or re-run the workflow). Each deploy runs `node dist/scripts/telegram-setup.js`, which
+   sets the webhook (`/api/v1/telegram/webhook`, secret-checked) and the bot's name, description
+   and command menu in both languages.
+
+Local testing: create a separate test bot, put its token in `backend/.env` with
+`TELEGRAM_POLLING=true`, and run the API — it long-polls Telegram, no public URL needed.
+
 ## Users & departments
 
 Three kinds of user (system roles, synced by the seed; retired roles are removed if unused):

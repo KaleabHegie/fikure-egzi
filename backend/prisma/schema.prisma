@@ -251,6 +251,7 @@ model Member {
   serviceGroups    ServiceGroupMember[]
   serviceHistory   DepartmentServiceHistory[]
   courseScores     CourseScore[]
+  telegramLinks    TelegramLink[]
   /// Login of a member who teaches.
   user             User?                      @relation("UserMember")
 
@@ -787,4 +788,31 @@ model CourseScore {
   @@id([assessmentId, memberId])
   @@index([memberId])
   @@map("course_scores")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Telegram bot (member self-service: profile, attendance, courses, QR)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A Telegram chat that proved, by sharing its own contact, that it owns a phone
+/// number registered on a member. Access is re-checked against the member
+/// records on every message, so changing or removing the phone ends it.
+model TelegramLink {
+  id             Int      @id @default(autoincrement())
+  chatId         BigInt   @unique @map("chat_id")
+  telegramUserId BigInt   @map("telegram_user_id")
+  /// Normalised 09…/07… number shared from Telegram.
+  phone          String   @db.VarChar(20)
+  /// The member being viewed (several members, e.g. siblings, can share a phone).
+  memberId       Int?     @map("member_id")
+  /// Bot language: am | en.
+  language       String   @default("am") @db.VarChar(2)
+  linkedAt       DateTime @default(now()) @map("linked_at")
+  lastSeenAt     DateTime @updatedAt @map("last_seen_at")
+
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([phone])
+  @@index([memberId])
+  @@map("telegram_links")
 }

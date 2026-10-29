@@ -192,6 +192,11 @@ jobs:
           npx prisma migrate deploy
           npm run db:seed
 
+          # Point the Telegram bot at this release and refresh its branding
+          # (does nothing until TELEGRAM_BOT_TOKEN is set on the cPanel app).
+          node dist/scripts/telegram-setup.js \
+            || echo "::warning::Telegram bot setup failed; the site itself is deployed."
+
           # Restart the application through cPanel Passenger.
           mkdir -p tmp
           touch tmp/restart.txt

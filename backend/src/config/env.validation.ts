@@ -103,6 +103,32 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   UPLOAD_DIR = 'uploads';
 
+  // ── Telegram bot (optional: off unless a token is set) ──
+  /** From @BotFather. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d+:[\w-]{20,}$/, { message: 'TELEGRAM_BOT_TOKEN must look like 123456:ABC… (from @BotFather)' })
+  TELEGRAM_BOT_TOKEN?: string;
+
+  /** Telegram sends it with every webhook call; required when the bot runs by webhook. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{16,256}$/, {
+    message: 'TELEGRAM_WEBHOOK_SECRET must be 16–256 letters, digits, _ or -',
+  })
+  TELEGRAM_WEBHOOK_SECRET?: string;
+
+  /** Dev only: poll Telegram instead of receiving webhooks (use a separate dev bot). */
+  @Transform(toBoolean)
+  @IsBoolean()
+  TELEGRAM_POLLING = false;
+
+  /** Public base URL of this API (for the Telegram webhook), e.g. https://api.fikureegzi4.com */
+  @IsOptional()
+  @IsString()
+  @Matches(/^https:\/\/[^/]+$/, { message: 'API_PUBLIC_URL must be https://host with no path' })
+  API_PUBLIC_URL?: string;
+
   @IsOptional()
   @IsEmail()
   SEED_ADMIN_EMAIL?: string;

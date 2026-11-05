@@ -14,7 +14,7 @@ rm -rf "$OUT" && mkdir -p "$OUT/api" "$OUT/web"
 
 echo "› Building API"
 (cd backend && npm run -s prisma:generate && npm run -s build)
-cp -r backend/dist backend/prisma backend/prisma.config.ts backend/package.json \
+cp -r backend/dist backend/prisma backend/prisma.config.ts backend/scripts backend/package.json \
   backend/package-lock.json backend/app.cjs backend/.env.example backend/assets "$OUT/api/"
 # The seed script (run via tsx on the server) imports modules from src/;
 # ship the sources so it never misses one. The Prisma client under

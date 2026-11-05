@@ -58,6 +58,12 @@ export function ecDateTime(value: Date, lang: BotLang): string {
 
 const addisIso = (d: Date) => new Date(d.getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
 
+/** A timestamp's Addis Ababa Ethiopian date as compact "dd/mm" for table rows. */
+export function ecShort(value: Date): string {
+  const ec = gcIsoToEc(addisIso(value));
+  return `${String(ec.day).padStart(2, '0')}/${String(ec.month).padStart(2, '0')}`;
+}
+
 /** Escapes text for Telegram's HTML parse mode. */
 export const esc = (value: unknown) =>
   String(value ?? '')
@@ -123,7 +129,10 @@ export const TEXT = {
       summary: (present: number, late: number, absent: number, excused: number) =>
         `✅ ተገኝቷል ${present} · ⏰ አርፍዷል ${late} · ❌ ቀርቷል ${absent} · 📝 ፈቃድ ${excused}`,
       rate: (rate: string) => `የመገኘት መጠን፦ <b>${rate}</b>`,
-      recent: 'የቅርብ ጊዜ',
+      choose: 'የትኛውን የአገልግሎት ክፍል አቴንዳንስ ይመልከቱ?',
+      all: '📋 ሁሉም',
+      office: 'ፅህፈት ቤት',
+      more: (n: number) => `… ${n} ተጨማሪ ክፍለ ጊዜዎች`,
       empty: 'ባለፉት 90 ቀናት ምንም የአቴንዳንስ መዝገብ የለም።',
     },
     statuses: {
@@ -211,7 +220,10 @@ export const TEXT = {
       summary: (present: number, late: number, absent: number, excused: number) =>
         `✅ Present ${present} · ⏰ Late ${late} · ❌ Absent ${absent} · 📝 Excused ${excused}`,
       rate: (rate: string) => `Attendance rate: <b>${rate}</b>`,
-      recent: 'Recent',
+      choose: 'Which department’s attendance would you like?',
+      all: '📋 All',
+      office: 'Office',
+      more: (n: number) => `… ${n} more sessions`,
       empty: 'No attendance records in the last 90 days.',
     },
     statuses: {

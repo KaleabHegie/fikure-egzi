@@ -1,18 +1,31 @@
-import { BookMarked, CalendarRange, GraduationCap, Plus, Search, UsersRound } from 'lucide-react'
+import { BookMarked, CalendarRange, GraduationCap, ListFilter, Plus, Search, UsersRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
+import { FilterChip } from '@/components/common/filter-chip'
 import { PaginationBar } from '@/components/common/pagination-bar'
 import { EmptyState, ErrorState } from '@/components/common/states'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/features/auth/use-auth'
 import { useLocalizedName } from '@/features/classes/use-localized'
+import { useDepartments } from '@/features/departments/api'
 import { memberFullName } from '@/features/members/utils'
 import { formatDate } from '@/lib/format'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -38,7 +51,7 @@ export function RunCard({ run }: { run: CourseRun }) {
   return (
     <Link
       to={`/courses/runs/${run.id}`}
-      className="group flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors duration-150 ease-out outline-none hover:border-primary/40 hover:bg-accent/30 focus-visible:ring-2 focus-visible:ring-ring"
+      className="group card-lift flex flex-col gap-3 rounded-xl border bg-card p-4 outline-none hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -78,15 +91,19 @@ function RunsGrid({ mine }: { mine: boolean }) {
   const runs = useRuns({ mine: mine || undefined, phase: phase === 'all' ? undefined : phase })
   return (
     <div className="space-y-4">
-      <Tabs value={phase} onValueChange={(v) => setPhase(v as RunPhase | 'all')}>
-        <TabsList>
+      {/* One dropdown instead of a second tab row. */}
+      <Select value={phase} onValueChange={(v) => setPhase(v as RunPhase | 'all')}>
+        <SelectTrigger className="w-44" aria-label={t('courses.phases.all')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
           {(['ongoing', 'upcoming', 'finished', 'all'] as const).map((p) => (
-            <TabsTrigger key={p} value={p}>
-              {p === 'all' ? t('courses.phases.all') : t(`courses.phases.${p}`)}
-            </TabsTrigger>
+            <SelectItem key={p} value={p}>
+              {t(`courses.phases.${p}`)}
+            </SelectItem>
           ))}
-        </TabsList>
-      </Tabs>
+        </SelectContent>
+      </Select>
       {runs.isError ? (
         <ErrorState error={runs.error} onRetry={() => void runs.refetch()} />
       ) : runs.isPending ? (
@@ -116,25 +133,94 @@ function CourseList() {
   const { t } = useTranslation()
   const name = useLocalizedName()
   const navigate = useNavigate()
+  const { data: departments } = useDepartments()
   const [search, setSearch] = useState('')
   const [params, setParams] = useState<CourseListParams>({ page: 1, pageSize: 20 })
   const query = useDebounced(search.trim())
   const courses = useCourses({ ...params, search: query || undefined })
+  const set = (patch: Partial<CourseListParams>) => setParams((p) => ({ ...p, page: 1, ...patch }))
+
+  const department = departments?.find((d) => d.id === params.departmentId)
+  const activeFilters = (params.departmentId ? 1 : 0) + (params.state ? 1 : 0)
 
   return (
     <div className="space-y-4">
-      <div className="relative sm:w-72">
-        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setParams((p) => ({ ...p, page: 1 }))
-          }}
-          placeholder={t('courses.search')}
-          aria-label={t('courses.search')}
-          className="pl-8"
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-56 flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setParams((p) => ({ ...p, page: 1 }))
+            }}
+            placeholder={t('courses.search')}
+            aria-label={t('courses.search')}
+            className="pl-8"
+          />
+        </div>
+
+        {department && (
+          <FilterChip
+            category={t('courses.fields.department')}
+            value={name(department)}
+            onClear={() => set({ departmentId: undefined })}
+          />
+        )}
+        {params.state && (
+          <FilterChip
+            category={t('members.table.status')}
+            value={t(`courses.filters.${params.state}`)}
+            onClear={() => set({ state: undefined })}
+          />
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <ListFilter />
+              {t('common.filter')}
+              {activeFilters > 0 && (
+                <span className="tabular grid size-5 place-items-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+                  {activeFilters}
+                </span>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {(departments?.length ?? 0) > 1 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>{t('courses.fields.department')}</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="max-h-80 overflow-y-auto">
+                  <DropdownMenuRadioGroup
+                    value={params.departmentId ? String(params.departmentId) : 'all'}
+                    onValueChange={(v) => set({ departmentId: v === 'all' ? undefined : Number(v) })}
+                  >
+                    <DropdownMenuRadioItem value="all">{t('courses.filters.allDepartments')}</DropdownMenuRadioItem>
+                    {departments!.map((d) => (
+                      <DropdownMenuRadioItem key={d.id} value={String(d.id)}>
+                        {name(d)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>{t('members.table.status')}</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={params.state ?? 'all'}
+                  onValueChange={(v) => set({ state: v === 'all' ? undefined : (v as 'active' | 'inactive') })}
+                >
+                  <DropdownMenuRadioItem value="all">{t('courses.filters.allStates')}</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="active">{t('courses.filters.active')}</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="inactive">{t('courses.filters.inactive')}</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       {courses.isError ? (
         <ErrorState error={courses.error} onRetry={() => void courses.refetch()} />
@@ -143,7 +229,7 @@ function CourseList() {
       ) : courses.data.data.length === 0 ? (
         <EmptyState
           icon={BookMarked}
-          title={query ? t('courses.noMatch') : t('courses.empty')}
+          title={query || activeFilters > 0 ? t('courses.noMatch') : t('courses.empty')}
           description={t('courses.emptyBody')}
           className="rounded-xl border bg-card"
         />

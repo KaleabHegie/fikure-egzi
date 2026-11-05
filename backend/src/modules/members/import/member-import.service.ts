@@ -581,21 +581,34 @@ export class MemberImportService {
 
   // ── Commit ───────────────────────────────────────────────────────────────
 
-  /** Imports every row in one transaction: if any row is invalid, nothing is written. */
-  async commit(file: Buffer, userId: number, ipAddress: string | null) {
+  /**
+   * Imports every row in one transaction: if any row is invalid, nothing is
+   * written. With `skipDuplicates`, rows whose only problem is an
+   * already-registered (or repeated-in-file) full name are left out instead
+   * of blocking the import; any other error still blocks everything.
+   */
+  async commit(file: Buffer, userId: number, ipAddress: string | null, skipDuplicates = false) {
     const { rows, ctx } = await this.parse(file);
     if (rows.length === 0) throw new UnprocessableEntityException('The file has no member rows.');
-    if (rows.some((r) => r.errors.length > 0)) {
+    const duplicateOnly = (r: ParsedRow) =>
+      r.errors.every((e) => e.code === 'duplicateName' || e.code === 'duplicateInFile');
+    const blocking = rows.filter(
+      (r) => r.errors.length > 0 && !(skipDuplicates && duplicateOnly(r)),
+    );
+    if (blocking.length > 0) {
       throw new UnprocessableEntityException({
         message: 'Some rows have errors. Nothing was imported.',
         preview: this.summarize(rows, ctx),
       });
     }
+    const importable = rows.filter((r) => r.errors.length === 0);
+    const skipped = rows.length - importable.length;
+    if (importable.length === 0) return { imported: 0, skipped };
 
     const created = await this.prisma.$transaction(
       async (tx) => {
         const ids: number[] = [];
-        for (const row of rows) {
+        for (const row of importable) {
           const member = await this.members.create(row.dto!, userId, ipAddress, tx);
           ids.push(member.id);
           if (row.department) {
@@ -622,7 +635,7 @@ export class MemberImportService {
             userId,
             action: 'CREATE',
             entity: 'MemberImport',
-            changes: { count: ids.length },
+            changes: skipped > 0 ? { count: ids.length, skipped } : { count: ids.length },
             ipAddress,
           },
           tx,
@@ -631,6 +644,6 @@ export class MemberImportService {
       },
       { timeout: 300_000, maxWait: 15_000 },
     );
-    return { imported: created.length };
+    return { imported: created.length, skipped };
   }
 }

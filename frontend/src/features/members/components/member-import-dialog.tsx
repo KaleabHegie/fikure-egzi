@@ -13,8 +13,10 @@ import {
   ProblemsTable,
   TemplateButtons,
 } from '@/components/import/import-steps'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
 import { getErrorMessage } from '@/lib/api/errors'
 import { saveBlob } from '@/lib/download'
 import { memberKeys, membersApi } from '../api'
@@ -35,7 +37,16 @@ export function MemberImportDialog({
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [checking, setChecking] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [imported, setImported] = useState<number | null>(null)
+  const [imported, setImported] = useState<{ count: number; skipped: number } | null>(null)
+  const [skipDuplicates, setSkipDuplicates] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  // Rows whose only problem is an already-registered (or repeated) name can be skipped.
+  const isDuplicateOnly = (issues: ImportIssue[]) =>
+    issues.length > 0 && issues.every((i) => i.code === 'duplicateName' || i.code === 'duplicateInFile')
+  const duplicateRows = preview ? preview.rows.filter((r) => isDuplicateOnly(r.errors)).length : 0
+  const otherErrorRows = preview ? preview.errorRows - duplicateRows : 0
+  const blocked = otherErrorRows > 0 || (duplicateRows > 0 && !skipDuplicates)
 
   const download = async (l: ImportLang) => {
     try {
@@ -49,6 +60,7 @@ export function MemberImportDialog({
     setFile(chosen)
     setPreview(null)
     setImported(null)
+    setSkipDuplicates(false)
     setChecking(true)
     try {
       setPreview(await membersApi.previewImport(chosen))
@@ -64,12 +76,17 @@ export function MemberImportDialog({
     if (!file) return
     setImporting(true)
     try {
-      const { imported: count } = await membersApi.commitImport(file)
-      setImported(count)
+      const { imported: count, skipped } = await membersApi.commitImport(file, skipDuplicates)
+      setImported({ count, skipped: skipped ?? 0 })
+      setConfirmOpen(false)
       setPreview(null)
       setFile(null)
       void queryClient.invalidateQueries({ queryKey: memberKeys.all })
-      toast.success(t('members.import.done', { count }))
+      toast.success(
+        skipped > 0
+          ? t('members.import.doneSkipped', { count, skipped })
+          : t('members.import.done', { count }),
+      )
     } catch (e) {
       toast.error(getErrorMessage(e))
     } finally {
@@ -81,6 +98,8 @@ export function MemberImportDialog({
     setFile(null)
     setPreview(null)
     setImported(null)
+    setSkipDuplicates(false)
+    setConfirmOpen(false)
   }
 
   const columnLabel = (key: string | null) => {
@@ -121,7 +140,11 @@ export function MemberImportDialog({
 
           {imported !== null && (
             <ImportDone
-              title={t('members.import.done', { count: imported })}
+              title={
+                imported.skipped > 0
+                  ? t('members.import.doneSkipped', { count: imported.count, skipped: imported.skipped })
+                  : t('members.import.done', { count: imported.count })
+              }
               body={t('members.import.doneBody')}
               finishLabel={t('members.import.viewMembers')}
               onAgain={reset}
@@ -141,8 +164,22 @@ export function MemberImportDialog({
                 <ImportStat label={t('members.import.withWarnings')} value={preview.warningRows} tone="warn" />
               </div>
 
-              {preview.errorRows > 0 ? (
-                <FixErrorsNotice />
+              {duplicateRows > 0 && (
+                <label className="flex items-start justify-between gap-4 rounded-md border bg-muted/40 px-3 py-2.5">
+                  <span>
+                    <span className="block text-sm font-medium">
+                      {t('members.import.skipDuplicates', { count: duplicateRows })}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {t('members.import.skipDuplicatesHint')}
+                    </span>
+                  </span>
+                  <Switch checked={skipDuplicates} onCheckedChange={setSkipDuplicates} disabled={importing} />
+                </label>
+              )}
+
+              {blocked ? (
+                otherErrorRows > 0 && <FixErrorsNotice />
               ) : (
                 preview.warningRows > 0 && (
                   <p className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
@@ -166,7 +203,7 @@ export function MemberImportDialog({
                 <Button variant="outline" onClick={reset} disabled={importing}>
                   {t('common.cancel')}
                 </Button>
-                <Button onClick={() => void commit()} disabled={importing || preview.errorRows > 0 || preview.validRows === 0}>
+                <Button onClick={() => setConfirmOpen(true)} disabled={importing || blocked || preview.validRows === 0}>
                   {importing ? <Loader2 className="animate-spin" /> : <Upload />}
                   {importing ? t('members.import.importing') : t('members.import.importN', { count: preview.validRows })}
                 </Button>
@@ -174,6 +211,22 @@ export function MemberImportDialog({
             </ImportStep>
           )}
         </div>
+
+        {preview && (
+          <ConfirmDialog
+            open={confirmOpen}
+            onOpenChange={(next) => !importing && setConfirmOpen(next)}
+            title={t('members.import.confirmTitle', { count: preview.validRows })}
+            description={
+              skipDuplicates && duplicateRows > 0
+                ? t('members.import.confirmBodySkipped', { count: preview.validRows, skipped: duplicateRows })
+                : t('members.import.confirmBody', { count: preview.validRows })
+            }
+            confirmLabel={t('members.import.importN', { count: preview.validRows })}
+            pending={importing}
+            onConfirm={() => void commit()}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

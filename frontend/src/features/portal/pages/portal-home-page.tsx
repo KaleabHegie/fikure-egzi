@@ -22,7 +22,7 @@ import { portalApi, portalSession, usePortalMember, usePortalPhoto } from '../ap
 function Card({ title, icon: Icon, children }: { title: string; icon?: React.ElementType; children: React.ReactNode }) {
   return (
     <section className="rounded-xl border bg-card p-5">
-      <h2 className="mb-4 flex items-center gap-2 text-sm font-medium">
+      <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
         {Icon && <Icon className="size-4 text-muted-foreground" />}
         {title}
       </h2>
@@ -96,7 +96,7 @@ export function PortalHomePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-6">
+      <main className="rise-in mx-auto max-w-5xl space-y-4 px-4 py-6">
         <section className="flex flex-col items-center gap-4 rounded-xl border bg-card p-5 text-center sm:flex-row sm:text-left">
           <div className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-full bg-accent text-2xl font-semibold text-accent-foreground">
             {photo ? <img src={photo} alt={memberFullName(m)} className="size-full object-cover" /> : `${m.firstName[0]}${m.fatherName[0]}`}

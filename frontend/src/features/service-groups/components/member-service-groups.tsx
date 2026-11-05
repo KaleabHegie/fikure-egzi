@@ -12,7 +12,7 @@ export function MemberServiceGroups({ memberId }: { memberId: number }) {
   const rows = data ?? []
   return (
     <section className="rounded-xl border bg-card p-5">
-      <h2 className="mb-4 flex items-center gap-2 text-sm font-medium">
+      <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <UsersRound className="size-4 text-muted-foreground" />
         {t('serviceGroups.member.title')}
       </h2>

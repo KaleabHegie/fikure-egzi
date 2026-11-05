@@ -12,6 +12,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/features/auth/use-auth'
+import { cn } from '@/lib/utils'
 import { formatDate } from '@/lib/format'
 import { PERMISSIONS } from '@/lib/permissions'
 import { formatPhone } from '@/lib/phone'
@@ -23,6 +24,15 @@ import { StatusBadge } from './member-badges'
 import { MemberAvatar } from './member-avatar'
 
 const COLUMNS = ['code', 'name', 'gender', 'classes', 'phone', 'status', 'joined'] as const
+
+/** Narrow screens keep name, status and actions; the rest returns as room allows. */
+const COLUMN_CLASS: Partial<Record<(typeof COLUMNS)[number], string>> = {
+  code: 'hidden md:table-cell',
+  gender: 'hidden lg:table-cell',
+  classes: 'hidden sm:table-cell',
+  phone: 'hidden sm:table-cell',
+  joined: 'hidden xl:table-cell',
+}
 
 export function MembersTable({
   members,
@@ -46,7 +56,9 @@ export function MembersTable({
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           {COLUMNS.map((c) => (
-            <TableHead key={c}>{t(`members.table.${c}`)}</TableHead>
+            <TableHead key={c} className={COLUMN_CLASS[c]}>
+              {t(`members.table.${c}`)}
+            </TableHead>
           ))}
           <TableHead className="w-10" />
         </TableRow>
@@ -56,7 +68,7 @@ export function MembersTable({
           ? Array.from({ length: 8 }, (_, i) => (
               <TableRow key={i}>
                 {[...COLUMNS, 'actions'].map((c) => (
-                  <TableCell key={c}>
+                  <TableCell key={c} className={COLUMN_CLASS[c as (typeof COLUMNS)[number]]}>
                     <Skeleton className="h-4 w-full max-w-28" />
                   </TableCell>
                 ))}
@@ -64,7 +76,9 @@ export function MembersTable({
             ))
           : members.map((m) => (
               <TableRow key={m.id} className="cursor-pointer" onClick={() => navigate(`/members/${m.id}`)}>
-                <TableCell className="tabular font-mono text-xs text-muted-foreground">{m.memberCode}</TableCell>
+                <TableCell className={cn('tabular font-mono text-xs text-muted-foreground', COLUMN_CLASS.code)}>
+                  {m.memberCode}
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <MemberAvatar member={m} />
@@ -76,14 +90,21 @@ export function MembersTable({
                       >
                         {memberFullName(m)}
                       </Link>
-                      {m.christianName && (
-                        <span className="block text-xs text-muted-foreground">{m.christianName}</span>
-                      )}
+                      <span className="block text-xs text-muted-foreground">
+                        {/* The code column is hidden on small screens; the code moves here. */}
+                        <span className="tabular font-mono md:hidden">{m.memberCode}</span>
+                        {m.christianName && (
+                          <>
+                            <span className="md:hidden"> · </span>
+                            {m.christianName}
+                          </>
+                        )}
+                      </span>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{labels.gender(m.gender)}</TableCell>
-                <TableCell>
+                <TableCell className={COLUMN_CLASS.gender}>{labels.gender(m.gender)}</TableCell>
+                <TableCell className={COLUMN_CLASS.classes}>
                   {m.classes.length === 0 ? (
                     <span className="text-muted-foreground">—</span>
                   ) : (
@@ -100,11 +121,15 @@ export function MembersTable({
                     </div>
                   )}
                 </TableCell>
-                <TableCell className="tabular whitespace-nowrap">{formatPhone(m.phone) || '—'}</TableCell>
+                <TableCell className={cn('tabular whitespace-nowrap', COLUMN_CLASS.phone)}>
+                  {formatPhone(m.phone) || '—'}
+                </TableCell>
                 <TableCell>
                   <StatusBadge status={m.status} />
                 </TableCell>
-                <TableCell className="tabular whitespace-nowrap text-muted-foreground">{formatDate(m.joinedAt)}</TableCell>
+                <TableCell className={cn('tabular whitespace-nowrap text-muted-foreground', COLUMN_CLASS.joined)}>
+                  {formatDate(m.joinedAt)}
+                </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

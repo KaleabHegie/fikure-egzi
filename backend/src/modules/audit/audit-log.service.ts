@@ -29,6 +29,15 @@ export class AuditLogService {
           ...(q.userId && { userId: q.userId }),
           ...(q.entity && { entity: q.entity }),
           ...(q.action && { action: q.action }),
+          ...(q.search?.trim() && {
+            OR: [
+              { user: { fullName: { contains: q.search.trim() } } },
+              { user: { email: { contains: q.search.trim() } } },
+              { entity: { contains: q.search.trim() } },
+              { entityId: { contains: q.search.trim() } },
+              { ipAddress: { contains: q.search.trim() } },
+            ],
+          }),
           ...((q.from || q.to) && {
             createdAt: {
               ...(q.from && { gte: addisDayStart(q.from) }),

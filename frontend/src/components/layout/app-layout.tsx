@@ -1,7 +1,7 @@
 import { Menu } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { Tibeb } from '@/components/brand/tibeb'
@@ -13,6 +13,7 @@ import { UserMenu } from './user-menu'
 export function AppLayout() {
   const { t } = useTranslation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { pathname } = useLocation()
 
   return (
     <div className="min-h-svh">
@@ -46,7 +47,10 @@ export function AppLayout() {
             </div>
           </header>
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            <Outlet />
+            {/* Keyed by path: every page rises in once on navigation. */}
+            <div key={pathname} className="rise-in">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>

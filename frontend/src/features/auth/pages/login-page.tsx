@@ -75,7 +75,7 @@ export function LoginPage() {
           <LanguageSwitch />
           <ThemeToggle />
         </div>
-        <div className="w-full max-w-sm space-y-8">
+        <div className="rise-in w-full max-w-sm space-y-8">
           <BrandMark className="lg:hidden" />
           <div className="space-y-1.5">
             <h2 className="font-record text-3xl font-semibold">{t('auth.signIn')}</h2>

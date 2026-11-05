@@ -60,7 +60,7 @@ function Stat({ label, value, className }: { label: string; value: number | stri
   return (
     <div className="rounded-lg border bg-card px-2 py-1.5 sm:px-3 sm:py-2">
       <p className="truncate text-[11px] text-muted-foreground sm:text-xs">{label}</p>
-      <p className={cn('tabular text-base font-semibold sm:text-xl', className)}>{value}</p>
+      <p className={cn('tabular font-record text-base font-semibold sm:text-xl', className)}>{value}</p>
     </div>
   )
 }
@@ -176,7 +176,7 @@ export function SessionPage() {
           {t('attendance.title')}
         </Link>
         <div className="flex items-start justify-between gap-2">
-          <h1 className="min-w-0 font-heading text-lg leading-tight font-semibold tracking-tight sm:text-2xl">{s.title}</h1>
+          <h1 className="min-w-0 font-record text-lg leading-tight font-semibold sm:text-2xl">{s.title}</h1>
           {canManage && dayOk && (
             <div className="flex shrink-0 items-center gap-1.5">
               {open ? (
@@ -274,7 +274,15 @@ export function SessionPage() {
             />
           ))}
           <Stat label={t('attendance.roster.unmarked')} value={s.unmarked} />
-          <Stat label={t('attendance.member.rate')} value={s.rate === null ? '—' : `${s.rate}%`} />
+          {/* Turnout against the expected roster — not the rate among the few already marked. */}
+          <Stat
+            label={t('attendance.member.rate')}
+            value={
+              s.rosterSize > 0
+                ? `${Math.round(((s.counts.present + s.counts.late) / s.rosterSize) * 100)}%`
+                : '—'
+            }
+          />
         </div>
       )}
 
@@ -288,7 +296,7 @@ export function SessionPage() {
       <div className={cn('grid gap-4', editable && showRoster && 'lg:grid-cols-[minmax(0,26rem)_1fr]')}>
         {editable && (
           <section className="space-y-4 rounded-xl border bg-card p-4 lg:sticky lg:top-20 lg:self-start">
-            <h2 className="font-medium">{t('attendance.scan.title')}</h2>
+            <h2 className="font-semibold">{t('attendance.scan.title')}</h2>
             <Scanner onCode={(c) => void onCode(c)} busy={scanning} />
             {feed.length > 0 && (
               <div>
@@ -339,7 +347,7 @@ export function SessionPage() {
           <section className="rounded-xl border bg-card">
             <header className="space-y-3 border-b p-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-medium">{t('attendance.roster.title')}</h2>
+                <h2 className="font-semibold">{t('attendance.roster.title')}</h2>
                 <span className="flex items-center gap-2">
                   <span className="tabular text-xs text-muted-foreground">
                     {marked}/{s.rosterSize}
@@ -485,7 +493,8 @@ function RosterItem({
   return (
     <li className="px-4 py-2.5">
       <div className="flex flex-wrap items-center gap-3">
-        <MemberLink memberId={row.member.id} className="flex min-w-0 flex-1 items-center gap-3">
+        {/* min-width keeps the name readable; when tight the status buttons wrap below instead. */}
+        <MemberLink memberId={row.member.id} className="flex min-w-52 flex-1 items-center gap-3">
           <MemberAvatar member={row.member} />
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium">{memberFullName(row.member)}</span>

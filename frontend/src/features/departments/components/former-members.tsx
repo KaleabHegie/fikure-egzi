@@ -1,6 +1,7 @@
 import { History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
+import { CollapsibleSection } from '@/components/common/collapsible-section'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MemberAvatar } from '@/features/members/components/member-avatar'
@@ -16,14 +17,12 @@ export function FormerMembers({ departmentId }: { departmentId: number }) {
   if (isError) return null
 
   return (
-    <section className="mt-6 rounded-xl border bg-card">
-      <header className="flex items-start gap-3 border-b px-5 py-3">
-        <History className="mt-0.5 size-4 text-muted-foreground" />
-        <div>
-          <h2 className="font-medium">{t('departments.roster.formerTitle')}</h2>
-          <p className="text-xs text-muted-foreground">{t('departments.roster.formerDescription')}</p>
-        </div>
-      </header>
+    <CollapsibleSection
+      icon={History}
+      title={t('departments.roster.formerTitle')}
+      description={t('departments.roster.formerDescription')}
+      defaultOpen={false}
+    >
       {isPending ? (
         <div className="p-5">
           <Skeleton className="h-16" />
@@ -59,6 +58,6 @@ export function FormerMembers({ departmentId }: { departmentId: number }) {
           </TableBody>
         </Table>
       )}
-    </section>
+    </CollapsibleSection>
   )
 }

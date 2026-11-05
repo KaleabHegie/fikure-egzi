@@ -19,11 +19,20 @@ type NavKey =
   | 'classes'
   | 'departments'
   | 'attendance'
+  | 'attendanceSessions'
+  | 'attendanceReports'
   | 'courses'
   | 'serviceGroups'
   | 'assets'
   | 'users'
   | 'audit'
+
+export interface NavChild {
+  /** Translation key under `nav.` */
+  key: NavKey
+  to: string
+  permission?: PermissionCode
+}
 
 export interface NavItem {
   /** Translation key under `nav.` */
@@ -32,6 +41,8 @@ export interface NavItem {
   /** Omitted for modules that are planned but not built yet. */
   to?: string
   permission?: PermissionCode
+  /** Sub-pages: the item renders as a collapsible group instead of one link. */
+  children?: NavChild[]
 }
 
 export interface NavSection {
@@ -77,8 +88,12 @@ export const NAVIGATION: NavSection[] = [
       {
         key: 'attendance',
         icon: CalendarCheck,
-        to: '/attendance',
         permission: PERMISSIONS.ATTENDANCE_READ,
+        children: [
+          { key: 'attendanceSessions', to: '/attendance', permission: PERMISSIONS.ATTENDANCE_READ },
+          // The reports list members, so attendance takers don't get them.
+          { key: 'attendanceReports', to: '/attendance/reports', permission: PERMISSIONS.MEMBERS_READ },
+        ],
       },
       { key: 'courses', icon: GraduationCap, to: '/courses', permission: PERMISSIONS.COURSES_READ },
       { key: 'assets', icon: Package, to: '/assets', permission: PERMISSIONS.ASSETS_READ },

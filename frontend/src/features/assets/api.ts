@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react'
 import type { PhotoChange } from '@/features/members/api'
 import { api, http } from '@/lib/api/client'
 import type { PaginationMeta } from '@/lib/api/types'
-import type { Asset, AssetInput, AssetListParams, AssetTotals } from './types'
+import type { Asset, AssetCategory, AssetCategoryInput, AssetInput, AssetListParams, AssetTotals } from './types'
 
 const BASE = '/assets'
 
@@ -12,6 +12,23 @@ export const assetKeys = {
   list: (p: AssetListParams) => [...assetKeys.all, 'list', p] as const,
   detail: (id: number) => [...assetKeys.all, 'detail', id] as const,
   photo: (id: number, version: string) => [...assetKeys.all, 'photo', id, version] as const,
+  categories: () => [...assetKeys.all, 'categories'] as const,
+}
+
+export const assetCategoriesApi = {
+  list: () => api.get<AssetCategory[]>('/asset-categories'),
+  create: (input: AssetCategoryInput) => api.post<AssetCategory>('/asset-categories', input),
+  update: (id: number, input: Partial<AssetCategoryInput>) =>
+    api.patch<AssetCategory>(`/asset-categories/${id}`, input),
+  remove: (id: number) => api.delete(`/asset-categories/${id}`),
+}
+
+export function useAssetCategories() {
+  return useQuery({
+    queryKey: assetKeys.categories(),
+    queryFn: assetCategoriesApi.list,
+    staleTime: 60_000,
+  })
 }
 
 export const assetsApi = {

@@ -195,6 +195,14 @@ export const router = createBrowserRouter([
                 ),
               },
               {
+                path: 'reports',
+                ...page(
+                  () => import('@/features/attendance/pages/attendance-reports-page'),
+                  (m) => m.AttendanceReportsPage,
+                  PERMISSIONS.ATTENDANCE_READ,
+                ),
+              },
+              {
                 path: ':id',
                 ...page(
                   () => import('@/features/attendance/pages/session-page'),

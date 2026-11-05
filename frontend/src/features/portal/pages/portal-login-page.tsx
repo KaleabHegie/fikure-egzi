@@ -64,7 +64,7 @@ export function PortalLoginPage() {
           <LanguageSwitch />
           <ThemeToggle />
         </div>
-        <div className="w-full max-w-sm space-y-6">
+        <div className="rise-in w-full max-w-sm space-y-6">
           <BrandMark className="lg:hidden" />
 
           <form onSubmit={(e) => void submit(e)} className="space-y-4" noValidate>

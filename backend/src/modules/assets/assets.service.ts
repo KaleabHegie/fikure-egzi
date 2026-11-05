@@ -20,7 +20,8 @@ const ASSET_SELECT = {
   id: true,
   assetCode: true,
   name: true,
-  category: true,
+  categoryId: true,
+  category: { select: { id: true, code: true, nameEn: true, nameAm: true } },
   description: true,
   quantity: true,
   condition: true,
@@ -75,7 +76,7 @@ export class AssetsService {
     const where: Prisma.AssetWhereInput = {
       ...(scope !== null && { departmentId: { in: scope } }),
       ...(q.departmentId && { departmentId: q.departmentId }),
-      ...(q.category && { category: q.category }),
+      ...(q.categoryId && { categoryId: q.categoryId }),
       ...(q.status && { status: q.status }),
       ...(q.condition && { condition: q.condition }),
       ...(terms.length > 0 && {
@@ -123,6 +124,7 @@ export class AssetsService {
   async create(dto: CreateAssetDto, userId: number, scope: DepartmentScope) {
     assertInScope(scope, dto.departmentId, 'You can only register assets for your own department.');
     await this.assertDepartment(dto.departmentId);
+    await this.assertCategory(dto.categoryId);
     const asset = await this.prisma.$transaction(async (tx) => {
       // The code comes from the id: insert with a placeholder, then stamp it.
       const created = await tx.asset.create({
@@ -152,6 +154,7 @@ export class AssetsService {
       assertInScope(scope, dto.departmentId, 'You can only hand assets to your own departments.');
       await this.assertDepartment(dto.departmentId);
     }
+    if (dto.categoryId !== undefined) await this.assertCategory(dto.categoryId);
     const { acquiredOn, ...rest } = dto;
     const row = await this.prisma.asset.update({
       where: { id },
@@ -268,6 +271,14 @@ export class AssetsService {
     if (!(await this.prisma.department.count({ where: { id: departmentId } }))) {
       throw new ValidationFailedException([
         { field: 'departmentId', messages: ['Unknown department'] },
+      ]);
+    }
+  }
+
+  private async assertCategory(categoryId: number) {
+    if (!(await this.prisma.assetCategory.count({ where: { id: categoryId } }))) {
+      throw new ValidationFailedException([
+        { field: 'categoryId', messages: ['Unknown category'] },
       ]);
     }
   }

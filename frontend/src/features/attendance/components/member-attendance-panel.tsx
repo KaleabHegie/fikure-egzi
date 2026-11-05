@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { EthDatePicker } from '@/components/common/eth-date-picker'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useLocalizedName } from '@/features/classes/use-localized'
 import { ecMonthBounds, ecToday, ecYearBounds, todayIso } from '@/lib/ethiopian-calendar'
 import { cn } from '@/lib/utils'
 import { attendanceApi, attendanceKeys } from '../api'
@@ -55,8 +57,11 @@ export function MemberAttendancePanel({
   linkSessions?: boolean
 }) {
   const { t } = useTranslation()
+  const deptName = useLocalizedName()
   const [preset, setPreset] = useState<Preset>('year')
   const [range, setRange] = useState(() => presetRange('year'))
+  // 'all', or a running department id (0 = the office).
+  const [deptFilter, setDeptFilter] = useState<'all' | number>('all')
   const period = { from: range.from || undefined, to: range.to || undefined }
   const { data, isPending, isError, isFetching } = useQuery({
     queryKey: [...attendanceKeys.member(memberId), load ? 'portal' : 'staff', period],
@@ -73,44 +78,78 @@ export function MemberAttendancePanel({
     setRange((r) => ({ ...r, [key]: value }))
   }
 
+  // What the figures and table show: everything, or one department's share.
+  const selected =
+    deptFilter === 'all' ? null : (data?.byDepartment?.find((d) => (d.department?.id ?? 0) === deptFilter) ?? null)
+  const shown =
+    data &&
+    (deptFilter === 'all'
+      ? data
+      : (selected ?? { sessions: 0, rate: null, minutesAttended: 0, present: 0, late: 0, absent: 0, excused: 0 }))
+  const shownRecords =
+    data?.records.filter((r) => deptFilter === 'all' || (r.department?.id ?? 0) === deptFilter) ?? []
+
   return (
     <section className="rounded-xl border bg-card p-5 lg:col-span-2">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-medium">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
           <CalendarCheck className="size-4 text-muted-foreground" />
           {t('attendance.member.title')}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-md border p-0.5" role="group" aria-label={t('attendance.member.period')}>
-            {(['month', 'quarter', 'year', 'all'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={preset === p}
-                onClick={() => choose(p)}
-                className={cn(
-                  'rounded px-2.5 py-1 text-xs font-medium transition-colors',
-                  preset === p ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
-                )}
-              >
-                {t(`attendance.member.presets.${p}`)}
-              </button>
-            ))}
-          </div>
-          <EthDatePicker
-            value={range.from}
-            onChange={(v) => setDate('from', v)}
-            clearable
-            placeholder={t('attendance.filters.from')}
-            className="w-40"
-          />
-          <EthDatePicker
-            value={range.to}
-            onChange={(v) => setDate('to', v)}
-            clearable
-            placeholder={t('attendance.filters.to')}
-            className="w-40"
-          />
+          {/* One dropdown for the period; the date pickers appear only for a custom range. */}
+          <Select
+            value={preset}
+            onValueChange={(v) => (v === 'custom' ? setPreset('custom') : choose(v as Exclude<Preset, 'custom'>))}
+          >
+            <SelectTrigger className="w-40" aria-label={t('attendance.member.period')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(['month', 'quarter', 'year', 'all', 'custom'] as const).map((p) => (
+                <SelectItem key={p} value={p}>
+                  {t(`attendance.member.presets.${p}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {preset === 'custom' && (
+            <>
+              <EthDatePicker
+                value={range.from}
+                onChange={(v) => setDate('from', v)}
+                clearable
+                placeholder={t('attendance.filters.from')}
+                className="w-40"
+              />
+              <EthDatePicker
+                value={range.to}
+                onChange={(v) => setDate('to', v)}
+                clearable
+                placeholder={t('attendance.filters.to')}
+                className="w-40"
+              />
+            </>
+          )}
+          {data?.byDepartment && data.byDepartment.length > 0 && (
+            <Select
+              value={deptFilter === 'all' ? 'all' : String(deptFilter)}
+              onValueChange={(v) => setDeptFilter(v === 'all' ? 'all' : Number(v))}
+            >
+              <SelectTrigger className="w-44" aria-label={t('attendance.member.byDepartment')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('attendance.roster.all')}</SelectItem>
+                {data.byDepartment.map((d) => (
+                  <SelectItem key={d.department?.id ?? 0} value={String(d.department?.id ?? 0)}>
+                    {d.department ? deptName(d.department) : t('attendance.member.office')}
+                    {d.rate !== null && ` · ${d.rate}%`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
@@ -129,25 +168,39 @@ export function MemberAttendancePanel({
                   <TooltipContent className="max-w-60">{t('attendance.member.rateHint')}</TooltipContent>
                 </Tooltip>
               </p>
-              <p className="tabular text-2xl font-semibold">{data.rate === null ? '—' : `${data.rate}%`}</p>
+              <p className="tabular font-record text-3xl leading-none font-semibold">
+                {shown!.rate === null ? '—' : `${shown!.rate}%`}
+              </p>
+              {shown!.rate !== null && (
+                <div className="relative mt-2 h-1 w-36 rounded-full bg-muted" aria-hidden>
+                  <div className="h-full rounded-full bg-chart-1" style={{ width: `${shown!.rate}%` }} />
+                  <span
+                    className="absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] bg-gold ring-2 ring-card"
+                    style={{ left: `${Math.max(shown!.rate, 1)}%` }}
+                  />
+                </div>
+              )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground">{t('attendance.member.timeAttended')}</p>
-              <p className="tabular text-2xl font-semibold">{formatDuration(data.minutesAttended, t)}</p>
+              <p className="tabular font-record text-3xl leading-none font-semibold">
+                {formatDuration(shown!.minutesAttended, t)}
+              </p>
             </div>
             <div className="flex flex-wrap gap-1.5">
               <span className="rounded-full border px-2 py-0.5 text-xs font-medium">
-                {t('attendance.member.sessions', { count: data.sessions })}
+                {t('attendance.member.sessions', { count: shown!.sessions })}
               </span>
               {ATTENDANCE_STATUSES.map((st) => (
                 <span key={st} className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[st]}`}>
-                  {t(`attendance.statuses.${st}`)} {data[st.toLowerCase() as 'present']}
+                  {t(`attendance.statuses.${st}`)} {shown![st.toLowerCase() as 'present']}
                 </span>
               ))}
             </div>
           </div>
 
-          {data.records.length === 0 ? (
+
+          {shownRecords.length === 0 ? (
             <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
               {t('attendance.member.noneInPeriod')}
             </p>
@@ -166,12 +219,16 @@ export function MemberAttendancePanel({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.records.map((r) => (
+                  {shownRecords.map((r) => (
                     <TableRow key={r.sessionId}>
                       <TableCell className="text-sm whitespace-nowrap">{sessionDate(r.startsAt)}</TableCell>
                       <TableCell className="text-sm">
                         {linkSessions ? <SessionLink id={r.sessionId}>{r.title}</SessionLink> : <span className="font-medium">{r.title}</span>}
-                        <span className="block text-xs text-muted-foreground">{t(`attendance.kinds.${r.kind}`)}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {t(`attendance.kinds.${r.kind}`)}
+                          {r.department !== undefined &&
+                            ` · ${r.department ? deptName(r.department) : t('attendance.member.office')}`}
+                        </span>
                       </TableCell>
                       <TableCell className="hidden text-sm whitespace-nowrap md:table-cell">
                         {sessionTimes(r.startsAt, r.endsAt)}

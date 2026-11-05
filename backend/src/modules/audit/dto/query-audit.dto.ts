@@ -6,6 +6,13 @@ import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto.js'
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class QueryAuditDto extends PaginationQueryDto {
+  /** Matches the acting user's name or email, the record type, its id, or the IP. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
+
   @ApiPropertyOptional({ description: 'Only actions by this user' })
   @IsOptional()
   @Type(() => Number)

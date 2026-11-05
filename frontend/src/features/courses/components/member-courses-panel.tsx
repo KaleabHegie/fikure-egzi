@@ -52,7 +52,7 @@ export function MemberCoursesPanel({
     <section className="space-y-5 rounded-xl border bg-card p-5 lg:col-span-2">
       {teaching.length > 0 && (
         <div>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
             <Presentation className="size-4 text-muted-foreground" />
             {t('courses.member.teaching')}
           </h2>
@@ -77,7 +77,7 @@ export function MemberCoursesPanel({
 
       {taking.length > 0 && (
         <div>
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-medium">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
             <GraduationCap className="size-4 text-muted-foreground" />
             {t('courses.member.title')}
           </h2>

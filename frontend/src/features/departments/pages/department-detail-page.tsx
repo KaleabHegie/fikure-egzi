@@ -1,8 +1,9 @@
-import { Building2, ChevronRight, Crown, MoreHorizontal, Pencil, Plus, Trash2, UserPlus, Users } from 'lucide-react'
+import { Building2, ChevronRight, Crown, MoreHorizontal, Pencil, Plus, Search, Trash2, UserPlus, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
+import { CollapsibleSection } from '@/components/common/collapsible-section'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState, ErrorState } from '@/components/common/states'
 import { PageHeader } from '@/components/layout/page-header'
@@ -15,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useAuth } from '@/features/auth/use-auth'
@@ -54,6 +56,7 @@ export function DepartmentDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [creatingChild, setCreatingChild] = useState(false)
   const [removing, setRemoving] = useState<DepartmentMembership | null>(null)
+  const [search, setSearch] = useState('')
 
   const notifyError = (e: unknown) => toast.error(getErrorMessage(e))
   const addMember = useDepartmentMutation((a: Parameters<typeof departmentsApi.addMember>[1]) =>
@@ -77,6 +80,14 @@ export function DepartmentDetailPage() {
   const amharic = i18n.language === 'am'
   const description = amharic ? d.descriptionAm : d.descriptionEn
   const members = roster.data ?? []
+  const q = search.trim().toLowerCase()
+  const shownMembers = q
+    ? members.filter((m) =>
+        `${memberFullName(m.member)} ${m.member.christianName ?? ''} ${m.member.memberCode} ${m.member.phone ?? ''}`
+          .toLowerCase()
+          .includes(q),
+      )
+    : members
   const children = (all ?? []).filter((x) => x.parentId === d.id)
   const summary = (all ?? []).find((x) => x.id === d.id)
   const holder = (role: DepartmentRole) =>
@@ -126,19 +137,13 @@ export function DepartmentDetailPage() {
         }
       />
 
-      <section className="overflow-hidden rounded-xl border bg-card">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
-              <Building2 className="size-4" />
-            </span>
-            <div>
-              <h2 className="font-heading text-base font-semibold">{t('departments.subDepartments.title')}</h2>
-              <p className="text-sm text-muted-foreground">{t('departments.subDepartments.description')}</p>
-            </div>
-          </div>
-          <span className="tabular text-sm text-muted-foreground">{t('departments.subDepartments.count', { count: children.length })}</span>
-        </header>
+      <div className="space-y-6">
+      <CollapsibleSection
+        icon={Building2}
+        title={t('departments.subDepartments.title')}
+        description={t('departments.subDepartments.description')}
+        meta={<span className="tabular">{t('departments.subDepartments.count', { count: children.length })}</span>}
+      >
         {children.length === 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-6">
             <p className="text-sm text-muted-foreground">{t('departments.subDepartments.empty')}</p>
@@ -150,48 +155,79 @@ export function DepartmentDetailPage() {
             )}
           </div>
         ) : (
-          <ul className="divide-y">
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {children.map((child) => (
-              <li key={child.id}>
-                <Link
-                  to={`/departments/${child.id}`}
-                  className={cn(
-                    'group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-muted/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-                    !child.isActive && 'opacity-60',
-                  )}
-                >
-                  <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+              <div
+                key={child.id}
+                className={cn(
+                  'group relative flex flex-col gap-3 rounded-lg border bg-background p-4 transition-colors hover:border-brand/40 hover:bg-accent/40',
+                  !child.isActive && 'opacity-60',
+                )}
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-brand">
                     <Building2 className="size-4" />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{name(child)}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{amharic ? child.nameEn : child.nameAm}</span>
-                  </span>
-                  {child.head ? (
-                    <span className="hidden min-w-0 items-center gap-1.5 text-sm text-muted-foreground sm:flex">
-                      <Crown className="size-3.5 shrink-0 text-gold" />
-                      <span className="max-w-36 truncate">{memberFullName(child.head)}</span>
+                  <div className="min-w-0">
+                    <Link
+                      to={`/departments/${child.id}`}
+                      className="font-semibold after:absolute after:inset-0 hover:underline"
+                    >
+                      {name(child)}
+                    </Link>
+                    <p className="truncate text-xs text-muted-foreground">{amharic ? child.nameEn : child.nameAm}</p>
+                    {!child.isActive && (
+                      <p className="text-xs font-medium text-muted-foreground">{t('departments.inactive')}</p>
+                    )}
+                  </div>
+                </div>
+                {child.head ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <MemberAvatar member={child.head} />
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{memberFullName(child.head)}</span>
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Crown className="size-3 text-gold" />
+                        {t('departments.head')}
+                      </span>
                     </span>
-                  ) : (
-                    <span className="hidden text-sm text-muted-foreground sm:block">{t('departments.noHead')}</span>
-                  )}
-                  <span className="tabular text-xs text-muted-foreground">{t('departments.members', { count: child.memberCount })}</span>
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </li>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t('departments.noHead')}</p>
+                )}
+                <div className="mt-auto flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Users className="size-3.5" />
+                    {t('departments.members', { count: child.memberCount })}
+                  </span>
+                  <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
-      </section>
+      </CollapsibleSection>
 
-      <section className="rounded-xl border bg-card">
-        <header className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="font-medium">{t('departments.roster.title')}</h2>
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Users className="size-4" />
-            {t('departments.members', { count: summary?.memberCount ?? members.length })}
-          </span>
-        </header>
+      <CollapsibleSection
+        icon={Users}
+        title={t('departments.roster.title')}
+        meta={<span className="tabular">{t('departments.members', { count: summary?.memberCount ?? members.length })}</span>}
+      >
+        {members.length > 0 && (
+          <div className="border-b px-5 py-3">
+            <div className="relative max-w-sm">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                className="pl-8"
+                placeholder={t('departments.roster.search')}
+                aria-label={t('departments.roster.search')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
         {roster.isError ? (
           <ErrorState error={roster.error} onRetry={() => void roster.refetch()} />
         ) : roster.isPending ? (
@@ -214,6 +250,8 @@ export function DepartmentDetailPage() {
               )
             }
           />
+        ) : shownMembers.length === 0 ? (
+          <p className="p-6 text-center text-sm text-muted-foreground">{t('members.empty.filteredTitle')}</p>
         ) : (
           <Table>
             <TableHeader>
@@ -226,7 +264,7 @@ export function DepartmentDetailPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {members.map((m) => (
+              {shownMembers.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell className="pl-5">
                     <Link to={`/members/${m.member.id}`} className="flex items-center gap-3 hover:underline">
@@ -289,9 +327,10 @@ export function DepartmentDetailPage() {
             </TableBody>
           </Table>
         )}
-      </section>
+      </CollapsibleSection>
 
       <FormerMembers departmentId={id} />
+      </div>
 
       <AddMemberDialog
         open={addOpen}

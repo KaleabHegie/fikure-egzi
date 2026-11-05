@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -80,13 +81,32 @@ export class MemberImportController {
   @RequirePermissions(PERMISSIONS.MEMBERS_CREATE)
   @fileUpload()
   @ApiConsumes('multipart/form-data')
-  @ApiBody(fileBody)
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        skipDuplicates: {
+          type: 'string',
+          enum: ['true', 'false'],
+          description: 'Skip rows whose full name is already registered instead of failing',
+        },
+      },
+    },
+  })
   @ApiUnprocessableEntityResponse({ description: 'Some rows are invalid; nothing was imported' })
   commit(
     @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser() user: AuthenticatedUser,
     @ReqMeta() meta: RequestMeta,
+    @Body('skipDuplicates') skipDuplicates?: string,
   ) {
-    return this.importer.commit(requireFile(file), user.id, meta.ipAddress);
+    return this.importer.commit(
+      requireFile(file),
+      user.id,
+      meta.ipAddress,
+      skipDuplicates === 'true' || skipDuplicates === '1',
+    );
   }
 }

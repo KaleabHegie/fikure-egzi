@@ -18,6 +18,7 @@ import type {
 export interface SessionListParams {
   page: number
   pageSize: number
+  search?: string
   kind?: SessionKind
   status?: SessionStatus
   from?: string

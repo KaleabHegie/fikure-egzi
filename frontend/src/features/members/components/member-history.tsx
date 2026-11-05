@@ -60,7 +60,7 @@ export function MemberHistory({ memberId }: { memberId: number }) {
       <div className="mb-4 flex items-start gap-3">
         <History className="mt-0.5 size-4 text-muted-foreground" />
         <div>
-          <h2 className="text-sm font-medium">{t('members.history.title')}</h2>
+          <h2 className="text-sm font-semibold">{t('members.history.title')}</h2>
           <p className="text-xs text-muted-foreground">{t('members.history.description')}</p>
         </div>
       </div>

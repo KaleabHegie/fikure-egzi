@@ -19,7 +19,7 @@ function Section({ title, description, children }: { title: string; description:
   return (
     <section className="grid gap-x-10 gap-y-5 border-b py-8 first:pt-0 last:border-b-0 lg:grid-cols-[16rem_1fr]">
       <div className="space-y-1">
-        <h2 className="font-medium">{title}</h2>
+        <h2 className="font-semibold">{title}</h2>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">{children}</div>

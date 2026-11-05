@@ -10,7 +10,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate } from 'react-router'
 import { ErrorState } from '@/components/common/states'
@@ -31,7 +31,7 @@ import { memberFullName } from '@/features/members/utils'
 import { ecMonthName, ecToday, formatEth } from '@/lib/ethiopian-calendar'
 import { formatDate } from '@/lib/format'
 import { NAVIGATION } from '@/components/layout/navigation'
-import { PERMISSIONS } from '@/lib/permissions'
+import { PERMISSIONS, type PermissionCode } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { bucketByEcMonth } from '../components/ec-buckets'
 import { JoinedChart } from '../components/joined-chart'
@@ -39,25 +39,54 @@ import { JoinedChart } from '../components/joined-chart'
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0)
 const countOf = <K extends string>(rows: CountByKey<K>[], key: K) => rows.find((r) => r.key === key)?.count ?? 0
 
+/** Counts up to the target on mount; jumps straight there under reduced motion. */
+function useCountUp(target: number): number {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650
+    const start = performance.now()
+    let raf = 0
+    const tick = (now: number) => {
+      const p = duration === 0 ? 1 : Math.min((now - start) / duration, 1)
+      setValue(Math.round(target * (1 - (1 - p) ** 3)))
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target])
+  return value
+}
+
+/** Section card in the register style: chip-marked title over a dashed rule, like the ledger rows. */
 function Card({
   title,
   icon: Icon,
   action,
   className,
+  delay,
   children,
 }: {
   title: string
   icon?: LucideIcon
   action?: React.ReactNode
   className?: string
+  /** Entrance stagger in ms. */
+  delay?: number
   children: React.ReactNode
 }) {
   return (
-    <section className={cn('rounded-xl border bg-card p-5', className)}>
-      <header className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-medium">
-          {Icon && <Icon className="size-4 text-brand" />}
-          {title}
+    <section
+      className={cn('rise-in card-lift rounded-xl border bg-card p-5', className)}
+      style={delay ? { animationDelay: `${delay}ms` } : undefined}
+    >
+      <header className="mb-4 flex items-center justify-between gap-2 border-b border-dashed pb-3">
+        <h2 className="flex min-w-0 items-center gap-2.5 text-sm font-semibold">
+          {Icon && (
+            <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-brand" aria-hidden>
+              <Icon className="size-3.5" />
+            </span>
+          )}
+          <span className="truncate">{title}</span>
         </h2>
         {action}
       </header>
@@ -76,13 +105,18 @@ function ViewAll({ to }: { to: string }) {
   )
 }
 
-/** Headline number with one line of context. */
+/**
+ * Headline number with one line of context. The figure is set in the Ge'ez
+ * serif like a register entry; the share meter is a thread that ends in a
+ * gilt tibeb diamond.
+ */
 function KpiTile({
   label,
   value,
   hint,
   icon: Icon,
   meter,
+  delay,
 }: {
   label: string
   value: number
@@ -90,47 +124,121 @@ function KpiTile({
   icon: LucideIcon
   /** 0–100: optional thin progress meter under the number. */
   meter?: number
+  /** Entrance stagger in ms. */
+  delay?: number
 }) {
+  const shown = useCountUp(value)
   return (
-    <div className="rounded-xl border bg-card p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <span className="grid size-8 place-items-center rounded-lg bg-accent text-brand">
+    <div
+      className="rise-in card-lift flex flex-col rounded-xl border bg-card p-5"
+      style={delay ? { animationDelay: `${delay}ms` } : undefined}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium tracking-wide text-muted-foreground">{label}</p>
+          <p className="tabular mt-2.5 font-record text-[2.6rem] leading-none font-semibold">{shown.toLocaleString()}</p>
+        </div>
+        <span
+          className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-brand ring-1 ring-gold/60 ring-offset-2 ring-offset-card"
+          aria-hidden
+        >
           <Icon className="size-4" />
         </span>
       </div>
-      <p className="tabular mt-2 font-record text-4xl leading-none font-semibold">{value.toLocaleString()}</p>
-      {meter !== undefined && (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-          <div className="h-full rounded-full bg-chart-1" style={{ width: `${meter}%` }} />
-        </div>
-      )}
-      <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>
+      <div className="mt-auto pt-3">
+        {meter !== undefined && (
+          <div className="relative mr-1.5 mb-2 h-1 rounded-full bg-muted" aria-hidden>
+            <div className="h-full rounded-full bg-chart-1" style={{ width: `${meter}%` }} />
+            <span
+              className="absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] bg-gold ring-2 ring-card"
+              style={{ left: `${Math.max(meter, 1)}%` }}
+            />
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
     </div>
   )
 }
 
-/** Horizontal single-hue bars; label + count are text, so identity is never color alone. */
-function Bars<K extends string>({ rows, label, total }: { rows: CountByKey<K>[]; label: (k: K) => string; total: number }) {
+const DONUT_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
+
+/**
+ * Donut of shares with the total set in the Ge'ez serif at its centre.
+ * The legend carries every label and count as text, so identity is never
+ * color alone; hovering a legend row lights up its slice.
+ */
+function Donut<K extends string>({ rows, label, total }: { rows: CountByKey<K>[]; label: (k: K) => string; total: number }) {
   const { t } = useTranslation()
-  const sorted = [...rows].sort((a, b) => b.count - a.count)
-  if (sorted.length === 0) return <p className="text-sm text-muted-foreground">{t('dashboard.noData')}</p>
+  const [hovered, setHovered] = useState<K | null>(null)
+  const sorted = [...rows].filter((r) => r.count > 0).sort((a, b) => b.count - a.count)
+  const sum = sorted.reduce((n, r) => n + r.count, 0)
+  if (sorted.length === 0 || sum === 0) return <p className="text-sm text-muted-foreground">{t('dashboard.noData')}</p>
+
+  const r = 48
+  const c = 2 * Math.PI * r
+  const gap = sorted.length > 1 ? 3 : 0
+  const arcs = sorted.map((row) => (row.count / sum) * c)
+  const segments = sorted.map((row, i) => ({
+    row,
+    color: DONUT_COLORS[i % DONUT_COLORS.length],
+    len: Math.max((arcs[i] ?? 0) - gap, 0.5),
+    start: arcs.slice(0, i).reduce((n, len) => n + len, 0),
+  }))
+
   return (
-    <ul className="space-y-3">
-      {sorted.map((r) => (
-        <li key={r.key} className="space-y-1">
-          <div className="flex justify-between text-sm">
-            <span>{label(r.key)}</span>
-            <span className="tabular text-muted-foreground">
-              {r.count.toLocaleString()} · {pct(r.count, total)}%
-            </span>
+    <div className="flex items-center gap-6">
+      <div className="relative shrink-0" aria-hidden>
+        <svg viewBox="0 0 120 120" className="size-32 -rotate-90">
+          <circle cx="60" cy="60" r={r} fill="none" stroke="var(--muted)" strokeWidth="13" />
+          {segments.map(({ row, color, len, start }) => (
+            <circle
+              key={row.key}
+              cx="60"
+              cy="60"
+              r={r}
+              fill="none"
+              stroke={color}
+              strokeWidth={hovered === row.key ? 16 : 13}
+              strokeDasharray={`${len} ${c - len}`}
+              strokeDashoffset={-(start + gap / 2)}
+              className="transition-all duration-200"
+              opacity={hovered !== null && hovered !== row.key ? 0.3 : 1}
+              onMouseEnter={() => setHovered(row.key)}
+              onMouseLeave={() => setHovered(null)}
+            />
+          ))}
+        </svg>
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="text-center">
+            <p className="tabular font-record text-2xl leading-none font-semibold">
+              {(hovered !== null ? (sorted.find((row) => row.key === hovered)?.count ?? sum) : sum).toLocaleString()}
+            </p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              {hovered !== null ? label(hovered) : t('dashboard.total')}
+            </p>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-            <div className="h-full rounded-full bg-chart-1" style={{ width: `${pct(r.count, total)}%` }} />
-          </div>
-        </li>
-      ))}
-    </ul>
+        </div>
+      </div>
+      <ul className="min-w-0 flex-1 space-y-1">
+        {segments.map(({ row, color }) => (
+          <li key={row.key}>
+            <div
+              className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-muted/60"
+              onMouseEnter={() => setHovered(row.key)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <span className="size-2 shrink-0 rotate-45 rounded-[1px]" style={{ background: color }} aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-sm">{label(row.key)}</span>
+              <span className="tabular shrink-0 text-sm font-medium">{row.count.toLocaleString()}</span>
+              <span className="tabular w-10 shrink-0 text-right text-xs text-muted-foreground">
+                {pct(row.count, total)}%
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -147,11 +255,13 @@ function DepartmentsOverview() {
       {office && (
         <Link
           to={`/departments/${office.id}`}
-          className="mb-4 flex items-center gap-3 rounded-lg bg-brand px-3 py-2.5 text-brand-foreground hover:opacity-95"
+          className="relative mb-4 flex items-center gap-3 overflow-hidden rounded-lg bg-brand px-3 py-2.5 text-brand-foreground hover:opacity-95"
         >
-          <Landmark className="size-4 text-gold" />
-          <span className="flex-1 font-medium">{name(office)}</span>
-          <span className="text-xs text-brand-foreground/75">
+          {/* Faint cross motif, same as the other brand surfaces. */}
+          <span className="pattern-cross absolute inset-0 opacity-[0.08]" aria-hidden />
+          <Landmark className="relative size-4 text-gold" />
+          <span className="relative flex-1 font-medium">{name(office)}</span>
+          <span className="relative text-xs text-brand-foreground/75">
             {t('departments.administers', { count: departments.length })}
           </span>
         </Link>
@@ -304,6 +414,7 @@ function Overview() {
           label={t('dashboard.active')}
           value={active}
           icon={UserCheck}
+          delay={60}
           meter={pct(active, data.total)}
           hint={t('dashboard.share', { pct: pct(active, data.total) })}
         />
@@ -312,6 +423,7 @@ function Overview() {
             label={t('dashboard.serving')}
             value={data.servingInDepartments}
             icon={Building2}
+            delay={120}
             meter={pct(data.servingInDepartments, data.total)}
             hint={t('dashboard.share', { pct: pct(data.servingInDepartments, data.total) })}
           />
@@ -321,6 +433,7 @@ function Overview() {
             label={t('dashboard.placed')}
             value={data.placedInClasses}
             icon={BookOpen}
+            delay={180}
             meter={pct(data.placedInClasses, data.total)}
             hint={t('dashboard.notPlaced', { count: notPlaced })}
           />
@@ -328,12 +441,12 @@ function Overview() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card title={t('dashboard.joinedChart')} className="xl:col-span-2">
-          <p className="-mt-3 mb-4 text-xs text-muted-foreground">{t('dashboard.joinedChartHint')}</p>
+        <Card title={t('dashboard.joinedChart')} className="xl:col-span-2" delay={220}>
+          <p className="-mt-2 mb-4 text-xs text-muted-foreground">{t('dashboard.joinedChartHint')}</p>
           <JoinedChart days={data.joinedByDay} />
         </Card>
-        <Card title={t('dashboard.byGender')}>
-          <Bars rows={data.byGender} label={labels.gender} total={data.total} />
+        <Card title={t('dashboard.byGender')} delay={280}>
+          <Donut rows={data.byGender} label={labels.gender} total={data.total} />
         </Card>
       </div>
 
@@ -343,7 +456,7 @@ function Overview() {
         <div className="space-y-4">
           <RecentMembers />
           <Card title={t('dashboard.byStatus')}>
-            <Bars rows={data.byStatus} label={labels.status} total={data.total} />
+            <Donut rows={data.byStatus} label={labels.status} total={data.total} />
           </Card>
         </div>
       </div>
@@ -360,8 +473,11 @@ export function DashboardPage() {
 
   // Attendance takers have no dashboard; send them to their first page (attendance).
   if (!can(PERMISSIONS.MEMBERS_READ)) {
-    const first = NAVIGATION.flatMap((section) => section.items).find(
-      (item) => item.to && item.to !== '/' && (!item.permission || can(item.permission)),
+    const entries = NAVIGATION.flatMap((section) => section.items).flatMap(
+      (item): { to?: string; permission?: PermissionCode }[] => (item.children ? [...item.children] : [item]),
+    )
+    const first = entries.find(
+      (entry) => entry.to && entry.to !== '/' && (!entry.permission || can(entry.permission)),
     )
     if (first?.to) return <Navigate to={first.to} replace />
   }

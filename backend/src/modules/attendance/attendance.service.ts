@@ -176,6 +176,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     await this.closeOverdue();
     const where: Prisma.AttendanceSessionWhereInput = {
       ...sessionScopeWhere(scope),
+      ...(q.search?.trim() && { title: { contains: q.search.trim() } }),
       ...(q.kind && { kind: q.kind }),
       ...(q.status && { status: q.status }),
       ...(q.classGradeId && { classGradeId: q.classGradeId }),
@@ -518,6 +519,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       select: { id: true },
     });
     if (!member) throw new NotFoundException(`Member ${memberId} not found`);
+    const DEPT = { select: { id: true, nameEn: true, nameAm: true } } as const;
     const records = await this.prisma.attendanceRecord.findMany({
       where: { memberId, session: { ...rangeWhere(from, to), ...sessionScopeWhere(scope) } },
       select: {
@@ -532,22 +534,61 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
             startsAt: true,
             endsAt: true,
             lateAfterMinutes: true,
+            // The department that runs the session: the class's department, or the organiser (null = office).
+            classGrade: { select: { classType: { select: { department: DEPT } } } },
+            serviceGroup: {
+              select: { classGrade: { select: { classType: { select: { department: DEPT } } } } },
+            },
+            organiser: DEPT,
           },
         },
       },
       orderBy: { session: { startsAt: 'desc' } },
     });
+    type Dept = { id: number; nameEn: string; nameAm: string } | null;
+    const runDepartment = (s: (typeof records)[number]['session']): Dept =>
+      s.classGrade?.classType.department ??
+      s.serviceGroup?.classGrade?.classType.department ??
+      s.organiser ??
+      null;
+
     const counts = emptyCounts();
     let minutes = 0;
+    const byDept = new Map<
+      number,
+      { department: Dept; counts: ReturnType<typeof emptyCounts>; minutes: number; sessions: number }
+    >();
     for (const r of records) {
       addCount(counts, r.status);
-      minutes += minutesAttended(r, r.session);
+      const attended = minutesAttended(r, r.session);
+      minutes += attended;
+      const department = runDepartment(r.session);
+      const entry = byDept.get(department?.id ?? 0) ?? {
+        department,
+        counts: emptyCounts(),
+        minutes: 0,
+        sessions: 0,
+      };
+      addCount(entry.counts, r.status);
+      entry.minutes += attended;
+      entry.sessions += 1;
+      byDept.set(department?.id ?? 0, entry);
     }
     return {
       ...counts,
       sessions: records.length,
       rate: attendanceRate(counts),
       minutesAttended: minutes,
+      /** The member's attendance per running department, busiest first. */
+      byDepartment: [...byDept.values()]
+        .sort((a, b) => b.sessions - a.sessions)
+        .map((d) => ({
+          department: d.department,
+          sessions: d.sessions,
+          ...d.counts,
+          rate: attendanceRate(d.counts),
+          minutesAttended: d.minutes,
+        })),
       // Every session in the period, newest first (a member has at most a few hundred a year).
       records: records.map((r) => ({
         sessionId: r.session.id,
@@ -555,6 +596,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
         title: r.session.title,
         startsAt: r.session.startsAt,
         endsAt: r.session.endsAt,
+        department: runDepartment(r.session),
         status: r.status,
         checkedInAt: r.checkedInAt,
         note: r.note,

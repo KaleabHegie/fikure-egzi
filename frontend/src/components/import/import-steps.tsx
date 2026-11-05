@@ -39,7 +39,7 @@ export function ImportStep({
         </span>
         <div className="min-w-0 flex-1 space-y-3">
           <div>
-            <h2 className="font-medium">{title}</h2>
+            <h2 className="font-semibold">{title}</h2>
             {body && <p className="text-sm text-muted-foreground">{body}</p>}
           </div>
           {children}

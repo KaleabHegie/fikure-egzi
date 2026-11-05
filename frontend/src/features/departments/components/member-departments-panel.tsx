@@ -43,7 +43,7 @@ export function MemberDepartmentsPanel({ member }: { member: Member }) {
   return (
     <section className="rounded-xl border bg-card p-5">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">{t('members.sections.departments.title')}</h2>
+        <h2 className="text-sm font-semibold">{t('members.sections.departments.title')}</h2>
         {canManage && (
           <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
             <Plus />

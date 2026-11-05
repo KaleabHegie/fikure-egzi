@@ -111,6 +111,13 @@ export class CreateSessionDto {
 export class UpdateSessionDto extends PartialType(OmitType(CreateSessionDto, ['kind'] as const)) {}
 
 export class QuerySessionsDto extends PaginationQueryDto {
+  /** Matches against the session title. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
+
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
   @Matches(DATE, { message: 'from must be YYYY-MM-DD' })

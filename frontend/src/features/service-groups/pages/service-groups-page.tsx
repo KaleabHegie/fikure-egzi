@@ -9,6 +9,7 @@ import {
   Trash2,
   UserMinus,
   UserPlus,
+  Users,
   UsersRound,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -56,12 +57,14 @@ type DialogState =
 
 function GroupCard({
   group,
+  index,
   groups,
   canManage,
   onDialog,
   onMove,
 }: {
   group: ServiceGroup
+  index: number
   groups: ServiceGroup[]
   canManage: boolean
   onDialog: (d: DialogState) => void
@@ -72,54 +75,83 @@ function GroupCard({
   const name = useLocalizedName()
   const gradeLabel = useGradeLabel()
   const others = groups.filter((g) => g.id !== group.id)
+  const stack = group.members.slice(0, 5)
   return (
-    <section className="flex flex-col rounded-xl border bg-card">
-      <header className="flex items-start justify-between gap-2 border-b p-4">
-        <div className="min-w-0">
-          <h2 className="font-semibold">{name(group)}</h2>
-          <p className="text-xs text-muted-foreground">
-            {i18n.language === 'am' ? group.nameEn : group.nameAm}
-            {group.classGrade && ` · ${name(group.classGrade.classType)} · ${gradeLabel(group.classGrade)}`}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+    <section className="flex flex-col overflow-hidden rounded-xl border bg-card">
+      <header className="space-y-3 border-b p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              className="tabular grid size-9 shrink-0 place-items-center rounded-lg bg-accent font-record text-base font-semibold text-accent-foreground"
+              aria-hidden
+            >
+              {index + 1}
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate font-semibold">{name(group)}</h2>
+              <p className="truncate text-xs text-muted-foreground">
+                {i18n.language === 'am' ? group.nameEn : group.nameAm}
+              </p>
+            </div>
+          </div>
+          {canManage && (
+            <div className="flex shrink-0 items-center gap-1">
+              <Button variant="outline" size="sm" onClick={() => onDialog({ kind: 'assign', group })}>
+                <UserPlus />
+                {t('serviceGroups.addMembers')}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" aria-label={t('serviceGroups.editGroup')}>
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => onDialog({ kind: 'group', group })}>
+                    <Pencil />
+                    {t('common.edit')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => onDialog({ kind: 'deleteGroup', group })}>
+                    <Trash2 />
+                    {t('common.delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          {group.classGrade && (
+            <span className="inline-flex h-6 items-center rounded-full bg-accent px-2.5 text-xs font-medium text-accent-foreground">
+              {name(group.classGrade.classType)} · {gradeLabel(group.classGrade)}
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground">
             {t('serviceGroups.memberCount', { count: group.members.length })} ·{' '}
             {t('serviceGroups.sessionCount', { count: group.sessionCount })}
-          </p>
-          {group.notes && <p className="mt-1 text-xs text-muted-foreground">{group.notes}</p>}
+          </span>
+          {stack.length > 0 && (
+            <span className="ml-auto flex -space-x-2" aria-hidden>
+              {stack.map((m) => (
+                <MemberAvatar key={m.id} member={m} className="ring-2 ring-card" />
+              ))}
+              {group.members.length > stack.length && (
+                <span className="tabular grid size-8 shrink-0 place-items-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-card">
+                  +{group.members.length - stack.length}
+                </span>
+              )}
+            </span>
+          )}
         </div>
-        {canManage && (
-          <div className="flex shrink-0 items-center gap-1">
-            <Button variant="outline" size="sm" onClick={() => onDialog({ kind: 'assign', group })}>
-              <UserPlus />
-              {t('serviceGroups.addMembers')}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label={t('serviceGroups.editGroup')}>
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => onDialog({ kind: 'group', group })}>
-                  <Pencil />
-                  {t('common.edit')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={() => onDialog({ kind: 'deleteGroup', group })}>
-                  <Trash2 />
-                  {t('common.delete')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
+        {group.notes && <p className="text-xs text-muted-foreground">{group.notes}</p>}
       </header>
       {group.members.length === 0 ? (
         <p className="p-4 text-sm text-muted-foreground">{t('serviceGroups.noMembers')}</p>
       ) : (
-        <ul className="max-h-96 divide-y overflow-y-auto">
+        <ul className="scrollbar-quiet max-h-80 divide-y divide-border/70 overflow-y-auto">
           {group.members.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 px-4 py-2">
+            <li key={m.id} className="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-muted/40">
               <MemberAvatar member={m} />
               <Link to={`/members/${m.id}`} className="min-w-0 flex-1 hover:underline">
                 <span className="block truncate text-sm font-medium">{memberFullName(m)}</span>
@@ -226,6 +258,55 @@ export function ServiceGroupsPage() {
     />
   )
 
+  const termActions = term && canManageTerms && (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button variant="outline" size="sm" onClick={() => setDialog({ kind: 'group' })}>
+        <Plus />
+        {t('serviceGroups.newGroup')}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={manageableGroups.length === 0}
+        onClick={() => setDialog({ kind: 'distribute' })}
+      >
+        <Shuffle />
+        {t('serviceGroups.distribute.button')}
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={t('serviceGroups.editTerm')}>
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setDialog({ kind: 'term', term })}>
+            <Pencil />
+            {t('serviceGroups.editTerm')}
+          </DropdownMenuItem>
+          {!term.isCurrent && (
+            <DropdownMenuItem
+              onSelect={() =>
+                makeCurrent.mutate(term.id, {
+                  onSuccess: () => toast.success(t('serviceGroups.madeCurrent')),
+                  onError: notifyError,
+                })
+              }
+            >
+              <Star />
+              {t('serviceGroups.makeCurrent')}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setDialog({ kind: 'deleteTerm', term })}>
+            <Trash2 />
+            {t('serviceGroups.deleteTerm')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+
   let body: React.ReactNode
   if (terms.isPending) {
     body = <Skeleton className="h-64 rounded-xl" />
@@ -250,87 +331,57 @@ export function ServiceGroupsPage() {
   } else {
     body = (
       <div className="space-y-4">
-        <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <Select value={String(term.id)} onValueChange={(v) => selectTerm(Number(v))}>
-              <SelectTrigger className="w-48" aria-label={t('serviceGroups.term')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {termList.map((x) => (
-                  <SelectItem key={x.id} value={String(x.id)}>
-                    {name(x)}
-                    {x.isCurrent && ` · ${t('serviceGroups.current')}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="min-w-0 text-sm">
-              <p className="flex items-center gap-1.5 text-muted-foreground">
-                <CalendarRange className="size-4 shrink-0" />
-                {formatDate(term.startsOn)} – {formatDate(term.endsOn)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {t('serviceGroups.groupCount', { count: groupList.length })} ·{' '}
-                {t('serviceGroups.memberCount', { count: assigned })}
-              </p>
-            </div>
-            {term.isCurrent && (
-              <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-success/12 px-2 text-xs font-medium text-success">
-                {t('serviceGroups.current')}
-              </span>
-            )}
-          </div>
-          {canManageTerms && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setDialog({ kind: 'group' })}>
-                <Plus />
-                {t('serviceGroups.newGroup')}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={manageableGroups.length === 0}
-                onClick={() => setDialog({ kind: 'distribute' })}
+        <div className="space-y-3 rounded-xl border bg-card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* The term filter: a dropdown with its label on show. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <label
+                htmlFor="term-select"
+                className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground"
               >
-                <Shuffle />
-                {t('serviceGroups.distribute.button')}
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label={t('serviceGroups.editTerm')}>
-                    <MoreHorizontal />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setDialog({ kind: 'term', term })}>
-                    <Pencil />
-                    {t('serviceGroups.editTerm')}
-                  </DropdownMenuItem>
-                  {!term.isCurrent && (
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        makeCurrent.mutate(term.id, {
-                          onSuccess: () => toast.success(t('serviceGroups.madeCurrent')),
-                          onError: notifyError,
-                        })
-                      }
-                    >
-                      <Star />
-                      {t('serviceGroups.makeCurrent')}
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="destructive" onSelect={() => setDialog({ kind: 'deleteTerm', term })}>
-                    <Trash2 />
-                    {t('serviceGroups.deleteTerm')}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                <CalendarRange className="size-4 shrink-0" />
+                {t('serviceGroups.term')}
+              </label>
+              <Select value={String(term.id)} onValueChange={(v) => selectTerm(Number(v))}>
+                <SelectTrigger id="term-select" className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {termList.map((x) => (
+                    <SelectItem key={x.id} value={String(x.id)}>
+                      {name(x)}
+                      {x.isCurrent && ` · ${t('serviceGroups.current')}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {term.isCurrent && (
+                <span className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full bg-success/12 px-2 text-xs font-medium text-success">
+                  <Star className="size-3 fill-gold text-gold" aria-hidden />
+                  {t('serviceGroups.current')}
+                </span>
+              )}
             </div>
-          )}
+            {termActions}
+          </div>
+          {/* The term's facts on a register line: period, groups, members. */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-dashed pt-3 text-sm">
+            <span className="flex items-center gap-1.5">
+              <CalendarRange className="size-4 shrink-0 text-brand" aria-hidden />
+              <span className="tabular">
+                {formatDate(term.startsOn)} – {formatDate(term.endsOn)}
+              </span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <UsersRound className="size-4 shrink-0 text-brand" aria-hidden />
+              <span className="tabular font-medium">{t('serviceGroups.groupCount', { count: groupList.length })}</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Users className="size-4 shrink-0 text-brand" aria-hidden />
+              <span className="tabular font-medium">{t('serviceGroups.memberCount', { count: assigned })}</span>
+            </span>
+          </div>
         </div>
-
         {groups.isPending ? (
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((i) => (
@@ -356,10 +407,11 @@ export function ServiceGroupsPage() {
           />
         ) : (
           <div className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            {groupList.map((g) => (
+            {groupList.map((g, i) => (
               <GroupCard
                 key={g.id}
                 group={g}
+                index={i}
                 groups={manageableGroups}
                 canManage={managesGroup(g)}
                 onDialog={setDialog}

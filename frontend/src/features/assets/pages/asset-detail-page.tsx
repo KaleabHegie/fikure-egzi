@@ -55,7 +55,7 @@ export function AssetDetailPage() {
           <span className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs">{a.assetCode}</span>
             <AssetStatusBadge status={a.status} />
-            <span>{t(`assets.categories.${a.category}`)}</span>
+            <span>{name(a.category)}</span>
           </span>
         }
         actions={

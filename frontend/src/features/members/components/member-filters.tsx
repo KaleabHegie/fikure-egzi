@@ -1,27 +1,35 @@
-import { Search, X } from 'lucide-react'
+import { ListFilter, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { FilterChip } from '@/components/common/filter-chip'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { useClassTypes } from '@/features/classes/api'
 import { useDepartments } from '@/features/departments/api'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { useMemberLabels } from '../labels'
 import type { MemberListParams } from '../types'
 
-type FilterKey = 'status' | 'gender'
 const ALL = '__all__'
 const SEARCH_DEBOUNCE_MS = 300
 
+/** One active filter, shown as a removable chip. */
+interface Chip {
+  param: keyof MemberListParams
+  category: string
+  value: string
+}
 
 export function MemberFilters({
   params,
@@ -41,10 +49,6 @@ export function MemberFilters({
   // Include inactive grades: old placements should stay findable.
   const { data: classTypes } = useClassTypes(true)
   const { data: departments } = useDepartments(true)
-  const filters: { key: FilterKey; label: string; options: { value: string; label: string }[] }[] = [
-    { key: 'status', label: t('members.filters.allStatuses'), options: labels.statusOptions },
-    { key: 'gender', label: t('members.filters.allGenders'), options: labels.genderOptions },
-  ]
   const urlSearch = params.search ?? ''
   const [search, setSearch] = useState(urlSearch)
   const [syncedFrom, setSyncedFrom] = useState(urlSearch)
@@ -65,9 +69,24 @@ export function MemberFilters({
     timer.current = setTimeout(() => onChange({ search: value.trim() || undefined }), SEARCH_DEBOUNCE_MS)
   }
 
+  const grade = classTypes?.flatMap((type) => type.grades).find((g) => String(g.id) === String(params.classGradeId))
+  const department = departments?.find((d) => String(d.id) === String(params.departmentId))
+  const chips: Chip[] = []
+  if (params.status) chips.push({ param: 'status', category: t('members.table.status'), value: labels.status(params.status) })
+  if (params.gender) chips.push({ param: 'gender', category: t('members.table.gender'), value: labels.gender(params.gender) })
+  if (grade) chips.push({ param: 'classGradeId', category: t('members.table.classes'), value: gradeLabel(grade) })
+  if (department) chips.push({ param: 'departmentId', category: t('nav.departments'), value: localName(department) })
+
+  const set = (param: keyof MemberListParams, v: string | undefined) =>
+    onChange({ [param]: v } as Partial<Record<keyof MemberListParams, string | undefined>>)
+  const radio = (param: keyof MemberListParams) => ({
+    value: params[param] ? String(params[param]) : ALL,
+    onValueChange: (v: string) => set(param, v === ALL ? undefined : v),
+  })
+
   return (
-    <div className="flex flex-col gap-2 md:flex-row md:items-center">
-      <div className="relative md:max-w-xs md:flex-1">
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative min-w-56 flex-1">
         <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="search"
@@ -78,69 +97,16 @@ export function MemberFilters({
           className="pl-8"
         />
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:flex-wrap">
-        {filters.map(({ key, label, options }) => (
-          <Select
-            key={key}
-            value={params[key] ?? ALL}
-            onValueChange={(v) => onChange({ [key]: v === ALL ? undefined : v })}
-          >
-            <SelectTrigger className="w-full md:w-36" aria-label={label}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{label}</SelectItem>
-              {options.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ))}
-        {classTypes && classTypes.length > 0 && (
-          <Select
-            value={params.classGradeId ? String(params.classGradeId) : ALL}
-            onValueChange={(v) => onChange({ classGradeId: v === ALL ? undefined : v })}
-          >
-            <SelectTrigger className="w-full md:w-44" aria-label={t('members.filters.allClasses')}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t('members.filters.allClasses')}</SelectItem>
-              {classTypes.map((type) => (
-                <SelectGroup key={type.id}>
-                  <SelectLabel>{localName(type)}</SelectLabel>
-                  {type.grades.map((g) => (
-                    <SelectItem key={g.id} value={String(g.id)}>
-                      {gradeLabel(g)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {departments && departments.length > 0 && (
-          <Select
-            value={params.departmentId ? String(params.departmentId) : ALL}
-            onValueChange={(v) => onChange({ departmentId: v === ALL ? undefined : v })}
-          >
-            <SelectTrigger className="w-full md:w-48" aria-label={t('members.filters.allDepartments')}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t('members.filters.allDepartments')}</SelectItem>
-              {departments.map((d) => (
-                <SelectItem key={d.id} value={String(d.id)}>
-                  {d.parentId !== null && '— '}
-                  {localName(d)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+
+      {chips.map((chip) => (
+        <FilterChip
+          key={chip.param}
+          category={chip.category}
+          value={chip.value}
+          onClear={() => set(chip.param, undefined)}
+        />
+      ))}
+
       {hasFilters && (
         <Button
           variant="ghost"
@@ -149,12 +115,89 @@ export function MemberFilters({
             clearTimeout(timer.current)
             onReset()
           }}
-          className="self-start md:self-auto"
         >
           <X />
           {t('common.clear')}
         </Button>
       )}
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline">
+            <ListFilter />
+            {t('common.filter')}
+            {chips.length > 0 && (
+              <span className="tabular grid size-5 place-items-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+                {chips.length}
+              </span>
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>{t('members.table.status')}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup {...radio('status')}>
+                <DropdownMenuRadioItem value={ALL}>{t('members.filters.allStatuses')}</DropdownMenuRadioItem>
+                {labels.statusOptions.map((o) => (
+                  <DropdownMenuRadioItem key={o.value} value={o.value}>
+                    {o.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>{t('members.table.gender')}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup {...radio('gender')}>
+                <DropdownMenuRadioItem value={ALL}>{t('members.filters.allGenders')}</DropdownMenuRadioItem>
+                {labels.genderOptions.map((o) => (
+                  <DropdownMenuRadioItem key={o.value} value={o.value}>
+                    {o.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          {classTypes && classTypes.length > 0 && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>{t('members.table.classes')}</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="max-h-80 overflow-y-auto">
+                <DropdownMenuRadioGroup {...radio('classGradeId')}>
+                  <DropdownMenuRadioItem value={ALL}>{t('members.filters.allClasses')}</DropdownMenuRadioItem>
+                  {classTypes.map((type) => (
+                    <div key={type.id}>
+                      <DropdownMenuLabel>{localName(type)}</DropdownMenuLabel>
+                      {type.grades.map((g) => (
+                        <DropdownMenuRadioItem key={g.id} value={String(g.id)}>
+                          {gradeLabel(g)}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </div>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+          {departments && departments.length > 0 && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>{t('nav.departments')}</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="max-h-80 overflow-y-auto">
+                <DropdownMenuRadioGroup {...radio('departmentId')}>
+                  <DropdownMenuRadioItem value={ALL}>{t('members.filters.allDepartments')}</DropdownMenuRadioItem>
+                  {departments.map((d) => (
+                    <DropdownMenuRadioItem key={d.id} value={String(d.id)}>
+                      {d.parentId !== null && '— '}
+                      {localName(d)}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

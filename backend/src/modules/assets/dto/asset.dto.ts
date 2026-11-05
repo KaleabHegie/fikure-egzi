@@ -15,12 +15,7 @@ import {
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto.js';
 import { Trim, TrimToNull } from '../../../common/transforms/string.transforms.js';
-import {
-  AssetAcquisition,
-  AssetCategory,
-  AssetCondition,
-  AssetStatus,
-} from '../../../generated/prisma/enums.js';
+import { AssetAcquisition, AssetCondition, AssetStatus } from '../../../generated/prisma/enums.js';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -32,9 +27,10 @@ export class CreateAssetDto {
   @MaxLength(150)
   name: string;
 
-  @ApiProperty({ enum: AssetCategory })
-  @IsEnum(AssetCategory)
-  category: AssetCategory;
+  @ApiProperty({ description: 'The asset category (see GET /asset-categories)' })
+  @IsInt()
+  @Min(1)
+  categoryId: number;
 
   @ApiProperty({ description: 'The department responsible for the asset' })
   @IsInt()
@@ -123,10 +119,11 @@ export class QueryAssetsDto extends PaginationQueryDto {
   @MaxLength(100)
   search?: string;
 
-  @ApiPropertyOptional({ enum: AssetCategory })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(AssetCategory)
-  category?: AssetCategory;
+  @Type(() => Number)
+  @IsInt()
+  categoryId?: number;
 
   @ApiPropertyOptional({ enum: AssetStatus })
   @IsOptional()

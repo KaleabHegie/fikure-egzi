@@ -42,12 +42,13 @@ export const membersApi = {
       .post<{ data: ImportPreview }>(`${BASE}/import/preview`, body, { headers: { 'Content-Type': undefined } })
       .then((r) => r.data.data)
   },
-  commitImport: (file: File) => {
+  commitImport: (file: File, skipDuplicates = false) => {
     const body = new FormData()
     body.append('file', file)
+    if (skipDuplicates) body.append('skipDuplicates', 'true')
     // Large files take a while: one transaction for every row.
     return http
-      .post<{ data: { imported: number } }>(`${BASE}/import`, body, {
+      .post<{ data: { imported: number; skipped: number } }>(`${BASE}/import`, body, {
         headers: { 'Content-Type': undefined },
         timeout: 300_000,
       })

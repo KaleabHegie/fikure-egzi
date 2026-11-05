@@ -10,7 +10,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { CoursesService } from '../courses/courses.service.js';
 import { MembersService } from '../members/members.service.js';
 import { type ReplyMarkup, TelegramApi, type TgMessage, type TgUpdate } from './telegram-api.js';
-import { BRAND, type BotLang, ecDate, ecDateTime, esc, TEXT } from './telegram.texts.js';
+import { BRAND, type BotLang, ecDate, ecShort, esc, TEXT } from './telegram.texts.js';
 
 type Link = {
   id: number;
@@ -180,7 +180,25 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     const link = await this.prisma.telegramLink.findUnique({ where: { chatId: BigInt(chatId) } });
     if (!link) return this.welcome(BigInt(chatId), 'am');
     const lang = toLang(link.language);
-    const match = /^m:(\d+)$/.exec(query.data ?? '');
+    const data = query.data ?? '';
+
+    // Attendance, narrowed to one department (or everything).
+    const att = /^a:(all|\d+)$/.exec(data);
+    if (att) {
+      const people = await this.peopleFor(link);
+      if (!people) return;
+      const member = await this.current(link, people, lang);
+      if (!member) return;
+      return this.attendanceReport(
+        link,
+        member,
+        people.length,
+        lang,
+        att[1] === 'all' ? 'all' : Number(att[1]),
+      );
+    }
+
+    const match = /^m:(\d+)$/.exec(data);
     if (!match) return;
     const people = await this.peopleFor(link);
     const chosen = people?.find((p) => p.id === Number(match[1]));
@@ -379,7 +397,18 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
-  private async attendanceReport(link: Link, who: PhoneMember, count: number, lang: BotLang) {
+  /**
+   * The member's attendance. When they serve under several departments, the
+   * bot first asks which one (inline buttons); the report itself is a compact
+   * monospace table — date, status mark, session — with one summary line.
+   */
+  private async attendanceReport(
+    link: Link,
+    who: PhoneMember,
+    count: number,
+    lang: BotLang,
+    dept?: 'all' | number,
+  ) {
     const t = TEXT[lang].attendance;
     const from = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
     const s = await this.attendance.memberSummary(who.id, null, from);
@@ -390,21 +419,52 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
         menu(lang, count),
       );
     }
-    const recent = s.records
+    const deptName = (d: { nameAm: string; nameEn: string } | null) =>
+      d ? (lang === 'am' ? d.nameAm : d.nameEn) : t.office;
+
+    // More than one department: ask which first.
+    if (dept === undefined && s.byDepartment.length > 1) {
+      return this.api.sendMessage(
+        link.chatId,
+        `${t.title}\n<b>${esc(fullName(who))}</b>\n\n${t.choose}`,
+        {
+          inline_keyboard: [
+            [{ text: t.all, callback_data: 'a:all' }],
+            ...s.byDepartment.map((d) => [
+              {
+                text: `${deptName(d.department)}${d.rate !== null ? ` · ${d.rate}%` : ''}`,
+                callback_data: `a:${d.department?.id ?? 0}`,
+              },
+            ]),
+          ],
+        },
+      );
+    }
+
+    const filter = dept ?? 'all';
+    const entry =
+      filter === 'all' ? null : s.byDepartment.find((d) => (d.department?.id ?? 0) === filter);
+    const shown = entry ?? s;
+    const records =
+      filter === 'all' ? s.records : s.records.filter((r) => (r.department?.id ?? 0) === filter);
+
+    const MARK: Record<string, string> = { PRESENT: '✅', LATE: '⏰', ABSENT: '❌', EXCUSED: '📝' };
+    const rows = records
       .slice(0, 10)
       .map(
         (r) =>
-          `• ${ecDateTime(new Date(r.startsAt), lang)} — ${esc(r.title)}\n   ${TEXT[lang].statuses[r.status] ?? r.status}`,
+          `${ecShort(new Date(r.startsAt))}  ${MARK[r.status] ?? '•'}  ${truncate(r.title, 24)}`,
       );
+    const rate = 'rate' in shown ? shown.rate : null;
     const text = [
       t.title,
-      `<b>${esc(fullName(who))}</b>`,
+      `<b>${esc(fullName(who))}</b>${entry ? ` · ${esc(deptName(entry.department))}` : ''}`,
       '',
-      t.summary(s.present, s.late, s.absent, s.excused),
-      ...(s.rate !== null ? [t.rate(`${s.rate}%`)] : []),
+      t.summary(shown.present, shown.late, shown.absent, shown.excused),
+      ...(rate !== null ? [t.rate(`${rate}%`)] : []),
       '',
-      `<b>${t.recent}</b>`,
-      ...recent,
+      `<pre>${esc(rows.join('\n'))}</pre>`,
+      ...(records.length > 10 ? [`<i>${t.more(records.length - 10)}</i>`] : []),
     ].join('\n');
     return this.api.sendMessage(link.chatId, text, menu(lang, count));
   }
@@ -509,6 +569,8 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
 const toLang = (value: string): BotLang => (value === 'en' ? 'en' : 'am');
 
 const DIVIDER = '━━━━━━━━━━━━━━━';
+
+const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 /** 0969146494 → 0969 14 64 94 */
 const prettyPhone = (phone: string) =>

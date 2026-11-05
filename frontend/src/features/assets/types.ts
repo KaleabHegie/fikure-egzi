@@ -1,28 +1,32 @@
-export const ASSET_CATEGORIES = [
-  'FURNITURE',
-  'ELECTRONICS',
-  'MUSICAL_INSTRUMENT',
-  'LITURGICAL',
-  'BOOKS',
-  'CLOTHING',
-  'VEHICLE',
-  'OTHER',
-] as const
 export const ASSET_CONDITIONS = ['NEW', 'GOOD', 'FAIR', 'POOR', 'BROKEN'] as const
 export const ASSET_STATUSES = ['IN_USE', 'IN_STORE', 'UNDER_REPAIR', 'LOST', 'DISPOSED'] as const
 export const ASSET_ACQUISITIONS = ['PURCHASED', 'DONATED'] as const
 
-export type AssetCategory = (typeof ASSET_CATEGORIES)[number]
 export type AssetCondition = (typeof ASSET_CONDITIONS)[number]
 export type AssetStatus = (typeof ASSET_STATUSES)[number]
 export type AssetAcquisition = (typeof ASSET_ACQUISITIONS)[number]
+
+/** Admin-managed category (seeded defaults carry a code; user-created ones don't). */
+export interface AssetCategory {
+  id: number
+  code: string | null
+  nameEn: string
+  nameAm: string
+  sortOrder?: number
+}
+
+export interface AssetCategoryInput {
+  nameEn: string
+  nameAm: string
+}
 
 /** Mirrors the API's asset payload. */
 export interface Asset {
   id: number
   assetCode: string
   name: string
-  category: AssetCategory
+  categoryId: number
+  category: Pick<AssetCategory, 'id' | 'code' | 'nameEn' | 'nameAm'>
   description: string | null
   quantity: number
   condition: AssetCondition
@@ -44,7 +48,7 @@ export interface Asset {
 
 export interface AssetInput {
   name: string
-  category: AssetCategory
+  categoryId: number
   departmentId: number
   description: string | null
   quantity: number
@@ -63,7 +67,7 @@ export interface AssetListParams {
   page: number
   pageSize: number
   search?: string
-  category?: AssetCategory
+  categoryId?: number
   status?: AssetStatus
   departmentId?: number
 }

@@ -40,6 +40,7 @@ export interface AuditEntry {
 export interface AuditQuery {
   page: number
   pageSize: number
+  search?: string
   userId?: number
   entity?: string
   action?: string

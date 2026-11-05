@@ -13,20 +13,13 @@ import type { PhotoChange } from '@/features/members/api'
 import { PhotoPicker } from '@/features/members/components/photo-picker'
 import { msg } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
-import { useAssetPhoto } from '../api'
-import {
-  ASSET_ACQUISITIONS,
-  ASSET_CATEGORIES,
-  ASSET_CONDITIONS,
-  ASSET_STATUSES,
-  type Asset,
-  type AssetInput,
-} from '../types'
+import { useAssetCategories, useAssetPhoto } from '../api'
+import { ASSET_ACQUISITIONS, ASSET_CONDITIONS, ASSET_STATUSES, type Asset, type AssetInput } from '../types'
 
 const text = (max: number) => z.string().trim().max(max, msg('validation.tooLong', { max }))
 const schema = z.object({
   name: z.string().trim().min(1, msg('validation.required')).max(150, msg('validation.tooLong', { max: 150 })),
-  category: z.string().min(1, msg('validation.required')),
+  categoryId: z.string().min(1, msg('validation.required')),
   departmentId: z.string().min(1, msg('validation.required')),
   quantity: z.string().regex(/^[1-9]\d{0,5}$/, msg('assets.validation.quantity')),
   condition: z.enum(ASSET_CONDITIONS),
@@ -47,7 +40,7 @@ const FIELDS = Object.keys(schema.shape)
 function initial(asset?: Asset, departmentId?: string): Values {
   return {
     name: asset?.name ?? '',
-    category: asset?.category ?? '',
+    categoryId: asset ? String(asset.categoryId) : '',
     departmentId: asset ? String(asset.departmentId) : (departmentId ?? ''),
     quantity: String(asset?.quantity ?? 1),
     condition: asset?.condition ?? 'GOOD',
@@ -79,6 +72,7 @@ export function AssetDialog({
   const name = useLocalizedName()
   // Department admins only get their own departments; with one, it's preselected.
   const { data: departments } = useDepartments()
+  const { data: categories } = useAssetCategories()
   const only = departments?.length === 1 ? String(departments[0]!.id) : undefined
   const currentPhoto = useAssetPhoto(asset)
   const [photo, setPhoto] = useState<PhotoChange>({ kind: 'keep' })
@@ -91,7 +85,7 @@ export function AssetDialog({
       await onSave(
         {
           name: v.name,
-          category: v.category as AssetInput['category'],
+          categoryId: Number(v.categoryId),
           departmentId: Number(v.departmentId),
           quantity: Number(v.quantity),
           condition: v.condition,
@@ -132,10 +126,10 @@ export function AssetDialog({
             <TextField control={control} name="name" label={t('assets.fields.name')} required className="sm:col-span-2" />
             <SelectField
               control={control}
-              name="category"
+              name="categoryId"
               label={t('assets.fields.category')}
               required
-              options={ASSET_CATEGORIES.map((c) => ({ value: c, label: t(`assets.categories.${c}`) }))}
+              options={(categories ?? []).map((c) => ({ value: String(c.id), label: name(c) }))}
             />
             <SelectField
               control={control}

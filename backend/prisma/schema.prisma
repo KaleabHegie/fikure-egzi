@@ -618,15 +618,20 @@ model ServiceGroupMember {
 // Assets — the Sunday school's property, each the responsibility of a department
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum AssetCategory {
-  FURNITURE
-  ELECTRONICS
-  MUSICAL_INSTRUMENT
-  LITURGICAL
-  BOOKS
-  CLOTHING
-  VEHICLE
-  OTHER
+/// Admin-managed asset categories: seeded with the defaults, admins add more.
+model AssetCategory {
+  id        Int      @id @default(autoincrement())
+  /// Stable key for the seeded defaults; null for admin-created categories.
+  code      String?  @unique @db.VarChar(40)
+  nameEn    String   @map("name_en") @db.VarChar(100)
+  nameAm    String   @map("name_am") @db.VarChar(100)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  assets Asset[]
+
+  @@map("asset_categories")
 }
 
 enum AssetCondition {
@@ -655,7 +660,7 @@ model Asset {
   /// AS-00001, derived from the id.
   assetCode    String            @unique @map("asset_code") @db.VarChar(20)
   name         String            @db.VarChar(150)
-  category     AssetCategory
+  categoryId   Int               @map("category_id")
   description  String?           @db.VarChar(1000)
   quantity     Int               @default(1)
   condition    AssetCondition    @default(GOOD)
@@ -676,10 +681,11 @@ model Asset {
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
 
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  department Department    @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  category   AssetCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   @@index([departmentId])
-  @@index([category])
+  @@index([categoryId])
   @@index([status])
   @@index([name])
   @@map("assets")

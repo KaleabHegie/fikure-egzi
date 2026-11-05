@@ -102,10 +102,23 @@ export interface ScanResult {
   inRoster: boolean
 }
 
+export interface AttendanceDepartmentRef {
+  id: number
+  nameEn: string
+  nameAm: string
+}
+
 export interface MemberAttendanceSummary extends StatusCounts {
   sessions: number
   rate: number | null
   minutesAttended: number
+  /** Attendance per running department, busiest first (null department = the office). Staff API only. */
+  byDepartment?: (StatusCounts & {
+    department: AttendanceDepartmentRef | null
+    sessions: number
+    rate: number | null
+    minutesAttended: number
+  })[]
   /** Every session in the period, newest first. */
   records: {
     sessionId: number
@@ -113,6 +126,8 @@ export interface MemberAttendanceSummary extends StatusCounts {
     title: string
     startsAt: string
     endsAt: string
+    /** The department running the session (staff API only; null = the office). */
+    department?: AttendanceDepartmentRef | null
     status: AttendanceStatus
     checkedInAt: string | null
     note: string | null

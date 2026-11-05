@@ -25,7 +25,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "prisma db seed",
-    "postinstall": "node scripts/prisma-generate.cjs",
+    "postinstall": "node -e \"const fs=require('node:fs');if(fs.existsSync('prisma/schema.prisma')){const r=require('node:child_process').spawnSync('npx',['prisma','generate'],{stdio:'inherit',shell:process.platform==='win32'});process.exit(r.status??1)}else{console.log('postinstall: skipped prisma generate (no prisma/schema.prisma in '+process.cwd()+'; release bundles ship a prebuilt client)')}\"",
     "test:e2e:prepare": "dotenv -e .env.test -o -- prisma migrate deploy && dotenv -e .env.test -o -- tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed-demo.ts",
     "telegram:setup": "tsx src/scripts/telegram-setup.ts"

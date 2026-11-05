@@ -398,8 +398,8 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
   }
 
   /**
-   * The member's attendance. When they serve under several departments, the
-   * bot first asks which one (inline buttons); the report itself is a compact
+   * The member's attendance. The bot first asks which department to report on
+   * (inline buttons, with an "all" shortcut); the report itself is a compact
    * monospace table — date, status mark, session — with one summary line.
    */
   private async attendanceReport(
@@ -422,8 +422,8 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     const deptName = (d: { nameAm: string; nameEn: string } | null) =>
       d ? (lang === 'am' ? d.nameAm : d.nameEn) : t.office;
 
-    // More than one department: ask which first.
-    if (dept === undefined && s.byDepartment.length > 1) {
+    // Always ask which department first (plus an "all" shortcut).
+    if (dept === undefined && s.byDepartment.length > 0) {
       return this.api.sendMessage(
         link.chatId,
         `${t.title}\n<b>${esc(fullName(who))}</b>\n\n${t.choose}`,

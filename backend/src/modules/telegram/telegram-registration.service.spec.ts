@@ -106,6 +106,29 @@ class FakeDb {
 
   classType = { findMany: async () => this.classes };
 
+  departments = [
+    { id: 1, parentId: null, nameAm: 'ፅህፈት ቤት', nameEn: 'Office' },
+    { id: 2, parentId: 1, nameAm: 'ትምህርት ክፍል', nameEn: 'Teaching' },
+    { id: 3, parentId: 1, nameAm: 'መዝሙር ክፍል', nameEn: 'Choir' },
+    { id: 4, parentId: 2, nameAm: 'የሕፃናት ትምህርት', nameEn: 'Children teaching' },
+  ];
+  department = { findMany: async () => this.departments };
+
+  memberships: Record<string, unknown>[] = [];
+  departmentMembership = {
+    create: async ({ data }: { data: Record<string, unknown> }) => {
+      this.memberships.push(data);
+      return data;
+    },
+  };
+  periods: Record<string, unknown>[] = [];
+  departmentServiceHistory = {
+    create: async ({ data }: { data: Record<string, unknown> }) => {
+      this.periods.push(data);
+      return data;
+    },
+  };
+
   telegramLink = {
     upsert: async ({ create }: { create: Record<string, unknown> }) => {
       this.links.push(create);
@@ -113,7 +136,9 @@ class FakeDb {
     },
   };
 
-  $transaction = async (ops: Promise<unknown>[]) => Promise.all(ops);
+  /** Callback form runs against this same store (no rollback is needed by these tests). */
+  $transaction = async (arg: Promise<unknown>[] | ((tx: FakeDb) => Promise<unknown>)) =>
+    typeof arg === 'function' ? arg(this) : Promise.all(arg);
 }
 
 const CHAT = 555n;
@@ -140,6 +165,9 @@ const FULL: (string | Partial<TgMessage>)[] = [
   'Aba Gebre Mariam',
   'Geez', // Mezmur class
   t.skip, // Course class: not placed
+  '▫️ Teaching', // departments: pick two, then done
+  '▫️ Choir',
+  t.departmentsDone,
   '+251 922 33 44 55',
   'Abebe@Example.com',
   t.addisAbaba,
@@ -158,7 +186,7 @@ const FULL: (string | Partial<TgMessage>)[] = [
   t.agree,
 ];
 /** Index in FULL of the answer to each question used below. */
-const AT = { occupation: 20, photo: 26, agreement: 27 };
+const AT = { occupation: 23, photo: 29, agreement: 30 };
 
 describe('TelegramRegistrationService', () => {
   let db: FakeDb;
@@ -219,13 +247,14 @@ describe('TelegramRegistrationService', () => {
 
   it('asks every member-form question, classes included, and registers the member', async () => {
     await start();
-    expect(last()).toContain('<b>26</b> short questions');
+    expect(last()).toContain('<b>27</b> short questions');
     await sayAll(FULL);
     expect(step()).toBe('confirm');
-    expect(sent.some((m) => m.includes('26 / 26'))).toBe(true);
+    expect(sent.some((m) => m.includes('27 / 27'))).toBe(true);
     expect(last()).toContain('Abebe Kebede Tesfaye');
     expect(last()).toContain('Mezmur class: <b>Geez</b>');
     expect(last()).toContain('Course class: <b>Not placed</b>');
+    expect(last()).toContain('▸ <b>Teaching</b>\n▸ <b>Choir</b>');
 
     await say(t.confirm);
 
@@ -259,6 +288,13 @@ describe('TelegramRegistrationService', () => {
       classGradeIds: [11],
     });
     expect(create.mock.calls[0]?.[4]).toEqual({ selfRegistered: true });
+    // Created inside the same transaction as the roster places and the chat link.
+    expect(create.mock.calls[0]?.[3]).toBe(db);
+    expect(db.memberships).toEqual([
+      expect.objectContaining({ departmentId: 2, memberId: 7, role: 'MEMBER' }),
+      expect.objectContaining({ departmentId: 3, memberId: 7, role: 'MEMBER' }),
+    ]);
+    expect(db.periods).toHaveLength(2);
     // The largest size that fits the photo limit is the one downloaded and stored.
     expect(downloadFile).toHaveBeenCalledWith('large');
     expect(setPhoto.mock.calls[0]?.[0]).toBe(7);
@@ -274,13 +310,33 @@ describe('TelegramRegistrationService', () => {
     await say(t.start);
     expect(last()).toContain(t.sections.personal);
     expect(last()).toContain('▰▱▱▱▱▱▱▱▱▱');
-    expect(last()).toContain('1 / 26');
+    expect(last()).toContain('1 / 27');
     expect(last()).toContain(`<b>${t.ask.firstName.q}</b>`);
 
     await sayAll(FULL.slice(1, 10));
     expect(step()).toBe('class:1');
     expect(last()).toContain(t.sections.classes);
     expect(last()).toContain('Mezmur class');
+  });
+
+  it('lets the person pick several service departments and change their mind', async () => {
+    await start();
+    await sayAll(FULL.slice(0, 12));
+    expect(step()).toBe('departments');
+    expect(last()).toContain(t.sections.service);
+    // The office itself is not offered; a sub-department follows its parent.
+    expect(last()).not.toContain('Office');
+    expect(last()).toContain(t.departmentsNone);
+
+    await say('▫️ Teaching');
+    await say('▫️ Children teaching');
+    expect(step()).toBe('departments');
+    expect(last()).toContain(t.departmentsChosen('Teaching፣ Children teaching'));
+    await say('✅ Teaching'); // tapping a chosen one removes it
+    expect(last()).toContain(t.departmentsChosen('Children teaching'));
+    await say(t.departmentsDone);
+    expect(step()).toBe('alternatePhone');
+    expect(db.rows[0]?.answers).toMatchObject({ departmentIds: [4] });
   });
 
   it('only accepts a grade of the class being asked about', async () => {
@@ -301,7 +357,7 @@ describe('TelegramRegistrationService', () => {
     expect(step()).toBe('dateOfBirth');
     expect(sent.at(-2)).toContain('could not be read');
 
-    await sayAll(['15/01/2000', t.skip, t.skip, t.skip, t.skip, t.skip, '12345']);
+    await sayAll(['15/01/2000', t.skip, t.skip, t.skip, t.skip, t.skip, t.skip, '12345']);
     expect(step()).toBe('alternatePhone');
     expect(sent.at(-2)).toContain(t.invalid.phone);
 

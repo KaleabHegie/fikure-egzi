@@ -38,7 +38,7 @@ export async function openServicePeriod(
   tx: Tx,
   row: { memberId: number; departmentId: number; role: DepartmentRole },
   startedAt: Date,
-  recordedById: number,
+  recordedById: number | null,
 ): Promise<void> {
   await tx.departmentServiceHistory.create({ data: { ...row, startedAt, recordedById } });
 }

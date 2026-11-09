@@ -7,11 +7,12 @@ import {
   ETHIOPIAN_PHONE_REGEX,
   normalizeEthiopianPhone,
 } from '../../common/transforms/string.transforms.js';
-import { todayIso } from '../../common/utils/dates.js';
+import { dateOnly, todayIso } from '../../common/utils/dates.js';
 import { parseEcDate } from '../../common/utils/ethiopian-calendar.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import type { EducationLevel, MaritalStatus } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { openServicePeriod } from '../history/history.writer.js';
 import { MAX_PHOTO_BYTES, MembersService } from '../members/members.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { TelegramApi, type TgMessage } from './telegram-api.js';
@@ -55,7 +56,7 @@ const REST = [
 type Question = (typeof PERSONAL)[number] | (typeof REST)[number];
 /** One question per class type: which grade the person is in. */
 type ClassStep = `class:${number}`;
-type Step = 'offer' | Question | ClassStep | 'confirm' | 'submitting';
+type Step = 'offer' | Question | ClassStep | 'departments' | 'confirm' | 'submitting';
 type Section = keyof (typeof REG_TEXT)['am']['sections'];
 
 const SECTION: Record<Question, Section> = {
@@ -134,7 +135,10 @@ const isClassStep = (step: Step): step is ClassStep => step.startsWith('class:')
 const classIdOf = (step: ClassStep) => Number(step.slice('class:'.length));
 const OPTIONAL_CHOICES = new Set<Step>(['maritalStatus', 'educationLevel', 'photo']);
 const isOptional = (step: Step) =>
-  (isTextKey(step) && TEXT_RULES[step].optional) || OPTIONAL_CHOICES.has(step) || isClassStep(step);
+  (isTextKey(step) && TEXT_RULES[step].optional) ||
+  OPTIONAL_CHOICES.has(step) ||
+  isClassStep(step) ||
+  step === 'departments';
 
 type Answers = { [K in TextKey]?: string | null } & {
   gender?: 'MALE' | 'FEMALE';
@@ -143,6 +147,8 @@ type Answers = { [K in TextKey]?: string | null } & {
   educationLevel?: EducationLevel | null;
   /** classTypeId → classGradeId (null = not placed). */
   classGrades?: Record<string, number | null>;
+  /** Service departments the person says they serve in. */
+  departmentIds?: number[];
   hasHealthCondition?: boolean;
   healthConditionNote?: string | null;
   photoFileId?: string | null;
@@ -157,10 +163,17 @@ type ClassOption = {
   grades: { id: number; nameAm: string; nameEn: string }[];
 };
 
-/** The questions for this conversation: class questions depend on what the office offers. */
-const flowFor = (classes: ClassOption[]): Step[] => [
+/** A service department a member can be on the roster of. */
+type DepartmentOption = { id: number; nameAm: string; nameEn: string };
+
+/** What the office currently offers; the class and department questions follow it. */
+type Catalog = { classes: ClassOption[]; departments: DepartmentOption[] };
+
+/** The questions for this conversation. */
+const flowFor = (catalog: Catalog): Step[] => [
   ...PERSONAL,
-  ...classes.map((c): ClassStep => `class:${c.id}`),
+  ...catalog.classes.map((c): ClassStep => `class:${c.id}`),
+  ...(catalog.departments.length > 0 ? (['departments'] as const) : []),
   ...REST,
   'confirm',
 ];
@@ -195,8 +208,8 @@ type PhotoInput = { fileId: string } | 'tooLarge' | 'badType';
 
 /** Abandoned conversations are cleared after this long. */
 const STALE_AFTER_MS = 30 * 86_400_000;
-/** Class types change rarely; re-read them at most this often. */
-const CLASS_CACHE_MS = 60_000;
+/** Classes and departments change rarely; re-read them at most this often. */
+const CATALOG_CACHE_MS = 60_000;
 const ADDIS_ABABA = 'Addis Ababa';
 const BAR_CELLS = 10;
 
@@ -246,7 +259,9 @@ function photoFrom(message: TgMessage): PhotoInput | undefined {
   return undefined;
 }
 
-type Outcome = { answers: Answers } | { error: string } | { action: 'restart' | 'submit' };
+/** `stay` keeps the same question open (a pick-several question that is still being answered). */
+type Outcome =
+  { answers: Answers; stay?: boolean } | { error: string } | { action: 'restart' | 'submit' };
 
 /**
  * Self-registration through the bot, one question at a time, covering every
@@ -258,7 +273,7 @@ type Outcome = { answers: Answers } | { error: string } | { action: 'restart' | 
 @Injectable()
 export class TelegramRegistrationService {
   private readonly logger = new Logger('TelegramRegistration');
-  private classCache: { at: number; classes: ClassOption[] } | null = null;
+  private catalogCache: { at: number; catalog: Catalog } | null = null;
   private seal: Buffer | null = null;
 
   constructor(
@@ -298,22 +313,22 @@ export class TelegramRegistrationService {
       create: { chatId, ...data },
       update: data,
     });
-    return this.ask(chatId, 'offer', {}, lang, phone, await this.classes());
+    return this.ask(chatId, 'offer', {}, lang, phone, await this.catalog());
   }
 
   /** The next message from a chat that is registering. */
   async onMessage(reg: Registration, message: TgMessage) {
     const lang = toLang(reg.language);
     const t = REG_TEXT[lang];
-    const classes = await this.classes();
-    const flow = flowFor(classes);
+    const catalog = await this.catalog();
+    const flow = flowFor(catalog);
     const answers = (reg.answers ?? {}) as Answers;
     let step = reg.step as Step;
-    // A class the office stopped offering mid-conversation: carry on after the classes.
-    if (isClassStep(step) && !flow.includes(step)) step = REST[0];
+    // A class (or the departments) no longer offered mid-conversation: carry on after them.
+    if ((isClassStep(step) || step === 'departments') && !flow.includes(step)) step = REST[0];
     const input = (message.text ?? message.caption ?? '').trim();
     const photo = photoFrom(message);
-    const ask = (s: Step, a: Answers) => this.ask(reg.chatId, s, a, lang, reg.phone, classes);
+    const ask = (s: Step, a: Answers) => this.ask(reg.chatId, s, a, lang, reg.phone, catalog);
 
     if (step === 'submitting') return this.api.sendMessage(reg.chatId, t.wait);
     if (input === t.cancel || input === '/cancel') {
@@ -328,7 +343,7 @@ export class TelegramRegistrationService {
       return ask(previous, answers);
     }
 
-    const outcome = this.accept(step, input, photo, answers, lang, classes);
+    const outcome = this.accept(step, input, photo, answers, lang, catalog);
     if ('error' in outcome) {
       await this.api.sendMessage(reg.chatId, `⚠️ ${outcome.error}`);
       return ask(step, answers);
@@ -338,35 +353,58 @@ export class TelegramRegistrationService {
         await this.save(reg.id, 'firstName', {});
         return ask('firstName', {});
       }
-      return this.submit(reg, answers, lang, classes);
+      return this.submit(reg, answers, lang, catalog);
     }
-    const next = step === 'offer' ? 'firstName' : nextStep(flow, step, outcome.answers);
+    const next =
+      step === 'offer' ? 'firstName' : outcome.stay ? step : nextStep(flow, step, outcome.answers);
     await this.save(reg.id, next, outcome.answers);
     return ask(next, outcome.answers);
   }
 
-  /** Active class types that have at least one active grade, in form order. */
-  private async classes(): Promise<ClassOption[]> {
-    if (this.classCache && Date.now() - this.classCache.at < CLASS_CACHE_MS) {
-      return this.classCache.classes;
+  /**
+   * Active class types that have at least one active grade, and the active
+   * service departments in tree order (the top office itself is not offered).
+   */
+  private async catalog(): Promise<Catalog> {
+    if (this.catalogCache && Date.now() - this.catalogCache.at < CATALOG_CACHE_MS) {
+      return this.catalogCache.catalog;
     }
-    const types = await this.prisma.classType.findMany({
-      where: { isActive: true },
-      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-      select: {
-        id: true,
-        nameAm: true,
-        nameEn: true,
-        grades: {
-          where: { isActive: true },
-          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-          select: { id: true, nameAm: true, nameEn: true },
+    const [types, departments] = await Promise.all([
+      this.prisma.classType.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          nameAm: true,
+          nameEn: true,
+          grades: {
+            where: { isActive: true },
+            orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+            select: { id: true, nameAm: true, nameEn: true },
+          },
         },
-      },
-    });
-    const classes = types.filter((type) => type.grades.length > 0);
-    this.classCache = { at: Date.now(), classes };
-    return classes;
+      }),
+      this.prisma.department.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: { id: true, parentId: true, nameAm: true, nameEn: true },
+      }),
+    ]);
+    // Depth-first from the top, so sub-departments follow their parent.
+    const ordered: DepartmentOption[] = [];
+    const visit = (parentId: number | null, depth: number) => {
+      for (const d of departments.filter((x) => x.parentId === parentId)) {
+        if (depth > 0) ordered.push({ id: d.id, nameAm: d.nameAm, nameEn: d.nameEn });
+        visit(d.id, depth + 1);
+      }
+    };
+    visit(null, 0);
+    const catalog = {
+      classes: types.filter((type) => type.grades.length > 0),
+      departments: ordered,
+    };
+    this.catalogCache = { at: Date.now(), catalog };
+    return catalog;
   }
 
   /** Validates one answer. */
@@ -376,14 +414,28 @@ export class TelegramRegistrationService {
     photo: PhotoInput | undefined,
     a: Answers,
     lang: BotLang,
-    classes: ClassOption[],
+    catalog: Catalog,
   ): Outcome {
     const t = REG_TEXT[lang];
     const skipped = isOptional(step) && input === t.skip;
 
+    if (step === 'departments') {
+      const chosen = a.departmentIds ?? [];
+      if (skipped) return { answers: { ...a, departmentIds: [] } };
+      if (input === t.departmentsDone) return { answers: { ...a, departmentIds: chosen } };
+      // Buttons carry a ✅/▫️ mark in front of the name; tapping one toggles it.
+      const name = input.replace(/^(✅|▫️)\s*/u, '');
+      const department = catalog.departments.find((d) => localName(d, lang) === name);
+      if (!department) return { error: t.invalid.choose };
+      const departmentIds = chosen.includes(department.id)
+        ? chosen.filter((id) => id !== department.id)
+        : [...chosen, department.id];
+      return { answers: { ...a, departmentIds }, stay: true };
+    }
+
     if (isClassStep(step)) {
       const typeId = classIdOf(step);
-      const type = classes.find((c) => c.id === typeId);
+      const type = catalog.classes.find((c) => c.id === typeId);
       const grade = type?.grades.find((g) => localName(g, lang) === input);
       if (!skipped && !grade) return { error: t.invalid.choose };
       return {
@@ -488,24 +540,28 @@ export class TelegramRegistrationService {
     a: Answers,
     lang: BotLang,
     phone: string,
-    classes: ClassOption[],
+    catalog: Catalog,
   ) {
     const t = REG_TEXT[lang];
-    const flow = flowFor(classes);
+    const flow = flowFor(catalog);
     const total = numbered(flow).length;
 
-    if (step === 'offer') return this.sendOffer(chatId, phone, lang, total, classes.length > 0);
+    if (step === 'offer') return this.sendOffer(chatId, phone, lang, total, catalog);
     if (step === 'submitting') return this.api.sendMessage(chatId, t.wait);
     if (step === 'confirm') {
       return this.api.sendMessage(
         chatId,
-        this.summary(a, lang, phone, classes),
+        this.summary(a, lang, phone, catalog),
         buttons([[t.confirm], [t.back, t.restart], [t.cancel]]),
       );
     }
 
     const n = numbered(flow).indexOf(step === 'healthNote' ? 'health' : step) + 1;
-    const section = isClassStep(step) ? 'classes' : SECTION[step];
+    const section = isClassStep(step)
+      ? 'classes'
+      : step === 'departments'
+        ? 'service'
+        : SECTION[step];
     const header = `${t.sections[section]}\n<code>${progressBar(n, total)}</code>  <i>${n} / ${total}</i>`;
     const footer = step === 'firstName' ? [t.cancel] : [t.back, t.cancel];
     const skipRow = isOptional(step) ? [[t.skip]] : [];
@@ -524,10 +580,32 @@ export class TelegramRegistrationService {
       return this.api.sendMessage(chatId, body, buttons([[t.agree], footer]));
     }
 
+    if (step === 'departments') {
+      const chosen = catalog.departments.filter((d) => a.departmentIds?.includes(d.id));
+      const labels = catalog.departments.map(
+        (d) => `${chosen.includes(d) ? '✅' : '▫️'} ${localName(d, lang)}`,
+      );
+      const body = [
+        header,
+        '',
+        `<b>${t.departmentsAsk.q}</b>`,
+        `<i>${t.departmentsAsk.hint}</i>`,
+        `<i>${t.departmentsNone}</i>`,
+        ...(chosen.length > 0
+          ? ['', t.departmentsChosen(esc(chosen.map((d) => localName(d, lang)).join('፣ ')))]
+          : []),
+      ].join('\n');
+      return this.api.sendMessage(
+        chatId,
+        body,
+        buttons([...rows(labels, 2), chosen.length > 0 ? [t.departmentsDone] : [t.skip], footer]),
+      );
+    }
+
     let question: Ask;
     let options: string[][] = [];
     if (isClassStep(step)) {
-      const type = classes.find((c) => c.id === classIdOf(step))!;
+      const type = catalog.classes.find((c) => c.id === classIdOf(step))!;
       question = t.classQuestion(esc(localName(type, lang)));
       const labels = type.grades.map((g) => localName(g, lang));
       options = rows(labels, labels.length > 6 ? 3 : 2);
@@ -540,7 +618,7 @@ export class TelegramRegistrationService {
       if (step === 'city') options = [[t.addisAbaba]];
     }
 
-    const current = this.display(step, a, lang, classes);
+    const current = this.display(step, a, lang, catalog);
     const body = [
       header,
       '',
@@ -558,7 +636,7 @@ export class TelegramRegistrationService {
     phone: string,
     lang: BotLang,
     total: number,
-    hasClasses: boolean,
+    catalog: Catalog,
   ) {
     const t = REG_TEXT[lang];
     const s = t.sections;
@@ -570,7 +648,8 @@ export class TelegramRegistrationService {
       t.offerSections,
       `<blockquote>${[
         s.personal,
-        ...(hasClasses ? [s.classes] : []),
+        ...(catalog.classes.length > 0 ? [s.classes] : []),
+        ...(catalog.departments.length > 0 ? [s.service] : []),
         s.contact,
         s.address,
         s.work,
@@ -588,13 +667,16 @@ export class TelegramRegistrationService {
   }
 
   /** How an answer reads back to the person ("" when not answered yet). */
-  private display(step: Step, a: Answers, lang: BotLang, classes: ClassOption[]): string {
+  private display(step: Step, a: Answers, lang: BotLang, catalog: Catalog): string {
     const t = REG_TEXT[lang];
+    if (step === 'departments') return '';
     if (isClassStep(step)) {
       const typeId = classIdOf(step);
       if (!a.classGrades || !(typeId in a.classGrades)) return '';
       const gradeId = a.classGrades[typeId];
-      const grade = classes.find((c) => c.id === typeId)?.grades.find((g) => g.id === gradeId);
+      const grade = catalog.classes
+        .find((c) => c.id === typeId)
+        ?.grades.find((g) => g.id === gradeId);
       return grade ? localName(grade, lang) : t.fields.notAssigned;
     }
     if (isTextKey(step)) {
@@ -627,7 +709,7 @@ export class TelegramRegistrationService {
     }
   }
 
-  private summary(a: Answers, lang: BotLang, phone: string, classes: ClassOption[]): string {
+  private summary(a: Answers, lang: BotLang, phone: string, catalog: Catalog): string {
     const t = REG_TEXT[lang];
     const f = t.fields;
     const s = t.sections;
@@ -637,7 +719,7 @@ export class TelegramRegistrationService {
     const block = (title: string, lines: string[]) =>
       `${title}\n<blockquote>${lines.join('\n')}</blockquote>`;
     const city = a.city === ADDIS_ABABA ? t.addisAbaba : a.city;
-    const classLines = classes.map((c) => {
+    const classLines = catalog.classes.map((c) => {
       const gradeId = a.classGrades?.[c.id];
       const grade = c.grades.find((g) => g.id === gradeId);
       return row(localName(c, lang), grade ? localName(grade, lang) : f.notAssigned);
@@ -656,6 +738,16 @@ export class TelegramRegistrationService {
         row(f.spiritualFather, a.spiritualFatherName),
       ]),
       ...(classLines.length > 0 ? [block(s.classes, classLines)] : []),
+      ...(catalog.departments.length > 0
+        ? [
+            block(s.service, [
+              catalog.departments
+                .filter((d) => a.departmentIds?.includes(d.id))
+                .map((d) => `▸ <b>${esc(localName(d, lang))}</b>`)
+                .join('\n') || f.notServing,
+            ]),
+          ]
+        : []),
       block(s.contact, [
         row(f.phone, phone),
         row(f.alternatePhone, a.alternatePhone),
@@ -692,7 +784,7 @@ export class TelegramRegistrationService {
   }
 
   /** Creates the member and links the chat to them, so the bot's menu opens straight away. */
-  private async submit(reg: Registration, a: Answers, lang: BotLang, classes: ClassOption[]) {
+  private async submit(reg: Registration, a: Answers, lang: BotLang, catalog: Catalog) {
     const t = REG_TEXT[lang];
     // Claim the submission so a double tap cannot register the person twice.
     const claimed = await this.prisma.telegramRegistration.updateMany({
@@ -700,67 +792,88 @@ export class TelegramRegistrationService {
       data: { step: 'submitting' },
     });
     if (claimed.count === 0) return;
-    if (!a.firstName || !a.fatherName || !a.gender || !a.dateOfBirth || !a.agreed) {
+    const { firstName, fatherName, gender, dateOfBirth } = a;
+    if (!firstName || !fatherName || !gender || !dateOfBirth || !a.agreed) {
       await this.save(reg.id, 'firstName', {});
-      return this.ask(reg.chatId, 'firstName', {}, lang, reg.phone, classes);
+      return this.ask(reg.chatId, 'firstName', {}, lang, reg.phone, catalog);
     }
-    // Only grades still offered: one retired mid-conversation is dropped, not an error.
-    const offered = new Set(classes.flatMap((c) => c.grades.map((g) => g.id)));
+    // Only grades and departments still offered: one retired mid-conversation is dropped.
+    const offered = new Set(catalog.classes.flatMap((c) => c.grades.map((g) => g.id)));
     const classGradeIds = Object.values(a.classGrades ?? {}).filter(
       (id): id is number => id !== null && offered.has(id),
     );
+    const departmentIds = (a.departmentIds ?? []).filter((id) =>
+      catalog.departments.some((d) => d.id === id),
+    );
 
     try {
-      const member = await this.members.create(
-        {
-          firstName: a.firstName,
-          fatherName: a.fatherName,
-          grandfatherName: a.grandfatherName ?? null,
-          christianName: a.christianName ?? null,
-          gender: a.gender,
-          dateOfBirth: a.dateOfBirth,
-          placeOfBirth: a.placeOfBirth ?? null,
-          maritalStatus: a.maritalStatus ?? null,
-          spiritualFatherName: a.spiritualFatherName ?? null,
-          phone: reg.phone,
-          alternatePhone: a.alternatePhone ?? null,
-          email: a.email ?? null,
-          city: a.city ?? null,
-          subCity: a.subCity ?? null,
-          woreda: a.woreda ?? null,
-          kebele: a.kebele ?? null,
-          houseNumber: a.houseNumber ?? null,
-          educationLevel: a.educationLevel ?? null,
-          occupation: a.occupation ?? null,
-          emergencyContactName: a.emergencyContactName ?? null,
-          emergencyContactRelation: a.emergencyContactName
-            ? (a.emergencyContactRelation ?? null)
-            : null,
-          emergencyContactPhone: a.emergencyContactName ? (a.emergencyContactPhone ?? null) : null,
-          hasHealthCondition: a.hasHealthCondition ?? null,
-          healthConditionNote: a.healthConditionNote ?? null,
-          agreementAccepted: true,
-          classGradeIds,
-        },
-        null,
-        null,
-        undefined,
-        { selfRegistered: true },
-      );
-      await this.prisma.$transaction([
-        this.prisma.telegramRegistration.delete({ where: { id: reg.id } }),
-        this.prisma.telegramLink.upsert({
+      // Member, roster places, history and chat link commit together.
+      const member = await this.prisma.$transaction(async (tx) => {
+        const created = await this.members.create(
+          {
+            firstName,
+            fatherName,
+            grandfatherName: a.grandfatherName ?? null,
+            christianName: a.christianName ?? null,
+            gender,
+            dateOfBirth,
+            placeOfBirth: a.placeOfBirth ?? null,
+            maritalStatus: a.maritalStatus ?? null,
+            spiritualFatherName: a.spiritualFatherName ?? null,
+            phone: reg.phone,
+            alternatePhone: a.alternatePhone ?? null,
+            email: a.email ?? null,
+            city: a.city ?? null,
+            subCity: a.subCity ?? null,
+            woreda: a.woreda ?? null,
+            kebele: a.kebele ?? null,
+            houseNumber: a.houseNumber ?? null,
+            educationLevel: a.educationLevel ?? null,
+            occupation: a.occupation ?? null,
+            emergencyContactName: a.emergencyContactName ?? null,
+            emergencyContactRelation: a.emergencyContactName
+              ? (a.emergencyContactRelation ?? null)
+              : null,
+            emergencyContactPhone: a.emergencyContactName
+              ? (a.emergencyContactPhone ?? null)
+              : null,
+            hasHealthCondition: a.hasHealthCondition ?? null,
+            healthConditionNote: a.healthConditionNote ?? null,
+            agreementAccepted: true,
+            classGradeIds,
+          },
+          null,
+          null,
+          tx,
+          { selfRegistered: true },
+        );
+        // Self-registered people join as ordinary members; the department sets any role.
+        const joinedAt = dateOnly(todayIso());
+        for (const departmentId of departmentIds) {
+          await tx.departmentMembership.create({
+            data: { departmentId, memberId: created.id, role: 'MEMBER', joinedAt },
+          });
+          await openServicePeriod(
+            tx,
+            { memberId: created.id, departmentId, role: 'MEMBER' },
+            joinedAt,
+            null,
+          );
+        }
+        await tx.telegramRegistration.delete({ where: { id: reg.id } });
+        await tx.telegramLink.upsert({
           where: { chatId: reg.chatId },
           create: {
             chatId: reg.chatId,
             telegramUserId: reg.telegramUserId,
             phone: reg.phone,
-            memberId: member.id,
+            memberId: created.id,
             language: lang,
           },
-          update: { phone: reg.phone, memberId: member.id },
-        }),
-      ]);
+          update: { phone: reg.phone, memberId: created.id },
+        });
+        return created;
+      });
       // The record is saved; a photo that fails to arrive must not undo it.
       const photoSaved = a.photoFileId ? await this.savePhoto(member.id, a.photoFileId) : true;
       return this.api.sendMessage(

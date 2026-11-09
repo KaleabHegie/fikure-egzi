@@ -20,6 +20,7 @@ export const REG_TEXT = {
     sections: {
       personal: '👤 የግል መረጃ',
       classes: '📚 ክፍሎች',
+      service: '⛪ የአገልግሎት ክፍሎች',
       contact: '📞 የመገናኛ መረጃ',
       address: '🏠 አድራሻ',
       work: '🎓 ትምህርትና ሥራ',
@@ -66,6 +67,13 @@ export const REG_TEXT = {
         hint: 'ለአባልነት መታወቂያዎ ይውላል። 📎 ን ተጭነው ከጋለሪ ይምረጡ ወይም ፎቶ ያንሱ።',
       },
     } satisfies Record<string, Ask>,
+    departmentsAsk: {
+      q: 'በየትኞቹ የአገልግሎት ክፍሎች ያገለግላሉ?',
+      hint: 'የሚያገለግሉባቸውን ሁሉ ይጫኑ — ከአንድ በላይ መምረጥ ይቻላል። ሲጨርሱ «✔ ጨርሻለሁ» ይጫኑ።',
+    } satisfies Ask,
+    departmentsNone: 'እስካሁን በየትኛውም የአገልግሎት ክፍል የማያገለግሉ ከሆነ «⏭ እለፍ» ይጫኑ።',
+    departmentsChosen: (names: string) => `✅ የመረጡት፦ <b>${names}</b>`,
+    departmentsDone: '✔ ጨርሻለሁ',
     classQuestion: (name: string): Ask => ({
       q: `በ«${name}» ውስጥ ያሉበት ደረጃ የትኛው ነው?`,
       hint: 'ገና ካልተመደቡ «⏭ እለፍ» ይጫኑ።',
@@ -137,6 +145,7 @@ export const REG_TEXT = {
       none: '—',
       noCondition: 'የለም',
       notAssigned: 'አልተመደበም',
+      notServing: 'እስካሁን አያገለግሉም',
       skipped: 'ታልፏል',
     },
     confirm: '✅ ይመዝገብ',
@@ -167,6 +176,7 @@ export const REG_TEXT = {
     sections: {
       personal: '👤 Personal details',
       classes: '📚 Classes',
+      service: '⛪ Service departments',
       contact: '📞 Contact',
       address: '🏠 Address',
       work: '🎓 Education & work',
@@ -225,6 +235,13 @@ export const REG_TEXT = {
         hint: 'It is used on your member card. Tap 📎 to pick one from your gallery or take one.',
       },
     } satisfies Record<string, Ask>,
+    departmentsAsk: {
+      q: 'Which service departments do you serve in?',
+      hint: 'Tap every one you serve in — you can choose more than one. Tap “✔ Done” when finished.',
+    } satisfies Ask,
+    departmentsNone: 'If you do not serve in any department yet, tap “⏭ Skip”.',
+    departmentsChosen: (names: string) => `✅ Chosen: <b>${names}</b>`,
+    departmentsDone: '✔ Done',
     classQuestion: (name: string): Ask => ({
       q: `Which level are you in for “${name}”?`,
       hint: 'If you have not been placed yet, tap “⏭ Skip”.',
@@ -299,6 +316,7 @@ export const REG_TEXT = {
       none: '—',
       noCondition: 'None',
       notAssigned: 'Not placed',
+      notServing: 'Not serving yet',
       skipped: 'Skipped',
     },
     confirm: '✅ Register',

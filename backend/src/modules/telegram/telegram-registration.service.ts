@@ -18,7 +18,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { TelegramApi, type TgMessage } from './telegram-api.js';
 import { buttons, menu, shareKeyboard } from './telegram.keyboards.js';
 import { type Ask, REG_TEXT } from './telegram-registration.texts.js';
-import { AGREEMENT, type BotLang, ecDate, esc, TEXT } from './telegram.texts.js';
+import { type BotLang, ecDate, esc, TEXT } from './telegram.texts.js';
 
 /** The member form's personal section, asked first. */
 const PERSONAL = [
@@ -33,7 +33,7 @@ const PERSONAL = [
   'spiritualFatherName',
 ] as const;
 
-/** Everything after the class placements: the rest of the form, then health, photo and agreement. */
+/** Everything after classes and departments: the rest of the form, then health and photo. */
 const REST = [
   'alternatePhone',
   'email',
@@ -50,13 +50,15 @@ const REST = [
   'health',
   'healthNote',
   'photo',
-  'agreement',
 ] as const;
 
 type Question = (typeof PERSONAL)[number] | (typeof REST)[number];
 /** One question per class type: which grade the person is in. */
 type ClassStep = `class:${number}`;
-type Step = 'offer' | Question | ClassStep | 'departments' | 'confirm' | 'submitting';
+/** One per chosen class that has an agreement (e.g. the Mezmur class's code of conduct). */
+type AgreementStep = `agreement:${number}`;
+type Step =
+  'offer' | Question | ClassStep | 'departments' | AgreementStep | 'confirm' | 'submitting';
 type Section = keyof (typeof REG_TEXT)['am']['sections'];
 
 const SECTION: Record<Question, Section> = {
@@ -84,7 +86,6 @@ const SECTION: Record<Question, Section> = {
   health: 'health',
   healthNote: 'health',
   photo: 'photo',
-  agreement: 'agreement',
 };
 
 type TextKey =
@@ -133,6 +134,8 @@ const TEXT_RULES: Record<
 const isTextKey = (step: Step): step is TextKey => step in TEXT_RULES;
 const isClassStep = (step: Step): step is ClassStep => step.startsWith('class:');
 const classIdOf = (step: ClassStep) => Number(step.slice('class:'.length));
+const isAgreementStep = (step: Step): step is AgreementStep => step.startsWith('agreement:');
+const agreementClassOf = (step: AgreementStep) => Number(step.slice('agreement:'.length));
 const OPTIONAL_CHOICES = new Set<Step>(['maritalStatus', 'educationLevel', 'photo']);
 const isOptional = (step: Step) =>
   (isTextKey(step) && TEXT_RULES[step].optional) ||
@@ -152,7 +155,8 @@ type Answers = { [K in TextKey]?: string | null } & {
   hasHealthCondition?: boolean;
   healthConditionNote?: string | null;
   photoFileId?: string | null;
-  agreed?: boolean;
+  /** Class agreements accepted (agreement ids). */
+  agreementIds?: number[];
 };
 
 /** A class type offered on the member form, with its grades. */
@@ -161,6 +165,15 @@ type ClassOption = {
   nameAm: string;
   nameEn: string;
   grades: { id: number; nameAm: string; nameEn: string }[];
+  agreement: {
+    id: number;
+    titleAm: string;
+    titleEn: string;
+    rulesAm: string;
+    rulesEn: string;
+    pledgeAm: string | null;
+    pledgeEn: string | null;
+  } | null;
 };
 
 /** A service department a member can be on the roster of. */
@@ -175,6 +188,7 @@ const flowFor = (catalog: Catalog): Step[] => [
   ...catalog.classes.map((c): ClassStep => `class:${c.id}`),
   ...(catalog.departments.length > 0 ? (['departments'] as const) : []),
   ...REST,
+  ...catalog.classes.filter((c) => c.agreement).map((c): AgreementStep => `agreement:${c.id}`),
   'confirm',
 ];
 
@@ -184,14 +198,22 @@ const applies = (step: Step, a: Answers) => {
   if (step === 'emergencyContactRelation' || step === 'emergencyContactPhone') {
     return Boolean(a.emergencyContactName);
   }
+  // A class's agreement is asked only of those placed in that class.
+  if (isAgreementStep(step)) return typeof a.classGrades?.[agreementClassOf(step)] === 'number';
   return true;
 };
 const nextStep = (flow: Step[], step: Step, a: Answers): Step =>
   flow.slice(flow.indexOf(step) + 1).find((s) => applies(s, a)) ?? 'confirm';
 const previousStep = (flow: Step[], step: Step, a: Answers): Step | null =>
   flow.slice(0, Math.max(flow.indexOf(step), 0)).findLast((s) => applies(s, a)) ?? null;
-/** Numbered questions; the health note shares the health question's number. */
-const numbered = (flow: Step[]) => flow.filter((s) => s !== 'healthNote' && s !== 'confirm');
+/**
+ * Numbered questions; the health note shares the health question's number, and
+ * an agreement counts once the person is in its class.
+ */
+const numbered = (flow: Step[], a: Answers) =>
+  flow.filter(
+    (s) => s !== 'healthNote' && s !== 'confirm' && (!isAgreementStep(s) || applies(s, a)),
+  );
 
 type Registration = {
   id: number;
@@ -324,15 +346,16 @@ export class TelegramRegistrationService {
     const flow = flowFor(catalog);
     const answers = (reg.answers ?? {}) as Answers;
     let step = reg.step as Step;
-    // A class (or the departments) no longer offered mid-conversation: carry on after them.
+    // A class, the departments or an agreement no longer offered mid-conversation: move on.
     if ((isClassStep(step) || step === 'departments') && !flow.includes(step)) step = REST[0];
+    if (isAgreementStep(step) && !flow.includes(step)) step = 'confirm';
     const input = (message.text ?? message.caption ?? '').trim();
     const photo = photoFrom(message);
     const ask = (s: Step, a: Answers) => this.ask(reg.chatId, s, a, lang, reg.phone, catalog);
 
     if (step === 'submitting') return this.api.sendMessage(reg.chatId, t.wait);
     if (input === t.cancel || input === '/cancel') {
-      return this.end(reg, lang, step === 'agreement' ? t.declined : t.cancelled);
+      return this.end(reg, lang, t.cancelled);
     }
     if (!(await this.isOpen())) return this.end(reg, lang, t.closed);
     // /start, or a message with nothing to read, repeats the current question.
@@ -381,6 +404,17 @@ export class TelegramRegistrationService {
             where: { isActive: true },
             orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
             select: { id: true, nameAm: true, nameEn: true },
+          },
+          agreement: {
+            select: {
+              id: true,
+              titleAm: true,
+              titleEn: true,
+              rulesAm: true,
+              rulesEn: true,
+              pledgeAm: true,
+              pledgeEn: true,
+            },
           },
         },
       }),
@@ -431,6 +465,26 @@ export class TelegramRegistrationService {
         ? chosen.filter((id) => id !== department.id)
         : [...chosen, department.id];
       return { answers: { ...a, departmentIds }, stay: true };
+    }
+
+    if (isAgreementStep(step)) {
+      const typeId = agreementClassOf(step);
+      const type = catalog.classes.find((c) => c.id === typeId);
+      if (!type?.agreement) return { error: t.invalid.choose };
+      const agreementId = type.agreement.id;
+      const others = (a.agreementIds ?? []).filter((id) => id !== agreementId);
+      if (input === t.agree) return { answers: { ...a, agreementIds: [...others, agreementId] } };
+      // Not accepting means not joining that class; the registration carries on.
+      if (input === t.skipClass(localName(type, lang))) {
+        return {
+          answers: {
+            ...a,
+            classGrades: { ...a.classGrades, [typeId]: null },
+            agreementIds: others,
+          },
+        };
+      }
+      return { error: t.invalid.choose };
     }
 
     if (isClassStep(step)) {
@@ -516,10 +570,6 @@ export class TelegramRegistrationService {
         if (photo === 'tooLarge') return { error: t.invalid.photoTooLarge };
         if (photo && photo !== 'badType') return { answers: { ...a, photoFileId: photo.fileId } };
         return { error: t.invalid.photo };
-      case 'agreement':
-        return input === t.agree
-          ? { answers: { ...a, agreed: true } }
-          : { error: t.invalid.choose };
       case 'confirm':
         if (input === t.confirm) return { action: 'submit' };
         if (input === t.restart) return { action: 'restart' };
@@ -544,7 +594,8 @@ export class TelegramRegistrationService {
   ) {
     const t = REG_TEXT[lang];
     const flow = flowFor(catalog);
-    const total = numbered(flow).length;
+    const counted = numbered(flow, a);
+    const total = counted.length;
 
     if (step === 'offer') return this.sendOffer(chatId, phone, lang, total, catalog);
     if (step === 'submitting') return this.api.sendMessage(chatId, t.wait);
@@ -556,28 +607,45 @@ export class TelegramRegistrationService {
       );
     }
 
-    const n = numbered(flow).indexOf(step === 'healthNote' ? 'health' : step) + 1;
+    const n = counted.indexOf(step === 'healthNote' ? 'health' : step) + 1;
     const section = isClassStep(step)
       ? 'classes'
       : step === 'departments'
         ? 'service'
-        : SECTION[step];
+        : isAgreementStep(step)
+          ? 'agreement'
+          : SECTION[step];
     const header = `${t.sections[section]}\n<code>${progressBar(n, total)}</code>  <i>${n} / ${total}</i>`;
     const footer = step === 'firstName' ? [t.cancel] : [t.back, t.cancel];
     const skipRow = isOptional(step) ? [[t.skip]] : [];
 
-    if (step === 'agreement') {
-      const ag = AGREEMENT[lang];
+    if (isAgreementStep(step)) {
+      const type = catalog.classes.find((c) => c.id === agreementClassOf(step))!;
+      const ag = type.agreement!;
+      const className = localName(type, lang);
+      const title = lang === 'am' ? ag.titleAm : ag.titleEn;
+      const rules = (lang === 'am' ? ag.rulesAm : ag.rulesEn)
+        .split('\n')
+        .map((rule) => rule.trim())
+        .filter(Boolean);
+      const pledge = lang === 'am' ? ag.pledgeAm : ag.pledgeEn;
       const body = [
         header,
         '',
-        `<b>${ag.title}</b>`,
-        `<blockquote>${ag.rules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')}</blockquote>`,
-        `<i>${ag.pledge}</i>`,
+        `📚 <b>${esc(t.agreementFor(className))}</b>`,
+        `<i>${esc(t.agreementIntro(className))}</i>`,
         '',
-        `👉 ${t.agreementAsk}`,
+        `<b>${esc(title)}</b>`,
+        `<blockquote>${rules.map((rule, i) => `${i + 1}. ${esc(rule)}`).join('\n')}</blockquote>`,
+        ...(pledge ? [`<i>${esc(pledge)}</i>`] : []),
+        '',
+        `👉 ${esc(t.agreementAsk(className))}`,
       ].join('\n');
-      return this.api.sendMessage(chatId, body, buttons([[t.agree], footer]));
+      return this.api.sendMessage(
+        chatId,
+        body,
+        buttons([[t.agree], [t.skipClass(className)], footer]),
+      );
     }
 
     if (step === 'departments') {
@@ -656,7 +724,7 @@ export class TelegramRegistrationService {
         s.emergency,
         s.health,
         s.photo,
-        s.agreement,
+        ...(catalog.classes.some((c) => c.agreement) ? [s.agreement] : []),
       ].join('\n')}</blockquote>`,
       t.offerFoot,
     ].join('\n');
@@ -669,7 +737,7 @@ export class TelegramRegistrationService {
   /** How an answer reads back to the person ("" when not answered yet). */
   private display(step: Step, a: Answers, lang: BotLang, catalog: Catalog): string {
     const t = REG_TEXT[lang];
-    if (step === 'departments') return '';
+    if (step === 'departments' || isAgreementStep(step)) return '';
     if (isClassStep(step)) {
       const typeId = classIdOf(step);
       if (!a.classGrades || !(typeId in a.classGrades)) return '';
@@ -719,6 +787,7 @@ export class TelegramRegistrationService {
     const block = (title: string, lines: string[]) =>
       `${title}\n<blockquote>${lines.join('\n')}</blockquote>`;
     const city = a.city === ADDIS_ABABA ? t.addisAbaba : a.city;
+    const accepted = acceptedClasses(catalog, a);
     const classLines = catalog.classes.map((c) => {
       const gradeId = a.classGrades?.[c.id];
       const grade = c.grades.find((g) => g.id === gradeId);
@@ -773,11 +842,16 @@ export class TelegramRegistrationService {
             ]
           : []),
       ]),
-      block(`${s.health} · ${s.photo} · ${s.agreement}`, [
-        row(f.health, a.hasHealthCondition ? a.healthConditionNote : f.noCondition),
-        row(f.photo, a.photoFileId ? f.photoSent : null),
-        row(f.agreement, f.accepted),
-      ]),
+      block(
+        accepted.length > 0
+          ? `${s.health} · ${s.photo} · ${s.agreement}`
+          : `${s.health} · ${s.photo}`,
+        [
+          row(f.health, a.hasHealthCondition ? a.healthConditionNote : f.noCondition),
+          row(f.photo, a.photoFileId ? f.photoSent : null),
+          ...accepted.map((c) => row(t.agreementFor(localName(c, lang)), f.accepted)),
+        ],
+      ),
       '',
       t.summaryHint,
     ].join('\n');
@@ -793,7 +867,7 @@ export class TelegramRegistrationService {
     });
     if (claimed.count === 0) return;
     const { firstName, fatherName, gender, dateOfBirth } = a;
-    if (!firstName || !fatherName || !gender || !dateOfBirth || !a.agreed) {
+    if (!firstName || !fatherName || !gender || !dateOfBirth) {
       await this.save(reg.id, 'firstName', {});
       return this.ask(reg.chatId, 'firstName', {}, lang, reg.phone, catalog);
     }
@@ -805,6 +879,8 @@ export class TelegramRegistrationService {
     const departmentIds = (a.departmentIds ?? []).filter((id) =>
       catalog.departments.some((d) => d.id === id),
     );
+    // A class's agreement only counts while the person is placed in that class.
+    const agreementIds = acceptedClasses(catalog, a).map((c) => c.agreement!.id);
 
     try {
       // Member, roster places, history and chat link commit together.
@@ -839,7 +915,7 @@ export class TelegramRegistrationService {
               : null,
             hasHealthCondition: a.hasHealthCondition ?? null,
             healthConditionNote: a.healthConditionNote ?? null,
-            agreementAccepted: true,
+            agreementIds,
             classGradeIds,
           },
           null,
@@ -946,4 +1022,14 @@ function duplicateCode(error: unknown): string | null {
     }
   }
   return null;
+}
+
+/** Classes the person is placed in whose agreement they accepted. */
+function acceptedClasses(catalog: Catalog, a: Answers): ClassOption[] {
+  return catalog.classes.filter(
+    (c) =>
+      c.agreement &&
+      typeof a.classGrades?.[c.id] === 'number' &&
+      (a.agreementIds ?? []).includes(c.agreement.id),
+  );
 }

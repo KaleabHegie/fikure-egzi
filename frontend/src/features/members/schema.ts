@@ -73,7 +73,8 @@ const memberFields = z.object({
   /** '' = not recorded. */
   hasHealthCondition: z.enum(['', 'yes', 'no']),
   healthConditionNote: optionalText(1000),
-  agreementAccepted: z.boolean(),
+  /** Class agreements accepted (ids). */
+  agreementIds: z.array(z.number()),
 
   notes: optionalText(2000),
 
@@ -120,7 +121,7 @@ export const emptyMemberForm = (): MemberFormValues => ({
   emergencyContactRelation: '',
   hasHealthCondition: '',
   healthConditionNote: '',
-  agreementAccepted: false,
+  agreementIds: [],
   notes: '',
   classGrades: {},
 })
@@ -153,22 +154,22 @@ export function memberToForm(m: Member): MemberFormValues {
     emergencyContactRelation: s(m.emergencyContactRelation),
     hasHealthCondition: m.hasHealthCondition === null ? '' : m.hasHealthCondition ? 'yes' : 'no',
     healthConditionNote: s(m.healthConditionNote),
-    agreementAccepted: m.agreementAcceptedAt !== null,
+    agreementIds: m.agreements.map((a) => a.agreementId),
     notes: s(m.notes),
     classGrades: Object.fromEntries(m.classes.map((c) => [String(c.classType.id), String(c.classGrade.id)])),
   }
 }
 
-type TextFields = Omit<MemberFormValues, 'classGrades' | 'hasHealthCondition' | 'agreementAccepted'>
+type TextFields = Omit<MemberFormValues, 'classGrades' | 'hasHealthCondition' | 'agreementIds'>
 export type MemberPayload = { [K in keyof TextFields]: TextFields[K] | null } & {
   classGradeIds: number[]
   hasHealthCondition: boolean | null
-  agreementAccepted: boolean
+  agreementIds: number[]
 }
 
 /** '' → null, so a cleared field clears the stored value; class picks → grade ids. */
 export function toMemberPayload(values: MemberFormValues): MemberPayload {
-  const { classGrades, hasHealthCondition, agreementAccepted, ...text } = values
+  const { classGrades, hasHealthCondition, agreementIds, ...text } = values
   const fields = Object.fromEntries(
     Object.entries(text).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v]),
   ) as { [K in keyof TextFields]: TextFields[K] | null }
@@ -177,7 +178,7 @@ export function toMemberPayload(values: MemberFormValues): MemberPayload {
     hasHealthCondition: hasHealthCondition === '' ? null : hasHealthCondition === 'yes',
     // A note only belongs with a "yes".
     healthConditionNote: hasHealthCondition === 'yes' ? fields.healthConditionNote : null,
-    agreementAccepted,
+    agreementIds,
     classGradeIds: Object.values(classGrades)
       .filter((v): v is string => Boolean(v))
       .map(Number),

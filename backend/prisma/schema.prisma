@@ -238,10 +238,8 @@ model Member {
   hasHealthCondition  Boolean? @map("has_health_condition")
   healthConditionNote String?  @map("health_condition_note") @db.Text
 
-  /// When the member accepted the discipline and code-of-conduct agreement.
-  agreementAcceptedAt DateTime? @map("agreement_accepted_at")
   /// Registered by the member themself through the Telegram bot.
-  selfRegistered      Boolean   @default(false) @map("self_registered")
+  selfRegistered Boolean @default(false) @map("self_registered")
 
   /// Storage key under UPLOAD_DIR (e.g. members/42-ab12cd.jpg). Served only via GET /members/:id/photo.
   photoPath String? @map("photo_path") @db.VarChar(255)
@@ -261,6 +259,7 @@ model Member {
   serviceHistory   DepartmentServiceHistory[]
   courseScores     CourseScore[]
   telegramLinks    TelegramLink[]
+  agreements       MemberAgreement[]
   /// Login of a member who teaches.
   user             User?                      @relation("UserMember")
 
@@ -302,6 +301,8 @@ model ClassType {
   grades      ClassGrade[]
   enrollments MemberClassEnrollment[]
   history     ClassPlacementHistory[]
+  /// What members placed in this class agree to (e.g. the Mezmur class's code of conduct).
+  agreement   ClassAgreement?
 
   @@index([isActive, sortOrder])
   @@index([departmentId])
@@ -862,4 +863,48 @@ model AppSetting {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("app_settings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Class agreements (e.g. the Mezmur class's discipline and code of conduct)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The agreement members placed in a class accept. At most one per class; admin-managed.
+model ClassAgreement {
+  id          Int      @id @default(autoincrement())
+  classTypeId Int      @unique @map("class_type_id")
+  titleAm     String   @map("title_am") @db.VarChar(200)
+  titleEn     String   @map("title_en") @db.VarChar(200)
+  /// One rule per line.
+  rulesAm     String   @map("rules_am") @db.Text
+  rulesEn     String   @map("rules_en") @db.Text
+  /// The closing statement the member makes ("I have understood …").
+  pledgeAm    String?  @map("pledge_am") @db.Text
+  pledgeEn    String?  @map("pledge_en") @db.Text
+  updatedById Int?     @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  classType   ClassType         @relation(fields: [classTypeId], references: [id], onDelete: Cascade)
+  acceptances MemberAgreement[]
+
+  @@map("class_agreements")
+}
+
+/// A member's acceptance of a class agreement: signed on paper (recorded by staff) or in the bot.
+model MemberAgreement {
+  id           Int      @id @default(autoincrement())
+  memberId     Int      @map("member_id")
+  agreementId  Int      @map("agreement_id")
+  acceptedAt   DateTime @map("accepted_at")
+  /// Staff who recorded it; null when the member accepted it in the bot.
+  recordedById Int?     @map("recorded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  member    Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  agreement ClassAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, agreementId])
+  @@index([agreementId])
+  @@map("member_agreements")
 }

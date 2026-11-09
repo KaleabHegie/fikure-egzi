@@ -3,6 +3,7 @@ import {
   ArrowUp,
   BookOpen,
   EyeOff,
+  FileSignature,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -34,7 +35,7 @@ import { getErrorMessage } from '@/lib/api/errors'
 import { PERMISSIONS } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { classesApi, useClassMutation, useClassTypes } from '../api'
-import { ClassGradeDialog, ClassTypeDialog } from '../components/class-dialogs'
+import { ClassAgreementDialog, ClassGradeDialog, ClassTypeDialog } from '../components/class-dialogs'
 import type { ClassGrade, ClassType } from '../types'
 import { useLocalizedName } from '../use-localized'
 
@@ -43,6 +44,8 @@ type DialogState =
   | { kind: 'grade'; type: ClassType; grade?: ClassGrade }
   | { kind: 'deleteType'; type: ClassType }
   | { kind: 'deleteGrade'; grade: ClassGrade }
+  | { kind: 'agreement'; type: ClassType }
+  | { kind: 'deleteAgreement'; type: ClassType }
   | null
 
 /** Moves the item at `index` by `delta` and returns the new id order. */
@@ -110,6 +113,17 @@ function ClassTypeCard({
             <h2 className="text-lg font-semibold">{name(type)}</h2>
             <span className="text-sm text-muted-foreground">· {otherName}</span>
             {!type.isActive && <StatusPill active={false} />}
+            {type.agreement && (
+              <button
+                type="button"
+                onClick={() => canManage && onDialog({ kind: 'agreement', type })}
+                disabled={!canManage}
+                className="inline-flex h-5 items-center gap-1 rounded-full border border-gold/50 bg-gold/10 px-2 text-xs font-medium text-gilt-ink enabled:hover:bg-gold/20"
+              >
+                <FileSignature className="size-3" aria-hidden />
+                {t('classes.agreement.badge')}
+              </button>
+            )}
           </div>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
           <p className="text-xs text-muted-foreground">
@@ -134,6 +148,10 @@ function ClassTypeCard({
                 <DropdownMenuItem onSelect={() => onDialog({ kind: 'type', type })}>
                   <Pencil />
                   {t('common.edit')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onDialog({ kind: 'agreement', type })}>
+                  <FileSignature />
+                  {type.agreement ? t('classes.agreement.edit') : t('classes.agreement.add')}
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled={index === 0} onSelect={() => onMoveType(-1)}>
                   <ArrowUp />
@@ -284,6 +302,11 @@ export function ClassesPage() {
   const reorderGrades = useClassMutation((a: { typeId: number; ids: number[] }) =>
     classesApi.reorderGrades(a.typeId, a.ids),
   )
+  const saveAgreement = useClassMutation(
+    (a: { typeId: number; input: Parameters<typeof classesApi.saveAgreement>[1] }) =>
+      classesApi.saveAgreement(a.typeId, a.input),
+  )
+  const removeAgreement = useClassMutation(classesApi.removeAgreement)
 
   // Reordering needs every type, including inactive ones the list may hide.
   const moveType = async (index: number, delta: number) => {
@@ -413,6 +436,39 @@ export function ClassesPage() {
             await createGrade.mutateAsync({ typeId: dialog.type.id, input })
             toast.success(t('classes.created'))
           }
+        }}
+      />
+
+      <ClassAgreementDialog
+        open={dialog?.kind === 'agreement'}
+        onOpenChange={(open) => !open && setDialog(null)}
+        typeName={dialog?.kind === 'agreement' ? name(dialog.type) : ''}
+        agreement={dialog?.kind === 'agreement' ? dialog.type.agreement : undefined}
+        onSave={async (input) => {
+          if (dialog?.kind !== 'agreement') return
+          await saveAgreement.mutateAsync({ typeId: dialog.type.id, input })
+          toast.success(t('classes.agreement.saved'))
+        }}
+        onRemove={() => dialog?.kind === 'agreement' && setDialog({ kind: 'deleteAgreement', type: dialog.type })}
+      />
+
+      <ConfirmDialog
+        open={dialog?.kind === 'deleteAgreement'}
+        onOpenChange={(open) => !open && setDialog(null)}
+        title={t('classes.agreement.removeTitle')}
+        description={dialog?.kind === 'deleteAgreement' ? t('classes.agreement.removeBody', { name: name(dialog.type) }) : ''}
+        confirmLabel={t('classes.agreement.remove')}
+        destructive
+        pending={removeAgreement.isPending}
+        onConfirm={() => {
+          if (dialog?.kind !== 'deleteAgreement') return
+          removeAgreement.mutate(dialog.type.id, {
+            onSuccess: () => {
+              toast.success(t('classes.agreement.removed'))
+              setDialog(null)
+            },
+            onError: notifyError,
+          })
         }}
       />
 

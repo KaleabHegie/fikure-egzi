@@ -50,8 +50,21 @@ const MEMBER_SELECT = {
   emergencyContactRelation: true,
   hasHealthCondition: true,
   healthConditionNote: true,
-  agreementAcceptedAt: true,
   selfRegistered: true,
+  agreements: {
+    select: {
+      acceptedAt: true,
+      agreement: {
+        select: {
+          id: true,
+          titleAm: true,
+          titleEn: true,
+          classType: { select: { id: true, nameAm: true, nameEn: true } },
+        },
+      },
+    },
+    orderBy: { acceptedAt: 'asc' },
+  },
   photoPath: true,
   notes: true,
   createdAt: true,
@@ -93,7 +106,18 @@ type MemberClass = Omit<MemberRow['classEnrollments'][number], 'classType'> & {
 };
 
 /** API shape: the storage path stays internal; clients only learn whether a photo exists. */
-export type MemberRecord = Omit<MemberRow, 'photoPath' | 'classEnrollments' | 'departmentRoles'> & {
+export type MemberRecord = Omit<
+  MemberRow,
+  'photoPath' | 'classEnrollments' | 'departmentRoles' | 'agreements'
+> & {
+  /** Class agreements the member accepted, and when. */
+  agreements: {
+    agreementId: number;
+    titleAm: string;
+    titleEn: string;
+    classType: { id: number; nameAm: string; nameEn: string };
+    acceptedAt: Date;
+  }[];
   /** Departments the member serves in, with their role. */
   departments: MemberRow['departmentRoles'];
   hasPhoto: boolean;
@@ -105,10 +129,16 @@ const toMember = ({
   photoPath,
   classEnrollments,
   departmentRoles,
+  agreements,
   ...rest
 }: MemberRow): MemberRecord => ({
   ...rest,
   departments: departmentRoles,
+  agreements: agreements.map(({ acceptedAt, agreement: { id, ...agreement } }) => ({
+    agreementId: id,
+    ...agreement,
+    acceptedAt,
+  })),
   hasPhoto: photoPath !== null,
   classes: [...classEnrollments]
     .sort(
@@ -213,10 +243,10 @@ export class MembersService {
       ]);
     }
 
-    const { classGradeIds, agreementAccepted, hasHealthCondition, healthConditionNote, ...fields } =
-      dto;
+    const { classGradeIds, agreementIds, hasHealthCondition, healthConditionNote, ...fields } = dto;
     await this.assertUniqueName(dto, null, outerTx);
     const placements = classGradeIds ? await this.resolveClassGrades(classGradeIds) : [];
+    const agreements = agreementIds ? await this.resolveAgreements(agreementIds, outerTx) : [];
     const selfRegistered = options.selfRegistered === true;
 
     const run = async (tx: Prisma.TransactionClient) => {
@@ -226,7 +256,6 @@ export class MembersService {
         data: {
           ...fields,
           ...healthFields(hasHealthCondition, healthConditionNote),
-          agreementAcceptedAt: agreementAccepted ? new Date() : null,
           selfRegistered,
           memberCode: `TMP-${randomUUID().replace(/-/g, '').slice(0, 16)}`,
           dateOfBirth: toOptionalDate(dto.dateOfBirth),
@@ -247,6 +276,18 @@ export class MembersService {
           today(),
           userId,
         );
+      }
+
+      if (agreements.length > 0) {
+        const acceptedAt = new Date();
+        await tx.memberAgreement.createMany({
+          data: agreements.map((agreementId) => ({
+            memberId: created.id,
+            agreementId,
+            acceptedAt,
+            recordedById: userId,
+          })),
+        });
       }
 
       const member = await tx.member.update({
@@ -304,11 +345,13 @@ export class MembersService {
       dateOfBirth,
       joinedAt,
       classGradeIds,
-      agreementAccepted,
+      agreementIds,
       hasHealthCondition,
       healthConditionNote,
       ...rest
     } = dto;
+    const agreements =
+      agreementIds === undefined ? null : await this.resolveAgreements(agreementIds);
     const placements =
       classGradeIds === undefined || classGradeIds === null
         ? null
@@ -323,15 +366,26 @@ export class MembersService {
       }),
       ...(joinedAt && { joinedAt: toDate(joinedAt) }),
       ...healthFields(hasHealthCondition, healthConditionNote),
-      // Keep the original acceptance time when it is re-confirmed.
-      ...(agreementAccepted === false && { agreementAcceptedAt: null }),
-      ...(agreementAccepted === true &&
-        current.agreementAcceptedAt === null && { agreementAcceptedAt: new Date() }),
       updatedById: userId,
     };
 
     return this.prisma.$transaction(async (tx) => {
       if (placements) await this.syncClasses(tx, id, current, placements, userId);
+      if (agreements) {
+        // Kept agreements keep their original acceptance time; new ones are stamped now.
+        await tx.memberAgreement.deleteMany({
+          where: { memberId: id, agreementId: { notIn: agreements } },
+        });
+        await tx.memberAgreement.createMany({
+          data: agreements.map((agreementId) => ({
+            memberId: id,
+            agreementId,
+            acceptedAt: new Date(),
+            recordedById: userId,
+          })),
+          skipDuplicates: true,
+        });
+      }
       const member = await tx.member.update({
         where: { id },
         data,
@@ -496,6 +550,26 @@ export class MembersService {
    * type, and be active — unless the member already has it (so deactivating
    * a grade never blocks editing its current members).
    */
+  /** Unique agreement ids, all of which must exist. */
+  private async resolveAgreements(
+    ids: number[],
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<number[]> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return [];
+    const found = await tx.classAgreement.findMany({
+      where: { id: { in: unique } },
+      select: { id: true },
+    });
+    const missing = unique.filter((id) => !found.some((a) => a.id === id));
+    if (missing.length > 0) {
+      throw new ValidationFailedException([
+        { field: 'agreementIds', messages: [`Unknown agreement(s): ${missing.join(', ')}`] },
+      ]);
+    }
+    return unique;
+  }
+
   private async resolveClassGrades(
     gradeIds: number[],
     alreadyAssigned: number[] = [],

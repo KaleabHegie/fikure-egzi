@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, http } from '@/lib/api/client'
 import { memberKeys } from '@/features/members/api'
-import type { ClassGrade, ClassGradeInput, ClassType, ClassTypeInput } from './types'
+import type {
+  ClassAgreement,
+  ClassAgreementInput,
+  ClassGrade,
+  ClassGradeInput,
+  ClassType,
+  ClassTypeInput,
+} from './types'
 
 export const classKeys = {
   all: ['classes'] as const,
@@ -21,7 +28,17 @@ export const classesApi = {
   removeGrade: (id: number) => api.delete(`/class-grades/${id}`),
   reorderGrades: (typeId: number, ids: number[]) =>
     http.put(`/class-types/${typeId}/grades/order`, { ids }).then(() => undefined),
+  saveAgreement: (typeId: number, input: ClassAgreementInput) =>
+    api.put<ClassAgreement>(`/class-types/${typeId}/agreement`, input),
+  removeAgreement: (typeId: number) => api.delete(`/class-types/${typeId}/agreement`),
 }
+
+/** Splits stored rules (one per line) into a list, dropping blank lines. */
+export const agreementRules = (rules: string) =>
+  rules
+    .split('\n')
+    .map((rule) => rule.trim())
+    .filter(Boolean)
 
 /** Class types with their grades. Defaults to what is currently offered (active only). */
 export function useClassTypes(includeInactive = false) {

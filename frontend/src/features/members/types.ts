@@ -27,6 +27,15 @@ interface UserRef {
   fullName: string
 }
 
+/** A class agreement the member accepted, and when. */
+export interface MemberAgreement {
+  agreementId: number
+  titleAm: string
+  titleEn: string
+  classType: { id: number; nameAm: string; nameEn: string }
+  acceptedAt: string
+}
+
 /** Mirrors the API's MemberDto. Dates arrive as ISO strings. */
 export interface Member {
   id: number
@@ -58,8 +67,8 @@ export interface Member {
   /** null = not recorded, false = stated none, true = see healthConditionNote. */
   hasHealthCondition: boolean | null
   healthConditionNote: string | null
-  /** When the discipline and code-of-conduct agreement was accepted. */
-  agreementAcceptedAt: string | null
+  /** Class agreements the member accepted (e.g. the Mezmur class's code of conduct). */
+  agreements: MemberAgreement[]
   /** Registered by the member themself through the Telegram bot. */
   selfRegistered: boolean
   /** Fetch the image with useMemberPhoto(); it is served only to signed-in users. */

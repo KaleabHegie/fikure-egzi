@@ -45,16 +45,27 @@ class MemberDepartmentDto {
   @ApiProperty({ type: DepartmentRefDto }) department: DepartmentRefDto;
 }
 
+class MemberAgreementDto {
+  @ApiProperty() agreementId: number;
+  @ApiProperty() titleAm: string;
+  @ApiProperty() titleEn: string;
+  @ApiProperty({ type: ClassRefDto }) classType: ClassRefDto;
+  @ApiProperty() acceptedAt: string;
+}
+
 export class MemberDto extends OmitType(CreateMemberDto, [
   'status',
   'classGradeIds',
-  'agreementAccepted',
+  'agreementIds',
 ] as const) {
   @ApiProperty() id: number;
   @ApiProperty({ example: 'FE-00042' }) memberCode: string;
   @ApiProperty({ enum: MembershipStatus }) status: MembershipStatus;
-  @ApiPropertyOptional({ nullable: true, description: 'When the agreement was accepted' })
-  agreementAcceptedAt: string | null;
+  @ApiProperty({
+    type: [MemberAgreementDto],
+    description: 'Class agreements the member accepted',
+  })
+  agreements: MemberAgreementDto[];
   @ApiProperty({ description: 'Registered by the member through the Telegram bot' })
   selfRegistered: boolean;
   @ApiProperty({ description: 'Fetch it from GET /members/:id/photo' }) hasPhoto: boolean;

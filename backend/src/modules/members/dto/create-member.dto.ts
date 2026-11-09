@@ -246,12 +246,17 @@ export class CreateMemberDto {
   healthConditionNote?: string | null;
 
   @ApiPropertyOptional({
+    type: [Number],
+    example: [1],
     description:
-      'Accepted the discipline and code-of-conduct agreement. true stamps the time (kept if already set); false clears it.',
+      'Class agreements the member accepted (e.g. the Mezmur class code of conduct). On update, replaces the set; ones kept keep their original acceptance time.',
   })
   @IsOptional()
-  @IsBoolean()
-  agreementAccepted?: boolean;
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  agreementIds?: number[];
 
   // ── Other (photo is uploaded separately: PUT /members/:id/photo) ─────────
   @ApiPropertyOptional({ maxLength: 2000 })

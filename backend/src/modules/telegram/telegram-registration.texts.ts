@@ -100,8 +100,12 @@ export const REG_TEXT = {
       DOCTORATE: 'ዶክትሬት',
       OTHER: 'ሌላ',
     } as Record<string, string>,
-    agreementAsk: 'ምዝገባውን ለማጠናቀቅ ስምምነቱን አንብበው «✅ አንብቤ ተስማምቻለሁ» ይጫኑ።',
+    agreementFor: (className: string) => `${className} ስምምነት`,
+    agreementIntro: (className: string) => `«${className}» አባላት የሚከተለውን ስምምነት ይቀበላሉ።`,
+    agreementAsk: (className: string) =>
+      `ከተስማሙ «✅ አንብቤ ተስማምቻለሁ» ይጫኑ። «${className}»ን የማይቀላቀሉ ከሆነ «🚫 …አልቀላቀልም» ይጫኑ፤ ምዝገባዎ ይቀጥላል።`,
     agree: '✅ አንብቤ ተስማምቻለሁ',
+    skipClass: (className: string) => `🚫 ${className}ን አልቀላቀልም`,
     invalid: {
       name: 'እባክዎ ትክክለኛ ስም ይጻፉ — ፊደላት ብቻ፣ ከ100 ፊደል ያልበለጠ።',
       choose: 'እባክዎ ከታች ካሉት ቁልፎች አንዱን ይጫኑ።',
@@ -155,7 +159,6 @@ export const REG_TEXT = {
       `🎉 <b>እንኳን ደስ አለዎት!</b>\n━━━━━━━━━━━━━━━\n👤 <b>${name}</b>\n🆔 <code>${code}</code>\n━━━━━━━━━━━━━━━\nምዝገባዎ ተጠናቅቋል። የአባልነት መታወቂያዎን ለማየት «🔳 የQR ኮዴ» ወይም «👤 መረጃዬ» ይጫኑ።`,
     photoFailed: 'ማሳሰቢያ፦ ፎቶዎ ሊቀመጥ አልቻለም፤ ጽሕፈት ቤቱ በኋላ ሊያክለው ይችላል።',
     cancelled: 'ምዝገባው ተሰርዟል። በፈለጉ ጊዜ ስልክ ቁጥርዎን በማጋራት እንደገና መጀመር ይችላሉ።',
-    declined: 'ምዝገባው የሚጠናቀቀው ስምምነቱን ሲቀበሉ ብቻ ነው፤ ስለዚህ ተሰርዟል። ጥያቄ ካለዎት ጽሕፈት ቤቱን ያነጋግሩ።',
     closed: 'ራስን መመዝገብ በአሁኑ ጊዜ ዝግ ነው። እባክዎ ጽሕፈት ቤቱን ያነጋግሩ።',
     duplicate: (code: string) =>
       `ይህ ሙሉ ስም ቀድሞ ተመዝግቧል (<code>${code}</code>)። እርስዎ ከሆኑ ይህን ስልክ ቁጥር በመዝገብዎ ላይ እንዲጨምሩልዎ ጽሕፈት ቤቱን ያነጋግሩ።`,
@@ -268,9 +271,13 @@ export const REG_TEXT = {
       DOCTORATE: 'Doctorate',
       OTHER: 'Other',
     } as Record<string, string>,
-    agreementAsk:
-      'To finish registering, read the agreement and tap “✅ I have read it and agree”.',
+    agreementFor: (className: string) => `${className} agreement`,
+    agreementIntro: (className: string) =>
+      `Members of the “${className}” accept the following agreement.`,
+    agreementAsk: (className: string) =>
+      `If you agree, tap “✅ I have read it and agree”. If you will not join the “${className}”, tap “🚫 I will not join…”; your registration continues.`,
     agree: '✅ I have read it and agree',
+    skipClass: (className: string) => `🚫 I will not join the ${className}`,
     invalid: {
       name: 'Please type a real name — letters only, at most 100 characters.',
       choose: 'Please tap one of the buttons below.',
@@ -326,8 +333,6 @@ export const REG_TEXT = {
       `🎉 <b>Welcome!</b>\n━━━━━━━━━━━━━━━\n👤 <b>${name}</b>\n🆔 <code>${code}</code>\n━━━━━━━━━━━━━━━\nYou are registered. Tap “🔳 My QR code” or “👤 My details” to see your member card.`,
     photoFailed: 'Note: your photo could not be saved; the office can add it later.',
     cancelled: 'Registration cancelled. Share your phone number any time to start again.',
-    declined:
-      'Registration can only be completed by accepting the agreement. If you have questions, contact the office.',
     closed: 'Self-registration is closed right now. Please contact the office.',
     duplicate: (code: string) =>
       `A member with this full name is already registered (<code>${code}</code>). If that is you, ask the office to add this phone number to your record.`,

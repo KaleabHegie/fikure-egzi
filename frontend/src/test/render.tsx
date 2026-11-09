@@ -16,6 +16,7 @@ export const TEST_CLASS_TYPES: ClassType[] = [
     departmentId: 3,
     department: { id: 3, nameEn: 'Mezmur', nameAm: 'መዝሙር ክፍል' },
     memberCount: 0,
+    agreement: null,
     grades: [
       { id: 11, classTypeId: 1, code: 'GEEZ', nameEn: "Ge'ez", nameAm: 'ግዕዝ', shortLabel: 'ሐ', sortOrder: 1, isActive: true, memberCount: 0 },
       { id: 12, classTypeId: 1, code: 'EZEL', nameEn: 'Ezel', nameAm: 'ዕዝል', shortLabel: 'ለ', sortOrder: 2, isActive: true, memberCount: 0 },

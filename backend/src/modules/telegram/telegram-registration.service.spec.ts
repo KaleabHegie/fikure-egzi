@@ -92,6 +92,15 @@ class FakeDb {
         { id: 11, nameAm: 'ግዕዝ', nameEn: 'Geez' },
         { id: 12, nameAm: 'ዕዝል', nameEn: 'Ezel' },
       ],
+      agreement: {
+        id: 5,
+        titleAm: 'የዲሲፕሊን እና የሥነ-ምግባር ስምምነት',
+        titleEn: 'Discipline and Code of Conduct Agreement',
+        rulesAm: 'የክፍሉን ሥርዓትና ደንብ ማክበር።\nበአገልግሎት ወቅት ተገቢ አለባበስ።',
+        rulesEn: 'Respect the order of the class.\nDress appropriately during service.',
+        pledgeAm: 'ተስማምቻለሁ።',
+        pledgeEn: 'I agree to follow them.',
+      } as Record<string, unknown> | null,
     },
     {
       id: 2,
@@ -101,6 +110,7 @@ class FakeDb {
         { id: 21, nameAm: '1ኛ ክፍል', nameEn: 'Grade 1' },
         { id: 22, nameAm: '2ኛ ክፍል', nameEn: 'Grade 2' },
       ],
+      agreement: null as Record<string, unknown> | null,
     },
   ];
 
@@ -247,13 +257,14 @@ describe('TelegramRegistrationService', () => {
 
   it('asks every member-form question, classes included, and registers the member', async () => {
     await start();
-    expect(last()).toContain('<b>27</b> short questions');
+    expect(last()).toContain('<b>26</b> short questions');
     await sayAll(FULL);
     expect(step()).toBe('confirm');
     expect(sent.some((m) => m.includes('27 / 27'))).toBe(true);
     expect(last()).toContain('Abebe Kebede Tesfaye');
     expect(last()).toContain('Mezmur class: <b>Geez</b>');
     expect(last()).toContain('Course class: <b>Not placed</b>');
+    expect(last()).toContain(`${t.agreementFor('Mezmur class')}: <b>✅ Accepted</b>`);
     expect(last()).toContain('▸ <b>Teaching</b>\n▸ <b>Choir</b>');
 
     await say(t.confirm);
@@ -284,7 +295,7 @@ describe('TelegramRegistrationService', () => {
       emergencyContactPhone: '0911556677',
       hasHealthCondition: true,
       healthConditionNote: 'Asthma, carries an inhaler',
-      agreementAccepted: true,
+      agreementIds: [5],
       classGradeIds: [11],
     });
     expect(create.mock.calls[0]?.[4]).toEqual({ selfRegistered: true });
@@ -310,7 +321,7 @@ describe('TelegramRegistrationService', () => {
     await say(t.start);
     expect(last()).toContain(t.sections.personal);
     expect(last()).toContain('▰▱▱▱▱▱▱▱▱▱');
-    expect(last()).toContain('1 / 27');
+    expect(last()).toContain('1 / 26');
     expect(last()).toContain(`<b>${t.ask.firstName.q}</b>`);
 
     await sayAll(FULL.slice(1, 10));
@@ -393,7 +404,7 @@ describe('TelegramRegistrationService', () => {
     expect(step()).toBe('photo');
     expect(sent.at(-2)).toContain(t.invalid.photoTooLarge);
     await say(t.skip);
-    expect(step()).toBe('agreement');
+    expect(step()).toBe('agreement:1');
   });
 
   it('still registers the member when the photo cannot be downloaded', async () => {
@@ -429,14 +440,32 @@ describe('TelegramRegistrationService', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('ends without registering when the agreement is not accepted', async () => {
+  it("asks the Mezmur class's agreement, naming the class, with its own rules", async () => {
     await start();
     await sayAll(FULL.slice(0, AT.agreement));
-    expect(step()).toBe('agreement');
-    await say(t.cancel);
-    expect(db.rows).toHaveLength(0);
-    expect(last()).toBe(t.declined);
-    expect(create).not.toHaveBeenCalled();
+    expect(step()).toBe('agreement:1');
+    expect(last()).toContain(t.agreementFor('Mezmur class'));
+    expect(last()).toContain('1. Respect the order of the class.\n2. Dress appropriately');
+    expect(last()).toContain('27 / 27');
+  });
+
+  it('carries on without the class when its agreement is not accepted', async () => {
+    await start();
+    await sayAll(FULL.slice(0, AT.agreement));
+    await say(t.skipClass('Mezmur class'));
+    expect(step()).toBe('confirm');
+    expect(last()).toContain('Mezmur class: <b>Not placed</b>');
+    expect(last()).not.toContain(t.agreementFor('Mezmur class'));
+    await say(t.confirm);
+    expect(create.mock.calls[0]?.[0]).toMatchObject({ classGradeIds: [], agreementIds: [] });
+  });
+
+  it('does not ask an agreement of someone not placed in that class', async () => {
+    await start();
+    await sayAll([...FULL.slice(0, 10), t.skip, ...FULL.slice(11, AT.agreement)]);
+    expect(step()).toBe('confirm');
+    await say(t.confirm);
+    expect(create.mock.calls[0]?.[0]).toMatchObject({ classGradeIds: [], agreementIds: [] });
   });
 
   it('points to the office when the name is already registered', async () => {

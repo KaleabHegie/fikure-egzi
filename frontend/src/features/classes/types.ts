@@ -25,7 +25,27 @@ export interface ClassType {
   department: { id: number; nameEn: string; nameAm: string }
   memberCount: number
   grades: ClassGrade[]
+  /** What members placed in this class accept (e.g. the Mezmur class's code of conduct). */
+  agreement: ClassAgreement | null
 }
+
+/** A class's agreement. Rules are stored one per line. */
+export interface ClassAgreement {
+  id: number
+  classTypeId: number
+  titleAm: string
+  titleEn: string
+  rulesAm: string
+  rulesEn: string
+  pledgeAm: string | null
+  pledgeEn: string | null
+  updatedAt: string
+}
+
+export type ClassAgreementInput = Pick<
+  ClassAgreement,
+  'titleAm' | 'titleEn' | 'rulesAm' | 'rulesEn' | 'pledgeAm' | 'pledgeEn'
+>
 
 /** A member's placement in one class type (part of the Member payload). */
 export interface MemberClass {

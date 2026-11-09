@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Can } from '@/features/auth/guards'
 import { MemberAttendancePanel } from '@/features/attendance/components/member-attendance-panel'
+import { useClassTypes } from '@/features/classes/api'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { MemberCoursesPanel } from '@/features/courses/components/member-courses-panel'
 import { MemberDepartmentsPanel } from '@/features/departments/components/member-departments-panel'
@@ -172,6 +173,8 @@ export function MemberDetailPage() {
   const id = Number(useParams().id)
   const navigate = useNavigate()
   const { data: m, isPending, isError, error, refetch } = useMember(id)
+  const localName = useLocalizedName()
+  const { data: classTypes } = useClassTypes()
   const deleteMember = useDeleteMember()
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -295,17 +298,27 @@ export function MemberDetailPage() {
                       t('members.health.none')
                     ),
                 },
-                {
-                  label: t('members.fields.agreement'),
-                  value: m.agreementAcceptedAt ? (
+                ...m.agreements.map((a) => ({
+                  label: t('members.agreement.row', { name: localName(a.classType) }),
+                  value: (
                     <span className="inline-flex items-center gap-1.5">
                       <CircleCheck className="size-3.5 text-brand" aria-hidden />
-                      {t('members.agreement.acceptedOn', { date: formatDate(m.agreementAcceptedAt) })}
+                      {t('members.agreement.acceptedOn', { date: formatDate(a.acceptedAt) })}
                     </span>
-                  ) : (
-                    t('members.agreement.notSigned')
                   ),
-                },
+                })),
+                // Classes the member is in whose agreement is not on record yet.
+                ...(classTypes ?? [])
+                  .filter(
+                    (type) =>
+                      type.agreement &&
+                      m.classes.some((c) => c.classType.id === type.id) &&
+                      !m.agreements.some((a) => a.agreementId === type.agreement!.id),
+                  )
+                  .map((type) => ({
+                    label: t('members.agreement.row', { name: localName(type) }),
+                    value: <span className="text-muted-foreground">{t('members.agreement.notSigned')}</span>,
+                  })),
               ]}
             />
           </div>

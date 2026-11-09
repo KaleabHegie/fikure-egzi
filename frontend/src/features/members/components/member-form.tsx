@@ -1,17 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Save } from 'lucide-react'
 import { useState } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useController, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { DateField, SelectField, SwitchField, TextareaField, TextField } from '@/components/form/form-fields'
+import { DateField, SelectField, TextareaField, TextField } from '@/components/form/form-fields'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
-import { useClassTypes } from '@/features/classes/api'
+import { agreementRules, useClassTypes } from '@/features/classes/api'
 import type { MemberClass } from '@/features/classes/types'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import type { PhotoChange } from '../api'
-import { AGREEMENT } from '../agreement'
 import { useMemberLabels } from '../labels'
 import { MEMBER_FORM_FIELDS, memberFormSchema, type MemberFormValues } from '../schema'
 import { PhotoPicker } from './photo-picker'
@@ -73,6 +74,56 @@ function ClassesSection({
   )
 }
 
+/**
+ * One switch per agreement of the classes chosen above (e.g. the Mezmur
+ * class's code of conduct), with its text to read. Agreements are set per
+ * class on the Classes page; a class without one shows nothing here.
+ */
+function AgreementsField({ control }: { control: ReturnType<typeof useForm<MemberFormValues>>['control'] }) {
+  const { t, i18n } = useTranslation()
+  const name = useLocalizedName()
+  const amharic = i18n.language !== 'en'
+  const { data: types } = useClassTypes()
+  const classGrades = useWatch({ control, name: 'classGrades' })
+  const {
+    field: { value, onChange },
+  } = useController({ control, name: 'agreementIds' })
+  const relevant = (types ?? []).filter((type) => type.agreement && classGrades[String(type.id)])
+  if (relevant.length === 0) return null
+
+  return relevant.map((type) => {
+    const ag = type.agreement!
+    const id = `agreement-${ag.id}`
+    const pledge = amharic ? ag.pledgeAm : ag.pledgeEn
+    return (
+      <div key={ag.id} className="space-y-3 rounded-lg border border-dashed p-4 sm:col-span-2">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label htmlFor={id}>{t('members.agreement.label', { name: name(type) })}</Label>
+            <p className="text-sm text-muted-foreground">{t('members.agreement.hint')}</p>
+          </div>
+          <Switch
+            id={id}
+            checked={value.includes(ag.id)}
+            onCheckedChange={(on) => onChange(on ? [...value, ag.id] : value.filter((x) => x !== ag.id))}
+          />
+        </div>
+        <details className="text-sm">
+          <summary className="cursor-pointer font-medium text-brand select-none hover:underline">
+            {t('members.agreement.read', { title: amharic ? ag.titleAm : ag.titleEn })}
+          </summary>
+          <ol className="mt-2 list-decimal space-y-1 ps-5 text-muted-foreground">
+            {agreementRules(amharic ? ag.rulesAm : ag.rulesEn).map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ol>
+          {pledge && <p className="mt-2 text-muted-foreground italic">{pledge}</p>}
+        </details>
+      </div>
+    )
+  })
+}
+
 export function MemberForm({
   defaultValues,
   currentPhotoUrl = null,
@@ -91,7 +142,7 @@ export function MemberForm({
   onSubmit: (values: MemberFormValues, photo: PhotoChange) => Promise<void>
   onCancel: () => void
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const labels = useMemberLabels()
   const [photo, setPhoto] = useState<PhotoChange>({ kind: 'keep' })
   const form = useForm<MemberFormValues>({
@@ -101,7 +152,6 @@ export function MemberForm({
   })
   const { control, formState } = form
   const hasHealthCondition = useWatch({ control, name: 'hasHealthCondition' })
-  const agreement = AGREEMENT[i18n.language === 'en' ? 'en' : 'am']
 
   const submit = form.handleSubmit(async (values) => {
     try {
@@ -228,25 +278,7 @@ export function MemberForm({
             className="sm:col-span-2"
           />
         )}
-        <div className="space-y-3 rounded-lg border border-dashed p-4 sm:col-span-2">
-          <SwitchField
-            control={control}
-            name="agreementAccepted"
-            label={t('members.fields.agreementAccepted')}
-            description={t('members.agreement.hint')}
-          />
-          <details className="group text-sm">
-            <summary className="cursor-pointer font-medium text-brand select-none hover:underline">
-              {t('members.agreement.read', { title: agreement.title })}
-            </summary>
-            <ol className="mt-2 list-decimal space-y-1 ps-5 text-muted-foreground">
-              {agreement.rules.map((rule) => (
-                <li key={rule}>{rule}</li>
-              ))}
-            </ol>
-            <p className="mt-2 text-muted-foreground italic">{agreement.pledge}</p>
-          </details>
-        </div>
+        <AgreementsField control={control} />
       </Section>
 
       <Section title={t('members.sections.notes.title')} description={t('members.sections.notes.description')}>

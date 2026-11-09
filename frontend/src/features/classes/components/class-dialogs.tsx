@@ -16,7 +16,14 @@ import {
 import { msg } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
 import { useDepartments } from '@/features/departments/api'
-import type { ClassGrade, ClassGradeInput, ClassType, ClassTypeInput } from '../types'
+import type {
+  ClassAgreement,
+  ClassAgreementInput,
+  ClassGrade,
+  ClassGradeInput,
+  ClassType,
+  ClassTypeInput,
+} from '../types'
 import { useLocalizedName } from '../use-localized'
 
 const code = z
@@ -46,6 +53,16 @@ const gradeSchema = z.object({
   isActive: z.boolean(),
 })
 
+const agreementSchema = z.object({
+  titleAm: z.string().trim().min(1, msg('validation.required')).max(200, msg('validation.tooLong', { max: 200 })),
+  titleEn: z.string().trim().min(1, msg('validation.required')).max(200, msg('validation.tooLong', { max: 200 })),
+  rulesAm: z.string().trim().min(1, msg('validation.required')).max(5000, msg('validation.tooLong', { max: 5000 })),
+  rulesEn: z.string().trim().min(1, msg('validation.required')).max(5000, msg('validation.tooLong', { max: 5000 })),
+  pledgeAm: optional(2000),
+  pledgeEn: optional(2000),
+})
+type AgreementValues = z.input<typeof agreementSchema>
+
 type TypeValues = z.input<typeof typeSchema>
 type GradeValues = z.input<typeof gradeSchema>
 const nullIfEmpty = (v: string) => (v.trim() === '' ? null : v.trim())
@@ -56,16 +73,18 @@ function DialogShell({
   title,
   description,
   children,
+  className,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
   children: React.ReactNode
+  className?: string
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={className ?? 'sm:max-w-lg'}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
@@ -261,6 +280,118 @@ export function ClassGradeDialog({
           submitLabel={grade ? t('classes.save') : t('classes.create')}
           onCancel={() => onOpenChange(false)}
         />
+      </form>
+    </DialogShell>
+  )
+}
+
+/**
+ * The agreement members of `typeName` accept (e.g. the Mezmur class's code of
+ * conduct). The bot shows it to people who pick a level in this class.
+ * `agreement` undefined = this class has none yet.
+ */
+export function ClassAgreementDialog({
+  open,
+  onOpenChange,
+  typeName,
+  agreement,
+  onSave,
+  onRemove,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  typeName: string
+  agreement?: ClassAgreement | null
+  onSave: (input: ClassAgreementInput) => Promise<void>
+  onRemove: () => void
+}) {
+  const { t } = useTranslation()
+  const form = useForm<AgreementValues, unknown, z.output<typeof agreementSchema>>({
+    resolver: zodResolver(agreementSchema),
+    values: {
+      titleAm: agreement?.titleAm ?? '',
+      titleEn: agreement?.titleEn ?? '',
+      rulesAm: agreement?.rulesAm ?? '',
+      rulesEn: agreement?.rulesEn ?? '',
+      pledgeAm: agreement?.pledgeAm ?? '',
+      pledgeEn: agreement?.pledgeEn ?? '',
+    },
+  })
+  const submit = form.handleSubmit(async (v) => {
+    try {
+      await onSave({ ...v, pledgeAm: nullIfEmpty(v.pledgeAm), pledgeEn: nullIfEmpty(v.pledgeEn) })
+      onOpenChange(false)
+    } catch (error) {
+      if (!applyApiFieldErrors(error, form.setError, Object.keys(agreementSchema.shape))) {
+        form.setError('root.server', { message: getErrorMessage(error) })
+      }
+    }
+  })
+  const { control } = form
+  return (
+    <DialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('classes.agreement.dialogTitle', { name: typeName })}
+      description={t('classes.agreement.dialogDescription')}
+      className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl"
+    >
+      <form onSubmit={submit} noValidate className="grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField control={control} name="titleAm" label={t('classes.agreement.titleAm')} required lang="am" />
+          <TextField control={control} name="titleEn" label={t('classes.agreement.titleEn')} required />
+          <TextareaField
+            control={control}
+            name="rulesAm"
+            label={t('classes.agreement.rulesAm')}
+            description={t('classes.agreement.rulesHint')}
+            required
+            rows={8}
+            lang="am"
+          />
+          <TextareaField
+            control={control}
+            name="rulesEn"
+            label={t('classes.agreement.rulesEn')}
+            description={t('classes.agreement.rulesHint')}
+            required
+            rows={8}
+          />
+          <TextareaField
+            control={control}
+            name="pledgeAm"
+            label={t('classes.agreement.pledgeAm')}
+            description={t('classes.agreement.pledgeHint')}
+            rows={3}
+            lang="am"
+          />
+          <TextareaField
+            control={control}
+            name="pledgeEn"
+            label={t('classes.agreement.pledgeEn')}
+            description={t('classes.agreement.pledgeHint')}
+            rows={3}
+          />
+        </div>
+        <RootError message={form.formState.errors.root?.server?.message} />
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+          {agreement && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-destructive hover:text-destructive sm:mr-auto"
+              onClick={onRemove}
+              disabled={form.formState.isSubmitting}
+            >
+              {t('classes.agreement.remove')}
+            </Button>
+          )}
+          <Footer
+            pending={form.formState.isSubmitting}
+            submitLabel={t('classes.save')}
+            onCancel={() => onOpenChange(false)}
+          />
+        </div>
       </form>
     </DialogShell>
   )

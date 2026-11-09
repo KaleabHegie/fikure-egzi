@@ -76,7 +76,7 @@ describe('MembersService', () => {
   describe('findAll', () => {
     it('returns a paginated result', async () => {
       prisma.member.count.mockResolvedValue(45);
-      prisma.member.findMany.mockResolvedValue([{ id: 1, classEnrollments: [] }]);
+      prisma.member.findMany.mockResolvedValue([{ id: 1, agreements: [], classEnrollments: [] }]);
 
       const result = await service.findAll(makeQuery({ page: 2, pageSize: 20 }));
 
@@ -102,7 +102,12 @@ describe('MembersService', () => {
   describe('create', () => {
     it('assigns a member code from the id and writes an audit entry', async () => {
       tx.member.create.mockResolvedValue({ id: 7 });
-      tx.member.update.mockResolvedValue({ id: 7, memberCode: 'FE-00007', classEnrollments: [] });
+      tx.member.update.mockResolvedValue({
+        id: 7,
+        memberCode: 'FE-00007',
+        agreements: [],
+        classEnrollments: [],
+      });
 
       const member = await service.create(
         {
@@ -145,7 +150,12 @@ describe('MembersService', () => {
 
   it('defaults the join date to today', async () => {
     tx.member.create.mockResolvedValue({ id: 8 });
-    tx.member.update.mockResolvedValue({ id: 8, memberCode: 'FE-00008', classEnrollments: [] });
+    tx.member.update.mockResolvedValue({
+      id: 8,
+      memberCode: 'FE-00008',
+      agreements: [],
+      classEnrollments: [],
+    });
 
     await service.create(
       { firstName: 'Kidus', fatherName: 'Alemu', gender: 'MALE', dateOfBirth: '2020-02-02' },
@@ -193,6 +203,7 @@ describe('MembersService', () => {
       tx.member.update.mockResolvedValue({
         id: 3,
         photoPath: 'members/3-new.jpg',
+        agreements: [],
         classEnrollments: [],
       });
       Object.assign(tx, { auditLog: {} });
@@ -239,7 +250,12 @@ describe('MembersService', () => {
     it('enrolls the member in the chosen grades on create', async () => {
       prisma.classGrade.findMany.mockResolvedValue([grade(1, 10), grade(20, 11)]);
       tx.member.create.mockResolvedValue({ id: 9 });
-      tx.member.update.mockResolvedValue({ id: 9, memberCode: 'FE-00009', classEnrollments: [] });
+      tx.member.update.mockResolvedValue({
+        id: 9,
+        memberCode: 'FE-00009',
+        agreements: [],
+        classEnrollments: [],
+      });
 
       await service.create({ ...base, classGradeIds: [1, 20] }, 4, null);
 
@@ -291,6 +307,7 @@ describe('MembersService', () => {
     it('on update only touches placements that changed', async () => {
       prisma.member.findFirst.mockResolvedValue({
         id: 9,
+        agreements: [],
         classEnrollments: [
           { classType: { id: 10 }, classGrade: { id: 1 } },
           { classType: { id: 11 }, classGrade: { id: 20 } },
@@ -298,7 +315,7 @@ describe('MembersService', () => {
       });
       // Grade 1 was deactivated after this member joined it: keeping it is still allowed.
       prisma.classGrade.findMany.mockResolvedValue([grade(1, 10, false), grade(21, 11)]);
-      tx.member.update.mockResolvedValue({ id: 9, classEnrollments: [] });
+      tx.member.update.mockResolvedValue({ id: 9, agreements: [], classEnrollments: [] });
 
       await service.update(9, { classGradeIds: [1, 21] }, 4, null);
 

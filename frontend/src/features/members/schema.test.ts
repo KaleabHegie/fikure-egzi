@@ -56,9 +56,9 @@ describe('toMemberPayload — health and agreement', () => {
     expect(toMemberPayload(valid())).toMatchObject({ hasHealthCondition: null, healthConditionNote: null })
   })
 
-  it('passes the agreement switch through', () => {
-    expect(toMemberPayload({ ...valid(), agreementAccepted: true }).agreementAccepted).toBe(true)
-    expect(toMemberPayload(valid()).agreementAccepted).toBe(false)
+  it('passes the accepted class agreements through', () => {
+    expect(toMemberPayload({ ...valid(), agreementIds: [1, 3] }).agreementIds).toEqual([1, 3])
+    expect(toMemberPayload(valid()).agreementIds).toEqual([])
   })
 })
 
@@ -94,7 +94,17 @@ describe('memberToForm', () => {
           assignedAt: '2026-01-01T00:00:00.000Z',
         },
       ],
+      agreements: [
+        {
+          agreementId: 4,
+          titleAm: 'የዲሲፕሊን እና የሥነ-ምግባር ስምምነት',
+          titleEn: 'Discipline and Code of Conduct Agreement',
+          classType: { id: 1, nameEn: 'Mezmur Class', nameAm: 'የመዝሙር ክፍል' },
+          acceptedAt: '2026-11-09T07:00:00.000Z',
+        },
+      ],
     } as Member)
+    expect(form.agreementIds).toEqual([4])
     expect(form.dateOfBirth).toBe('1990-03-02')
     expect(form.joinedAt).toBe('2024-01-07')
     expect(form.grandfatherName).toBe('')

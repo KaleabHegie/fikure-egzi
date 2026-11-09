@@ -125,3 +125,48 @@ export class ReorderDto {
   @IsInt({ each: true })
   ids: number[];
 }
+
+/** A class's agreement (e.g. the Mezmur class's code of conduct). Rules: one per line. */
+export class ClassAgreementDto {
+  @ApiProperty({ example: 'የዲሲፕሊን እና የሥነ-ምግባር ስምምነት', maxLength: 200 })
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  titleAm: string;
+
+  @ApiProperty({ example: 'Discipline and Code of Conduct Agreement', maxLength: 200 })
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  titleEn: string;
+
+  @ApiProperty({ description: 'One rule per line', maxLength: 5000 })
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(5000)
+  rulesAm: string;
+
+  @ApiProperty({ description: 'One rule per line', maxLength: 5000 })
+  @Trim()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(5000)
+  rulesEn: string;
+
+  @ApiPropertyOptional({ description: 'Closing statement the member makes', maxLength: 2000 })
+  @TrimToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  pledgeAm?: string | null;
+
+  @ApiPropertyOptional({ description: 'Closing statement the member makes', maxLength: 2000 })
+  @TrimToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  pledgeEn?: string | null;
+}

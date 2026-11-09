@@ -23,6 +23,7 @@ import {
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
 import { ClassesService } from './classes.service.js';
 import {
+  ClassAgreementDto,
   CreateClassGradeDto,
   CreateClassTypeDto,
   ReorderDto,
@@ -97,6 +98,24 @@ export class ClassTypesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.classes.reorderGrades(id, dto.ids, user.id, user.departmentIds);
+  }
+
+  /** The agreement members of this class accept (e.g. the Mezmur class's code of conduct). */
+  @Put(':id/agreement')
+  @RequirePermissions(PERMISSIONS.CLASSES_MANAGE)
+  saveAgreement(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ClassAgreementDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.classes.saveAgreement(id, dto, user.id, user.departmentIds);
+  }
+
+  @Delete(':id/agreement')
+  @RequirePermissions(PERMISSIONS.CLASSES_MANAGE)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeAgreement(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.classes.removeAgreement(id, user.id, user.departmentIds);
   }
 }
 

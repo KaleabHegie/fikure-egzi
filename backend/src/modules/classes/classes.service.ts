@@ -5,6 +5,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import type {
+  ClassAgreementDto,
   CreateClassGradeDto,
   CreateClassTypeDto,
   UpdateClassGradeDto,
@@ -21,6 +22,18 @@ const GRADE_SELECT = {
   sortOrder: true,
   isActive: true,
 } satisfies Prisma.ClassGradeSelect;
+
+export const AGREEMENT_SELECT = {
+  id: true,
+  classTypeId: true,
+  titleAm: true,
+  titleEn: true,
+  rulesAm: true,
+  rulesEn: true,
+  pledgeAm: true,
+  pledgeEn: true,
+  updatedAt: true,
+} satisfies Prisma.ClassAgreementSelect;
 
 /**
  * Class types (Mezmur, Course, …) and their ordered grades. Everything here
@@ -47,6 +60,7 @@ export class ClassesService {
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
         include: {
           department: { select: { id: true, nameEn: true, nameAm: true } },
+          agreement: { select: AGREEMENT_SELECT },
           grades: {
             where: active,
             orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
@@ -140,6 +154,57 @@ export class ClassesService {
       action: 'UPDATE',
       entity: 'ClassType',
       changes: { reordered: ids },
+    });
+  }
+
+  // ── Agreements ───────────────────────────────────────────────────────────
+
+  /** Creates or replaces the class's agreement. Members who accepted earlier keep their acceptance. */
+  async saveAgreement(
+    classTypeId: number,
+    dto: ClassAgreementDto,
+    userId: number,
+    scope: DepartmentScope = null,
+  ) {
+    await this.findType(classTypeId, scope);
+    const data = {
+      ...dto,
+      pledgeAm: dto.pledgeAm ?? null,
+      pledgeEn: dto.pledgeEn ?? null,
+      updatedById: userId,
+    };
+    const agreement = await this.prisma.classAgreement.upsert({
+      where: { classTypeId },
+      create: { ...data, classTypeId },
+      update: data,
+      select: AGREEMENT_SELECT,
+    });
+    await this.audit.record({
+      userId,
+      action: 'UPDATE',
+      entity: 'ClassAgreement',
+      entityId: agreement.id,
+      changes: { classTypeId },
+    });
+    return agreement;
+  }
+
+  /** Removes the class's agreement, and with it the record of who accepted it. */
+  async removeAgreement(
+    classTypeId: number,
+    userId: number,
+    scope: DepartmentScope = null,
+  ): Promise<void> {
+    await this.findType(classTypeId, scope);
+    const agreement = await this.prisma.classAgreement.findUnique({ where: { classTypeId } });
+    if (!agreement) throw new NotFoundException('This class has no agreement');
+    await this.prisma.classAgreement.delete({ where: { id: agreement.id } });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: 'ClassAgreement',
+      entityId: agreement.id,
+      changes: { classTypeId },
     });
   }
 

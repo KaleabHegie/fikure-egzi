@@ -27,6 +27,7 @@ import { MemberAttendancePanel } from '@/features/attendance/components/member-a
 import { useClassTypes } from '@/features/classes/api'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { MemberCoursesPanel } from '@/features/courses/components/member-courses-panel'
+import { MemberExamsPanel } from '@/features/exams/components/member-exams-panel'
 import { MemberDepartmentsPanel } from '@/features/departments/components/member-departments-panel'
 import { MemberServiceGroups } from '@/features/service-groups/components/member-service-groups'
 import { getErrorMessage } from '@/lib/api/errors'
@@ -340,6 +341,9 @@ export function MemberDetailPage() {
           <MemberAttendancePanel memberId={m.id} />
         </Can>
         <MemberCoursesPanel memberId={m.id} />
+        <Can permission={PERMISSIONS.EXAMS_READ}>
+          <MemberExamsPanel memberId={m.id} />
+        </Can>
         <MemberHistory memberId={m.id} />
         {m.notes && (
           <section className="rounded-xl border bg-card p-5 lg:col-span-2">

@@ -109,6 +109,19 @@ export const router = createBrowserRouter([
             ...page(() => import('@/features/profile/pages/profile-page'), (m) => m.ProfilePage),
           },
           {
+            path: 'exams',
+            children: [
+              {
+                index: true,
+                ...page(() => import('@/features/exams/pages/exams-page'), (m) => m.ExamsPage, PERMISSIONS.EXAMS_READ),
+              },
+              {
+                path: ':id',
+                ...page(() => import('@/features/exams/pages/exam-page'), (m) => m.ExamPage, PERMISSIONS.EXAMS_READ),
+              },
+            ],
+          },
+          {
             path: 'courses',
             children: [
               {

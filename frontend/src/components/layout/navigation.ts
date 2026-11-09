@@ -2,6 +2,7 @@ import {
   BookOpen,
   Building2,
   CalendarCheck,
+  ClipboardCheck,
   GraduationCap,
   LayoutDashboard,
   Package,
@@ -23,6 +24,7 @@ type NavKey =
   | 'attendanceSessions'
   | 'attendanceReports'
   | 'courses'
+  | 'exams'
   | 'serviceGroups'
   | 'assets'
   | 'users'
@@ -98,6 +100,7 @@ export const NAVIGATION: NavSection[] = [
         ],
       },
       { key: 'courses', icon: GraduationCap, to: '/courses', permission: PERMISSIONS.COURSES_READ },
+      { key: 'exams', icon: ClipboardCheck, to: '/exams', permission: PERMISSIONS.EXAMS_READ },
       { key: 'assets', icon: Package, to: '/assets', permission: PERMISSIONS.ASSETS_READ },
     ],
   },

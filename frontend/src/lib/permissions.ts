@@ -23,6 +23,8 @@ export const PERMISSIONS = {
   COURSES_READ: 'courses.read',
   COURSES_MANAGE: 'courses.manage',
   COURSES_TEACH: 'courses.teach',
+  EXAMS_READ: 'exams.read',
+  EXAMS_MANAGE: 'exams.manage',
   USERS_MANAGE: 'users.manage',
   ROLES_MANAGE: 'roles.manage',
   AUDIT_READ: 'audit.read',

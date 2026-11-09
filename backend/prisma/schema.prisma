@@ -260,6 +260,8 @@ model Member {
   courseScores     CourseScore[]
   telegramLinks    TelegramLink[]
   agreements       MemberAgreement[]
+  examCandidacies  ExamCandidate[]
+  examMarks        ExamMark[]
   /// Login of a member who teaches.
   user             User?                      @relation("UserMember")
 
@@ -386,6 +388,7 @@ model Department {
   assets      Asset[]
   users       UserDepartment[]
   courses     Course[]
+  exams       Exam[]
 
   @@index([parentId, sortOrder])
   @@map("departments")
@@ -907,4 +910,81 @@ model MemberAgreement {
   @@unique([memberId, agreementId])
   @@index([agreementId])
   @@map("member_agreements")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exams (a department's own exams and assessments, not tied to a course)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// An exam or assessment a department runs on its own, e.g. the Mezmur
+/// department's St. John wereb assessment. Its parts and weights are free.
+model Exam {
+  id           Int       @id @default(autoincrement())
+  departmentId Int       @map("department_id")
+  nameAm       String    @map("name_am") @db.VarChar(150)
+  nameEn       String?   @map("name_en") @db.VarChar(150)
+  description  String?   @db.VarChar(1000)
+  /// The day it is held (optional).
+  heldOn       DateTime? @map("held_on") @db.Date
+  /// Lowest total (out of 100) that passes.
+  passMark     Int       @default(50) @map("pass_mark")
+  createdById  Int?      @map("created_by_id")
+  updatedById  Int?      @map("updated_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  department Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  parts      ExamPart[]
+  candidates ExamCandidate[]
+
+  @@index([departmentId, heldOn])
+  @@map("exams")
+}
+
+/// One scored part of an exam, e.g. እንቅስቃሴ 40 / ዜማ 60. Marks are given out of
+/// its weight, so the weights of a complete exam add up to 100.
+model ExamPart {
+  id        Int      @id @default(autoincrement())
+  examId    Int      @map("exam_id")
+  name      String   @db.VarChar(100)
+  weight    Decimal  @db.Decimal(5, 2)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  exam  Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  marks ExamMark[]
+
+  @@index([examId, sortOrder])
+  @@map("exam_parts")
+}
+
+/// A member sitting an exam.
+model ExamCandidate {
+  examId    Int      @map("exam_id")
+  memberId  Int      @map("member_id")
+  addedById Int?     @map("added_by_id")
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  exam   Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([examId, memberId])
+  @@index([memberId])
+  @@map("exam_candidates")
+}
+
+model ExamMark {
+  partId      Int      @map("part_id")
+  memberId    Int      @map("member_id")
+  score       Decimal  @db.Decimal(5, 2)
+  updatedById Int?     @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  part   ExamPart @relation(fields: [partId], references: [id], onDelete: Cascade)
+  member Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([partId, memberId])
+  @@index([memberId])
+  @@map("exam_marks")
 }

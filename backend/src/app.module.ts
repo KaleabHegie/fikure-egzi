@@ -18,6 +18,7 @@ import { ServiceGroupsModule } from './modules/service-groups/service-groups.mod
 import { UsersModule } from './modules/users/users.module.js';
 import { AssetsModule } from './modules/assets/assets.module.js';
 import { CoursesModule } from './modules/courses/courses.module.js';
+import { ExamsModule } from './modules/exams/exams.module.js';
 import { TelegramModule } from './modules/telegram/telegram.module.js';
 import { MemberPortalModule } from './modules/member-portal/member-portal.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
@@ -44,6 +45,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     UsersModule,
     AssetsModule,
     CoursesModule,
+    ExamsModule,
     SettingsModule,
     TelegramModule,
     MemberPortalModule,

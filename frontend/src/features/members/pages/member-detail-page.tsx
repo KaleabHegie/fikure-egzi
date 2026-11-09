@@ -100,6 +100,11 @@ function QrBlock({ member }: { member: Member }) {
             <Printer />
           </Link>
         </Button>
+        <Button asChild variant="ghost" size="icon" aria-label={t('members.idCards.printOne')} title={t('members.idCards.printOne')}>
+          <Link to={`/members/id-cards?id=${member.id}`} target="_blank" rel="noopener">
+            <IdCard />
+          </Link>
+        </Button>
       </div>
     </div>
   )

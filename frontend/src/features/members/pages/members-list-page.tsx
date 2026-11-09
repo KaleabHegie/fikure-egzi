@@ -1,4 +1,4 @@
-import { FileSpreadsheet, QrCode, UserPlus, Users } from 'lucide-react'
+import { FileSpreadsheet, IdCard, QrCode, UserPlus, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router'
@@ -51,6 +51,15 @@ export function MembersListPage() {
     </Button>
   )
 
+  const printIdCardsButton = (
+    <Button asChild size="lg" variant="outline">
+      <Link to={`/members/id-cards${search}`} target="_blank" rel="noopener">
+        <IdCard />
+        {t('members.idCards.printAll')}
+      </Link>
+    </Button>
+  )
+
   const registerButton = (
     <Can permission={PERMISSIONS.MEMBERS_CREATE}>
       <Button size="lg" variant="outline" onClick={() => setImportOpen(true)}>
@@ -74,6 +83,7 @@ export function MembersListPage() {
         actions={
           <>
             {printCardsButton}
+            {printIdCardsButton}
             {registerButton}
           </>
         }

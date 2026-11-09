@@ -303,6 +303,15 @@ export const en = {
       loadingCards: 'Preparing QR codes…',
       print: 'Print',
     },
+    idCards: {
+      printAll: 'Print ID cards',
+      printOne: 'Print ID card',
+      title: 'Membership ID cards',
+      count: '{{count}} ID cards · 10 per A4 page (2 × 5)',
+      loading: 'Preparing ID cards…',
+      validity: 'Valid for (E.C.)',
+      contact: 'Office phone numbers',
+    },
     import: {
       button: 'Import from Excel',
       title: 'Import members from Excel',

@@ -302,6 +302,15 @@ export const am: Translations = {
       loadingCards: 'QR ኮዶችን በማዘጋጀት ላይ…',
       print: 'አትም',
     },
+    idCards: {
+      printAll: 'መታወቂያ አትም',
+      printOne: 'መታወቂያ አትም',
+      title: 'የአባልነት መታወቂያዎች',
+      count: '{{count}} መታወቂያዎች · በአንድ A4 ገጽ 10 (2 × 5)',
+      loading: 'መታወቂያዎችን በማዘጋጀት ላይ…',
+      validity: 'የሚያገለግልበት ጊዜ (ዓ.ም)',
+      contact: 'የፅህፈት ቤቱ ስልኮች',
+    },
     import: {
       button: 'ከኤክሴል አስገባ',
       title: 'አባላትን ከኤክሴል ማስገባት',

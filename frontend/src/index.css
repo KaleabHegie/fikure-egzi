@@ -271,7 +271,8 @@
   .qr-page:last-child {
     break-after: auto;
   }
-  .qr-tile {
+  .qr-tile,
+  .id-card {
     break-inside: avoid;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;

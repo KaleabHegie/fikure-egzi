@@ -1,26 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Loader2, Printer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router'
+import { Link } from 'react-router'
 import { ErrorState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
-import { membersApi } from '../api'
 import { QrTile } from '../components/qr-tile'
-import type { Member, MemberListParams } from '../types'
-import { useMemberListParams } from '../use-member-list-params'
-
-const PAGE = 100
-
-/** Every member matching the list filters (the API pages at 100). */
-async function fetchAll(params: Omit<MemberListParams, 'page' | 'pageSize'>): Promise<Member[]> {
-  const first = await membersApi.list({ ...params, page: 1, pageSize: PAGE, sortBy: 'memberCode', sortOrder: 'asc' })
-  const rest = await Promise.all(
-    Array.from({ length: first.meta.totalPages - 1 }, (_, i) =>
-      membersApi.list({ ...params, page: i + 2, pageSize: PAGE, sortBy: 'memberCode', sortOrder: 'asc' }),
-    ),
-  )
-  return [...first.data, ...rest.flatMap((p) => p.data)]
-}
+import { usePrintMembers } from '../use-print-members'
 
 /** QR codes per A4 page: 4 across, 5 down. */
 const PER_PAGE = 20
@@ -31,15 +15,7 @@ const PER_PAGE = 20
  */
 export function MemberCardsPage() {
   const { t } = useTranslation()
-  const [searchParams] = useSearchParams()
-  const { params } = useMemberListParams()
-  const singleId = Number(searchParams.get('id')) || null
-  const { page: _page, pageSize: _pageSize, ...filters } = params
-
-  const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ['member-cards', singleId, filters],
-    queryFn: async () => (singleId ? [await membersApi.get(singleId)] : fetchAll(filters)),
-  })
+  const { singleId, data, isPending, isError, error, refetch } = usePrintMembers()
 
   if (isError) return <ErrorState error={error} onRetry={() => void refetch()} />
 

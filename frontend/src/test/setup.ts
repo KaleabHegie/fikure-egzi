@@ -9,6 +9,13 @@ Element.prototype.setPointerCapture ??= () => undefined
 Element.prototype.releasePointerCapture ??= () => undefined
 Element.prototype.scrollIntoView ??= () => undefined
 
+// jsdom lacks ResizeObserver, which Radix Switch uses to size its thumb.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 // Tests assert English copy; the app's default language is Amharic.
 beforeEach(async () => {
   await i18n.changeLanguage('en')

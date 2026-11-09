@@ -76,6 +76,9 @@ export function MemberFilters({
   if (params.gender) chips.push({ param: 'gender', category: t('members.table.gender'), value: labels.gender(params.gender) })
   if (grade) chips.push({ param: 'classGradeId', category: t('members.table.classes'), value: gradeLabel(grade) })
   if (department) chips.push({ param: 'departmentId', category: t('nav.departments'), value: localName(department) })
+  if (params.selfRegistered) {
+    chips.push({ param: 'selfRegistered', category: t('members.filters.source'), value: t('members.filters.selfRegistered') })
+  }
 
   const set = (param: keyof MemberListParams, v: string | undefined) =>
     onChange({ [param]: v } as Partial<Record<keyof MemberListParams, string | undefined>>)
@@ -196,6 +199,15 @@ export function MemberFilters({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           )}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>{t('members.filters.source')}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup {...radio('selfRegistered')}>
+                <DropdownMenuRadioItem value={ALL}>{t('members.filters.allSources')}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="true">{t('members.filters.selfRegistered')}</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

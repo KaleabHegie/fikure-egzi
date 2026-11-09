@@ -234,6 +234,15 @@ model Member {
   emergencyContactPhone    String? @map("emergency_contact_phone") @db.VarChar(20)
   emergencyContactRelation String? @map("emergency_contact_relation") @db.VarChar(50)
 
+  // Health — null = not recorded, false = stated none, true = see the note.
+  hasHealthCondition  Boolean? @map("has_health_condition")
+  healthConditionNote String?  @map("health_condition_note") @db.Text
+
+  /// When the member accepted the discipline and code-of-conduct agreement.
+  agreementAcceptedAt DateTime? @map("agreement_accepted_at")
+  /// Registered by the member themself through the Telegram bot.
+  selfRegistered      Boolean   @default(false) @map("self_registered")
+
   /// Storage key under UPLOAD_DIR (e.g. members/42-ab12cd.jpg). Served only via GET /members/:id/photo.
   photoPath String? @map("photo_path") @db.VarChar(255)
   notes     String? @db.Text
@@ -261,6 +270,7 @@ model Member {
   @@index([firstName, fatherName])
   @@index([phone])
   @@index([status])
+  @@index([selfRegistered])
   @@index([deletedAt])
   @@index([createdById])
   @@index([updatedById])
@@ -821,4 +831,35 @@ model TelegramLink {
   @@index([phone])
   @@index([memberId])
   @@map("telegram_links")
+}
+
+/// A self-registration conversation in progress, one per chat. Kept in the
+/// database (not memory) because webhook requests may land on any process.
+model TelegramRegistration {
+  id             Int      @id @default(autoincrement())
+  chatId         BigInt   @unique @map("chat_id")
+  telegramUserId BigInt   @map("telegram_user_id")
+  /// The verified number from the shared contact; becomes the member's phone.
+  phone          String   @db.VarChar(20)
+  language       String   @default("am") @db.VarChar(2)
+  /// The question currently awaiting an answer.
+  step           String   @db.VarChar(30)
+  answers        Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("telegram_registrations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Settings (office-wide switches from the web app's Settings page)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AppSetting {
+  key         String   @id @db.VarChar(64)
+  value       Json
+  updatedById Int?     @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
 }

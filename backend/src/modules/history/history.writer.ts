@@ -12,7 +12,7 @@ export async function openClassPeriods(
   tx: Tx,
   rows: { memberId: number; classTypeId: number; classGradeId: number }[],
   startedAt: Date,
-  recordedById: number,
+  recordedById: number | null,
 ): Promise<void> {
   if (rows.length === 0) return;
   await tx.classPlacementHistory.createMany({

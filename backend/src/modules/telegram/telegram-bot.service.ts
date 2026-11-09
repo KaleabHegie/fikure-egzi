@@ -9,7 +9,9 @@ import { AttendanceService } from '../attendance/attendance.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { CoursesService } from '../courses/courses.service.js';
 import { MembersService } from '../members/members.service.js';
-import { type ReplyMarkup, TelegramApi, type TgMessage, type TgUpdate } from './telegram-api.js';
+import { TelegramApi, type TgMessage, type TgUpdate } from './telegram-api.js';
+import { TelegramRegistrationService } from './telegram-registration.service.js';
+import { menu, shareKeyboard } from './telegram.keyboards.js';
 import { BRAND, type BotLang, ecDate, ecShort, esc, TEXT } from './telegram.texts.js';
 
 type Link = {
@@ -52,6 +54,8 @@ const ACTIONS = new Map<string, Action>([
  * The members' Telegram bot. A chat is let in only after sharing its own
  * Telegram contact whose phone number is on a member record; it then sees that
  * member's details, attendance, courses and QR code — read-only, nothing else.
+ * A number on no record may register itself (TelegramRegistrationService), but
+ * only while Settings has self-registration switched on.
  */
 @Injectable()
 export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
@@ -67,6 +71,7 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     private readonly attendance: AttendanceService,
     private readonly courses: CoursesService,
     private readonly audit: AuditService,
+    private readonly registration: TelegramRegistrationService,
   ) {}
 
   onModuleInit() {
@@ -99,7 +104,11 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     const lang: BotLang = link ? toLang(link.language) : 'am';
 
     if (message.contact) return this.onContact(message, lang, link);
-    if (!link) return this.welcome(chatId, lang);
+    if (!link) {
+      const registering = await this.registration.find(chatId);
+      if (registering) return this.registration.onMessage(registering, message.text ?? '');
+      return this.welcome(chatId, lang);
+    }
 
     const action =
       ACTIONS.get((message.text ?? '').trim().split(/\s|@/)[0] ?? '') ??
@@ -146,12 +155,16 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     const people = await this.membersWithPhone(phone);
     if (people.length === 0) {
       if (existing) await this.prisma.telegramLink.delete({ where: { id: existing.id } });
+      if (/^0[79]\d{8}$/.test(phone) && (await this.registration.isOpen())) {
+        return this.registration.offer(chatId, message.from!.id, phone, lang);
+      }
       return this.api.sendMessage(
         chatId,
         TEXT[lang].notRegistered(esc(phone)),
         shareKeyboard(lang),
       );
     }
+    await this.registration.discard(chatId);
     const memberId = people.length === 1 ? people[0]!.id : null;
     const link = await this.prisma.telegramLink.upsert({
       where: { chatId },
@@ -271,7 +284,7 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
   }
 
   private async welcome(chatId: bigint, lang: BotLang) {
-    const caption = TEXT[lang].welcome(BRAND[lang]);
+    const caption = TEXT[lang].welcome(BRAND[lang], await this.registration.isOpen());
     const seal = await this.sealImage();
     if (seal) return this.api.sendPhoto(chatId, seal.data, seal.name, caption, shareKeyboard(lang));
     return this.api.sendMessage(chatId, caption, shareKeyboard(lang));
@@ -570,7 +583,8 @@ const toLang = (value: string): BotLang => (value === 'en' ? 'en' : 'am');
 
 const DIVIDER = '━━━━━━━━━━━━━━━';
 
-const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+const truncate = (text: string, max: number) =>
+  text.length > max ? `${text.slice(0, max - 1)}…` : text;
 
 /** 0969146494 → 0969 14 64 94 */
 const prettyPhone = (phone: string) =>
@@ -583,26 +597,4 @@ function yearsSince(date: Date | string): number {
     now.getUTCMonth() < born.getUTCMonth() ||
     (now.getUTCMonth() === born.getUTCMonth() && now.getUTCDate() < born.getUTCDate());
   return now.getUTCFullYear() - born.getUTCFullYear() - (beforeBirthday ? 1 : 0);
-}
-
-function shareKeyboard(lang: BotLang): ReplyMarkup {
-  return {
-    keyboard: [[{ text: TEXT[lang].shareButton, request_contact: true }]],
-    resize_keyboard: true,
-    one_time_keyboard: true,
-  };
-}
-
-function menu(lang: BotLang, memberCount: number): ReplyMarkup {
-  const m = TEXT[lang].menu;
-  return {
-    keyboard: [
-      [{ text: m.profile }, { text: m.attendance }],
-      [{ text: m.courses }, { text: m.qr }],
-      ...(memberCount > 1 ? [[{ text: m.switch }]] : []),
-      [{ text: m.language }, { text: m.logout }],
-    ],
-    resize_keyboard: true,
-    is_persistent: true,
-  };
 }

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsInt,
   Min,
   IsEmail,
@@ -227,6 +228,30 @@ export class CreateMemberDto {
   @IsInt({ each: true })
   @Min(1, { each: true })
   classGradeIds?: number[];
+
+  // ── Health & agreement ──────────────────────────────────────────────────
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'null = not recorded, false = none, true = see healthConditionNote',
+  })
+  @IsOptional()
+  @IsBoolean()
+  hasHealthCondition?: boolean | null;
+
+  @ApiPropertyOptional({ maxLength: 1000, example: 'Asthma — carries an inhaler' })
+  @TrimToNull()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  healthConditionNote?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Accepted the discipline and code-of-conduct agreement. true stamps the time (kept if already set); false clears it.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  agreementAccepted?: boolean;
 
   // ── Other (photo is uploaded separately: PUT /members/:id/photo) ─────────
   @ApiPropertyOptional({ maxLength: 2000 })

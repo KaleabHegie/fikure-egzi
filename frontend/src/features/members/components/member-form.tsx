@@ -1,9 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Save } from 'lucide-react'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { DateField, SelectField, TextareaField, TextField } from '@/components/form/form-fields'
+import { DateField, SelectField, SwitchField, TextareaField, TextField } from '@/components/form/form-fields'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
@@ -11,6 +11,7 @@ import { useClassTypes } from '@/features/classes/api'
 import type { MemberClass } from '@/features/classes/types'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import type { PhotoChange } from '../api'
+import { AGREEMENT } from '../agreement'
 import { useMemberLabels } from '../labels'
 import { MEMBER_FORM_FIELDS, memberFormSchema, type MemberFormValues } from '../schema'
 import { PhotoPicker } from './photo-picker'
@@ -90,7 +91,7 @@ export function MemberForm({
   onSubmit: (values: MemberFormValues, photo: PhotoChange) => Promise<void>
   onCancel: () => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const labels = useMemberLabels()
   const [photo, setPhoto] = useState<PhotoChange>({ kind: 'keep' })
   const form = useForm<MemberFormValues>({
@@ -99,6 +100,8 @@ export function MemberForm({
     mode: 'onTouched',
   })
   const { control, formState } = form
+  const hasHealthCondition = useWatch({ control, name: 'hasHealthCondition' })
+  const agreement = AGREEMENT[i18n.language === 'en' ? 'en' : 'am']
 
   const submit = form.handleSubmit(async (values) => {
     try {
@@ -200,6 +203,50 @@ export function MemberForm({
           type="tel"
           inputMode="tel"
         />
+      </Section>
+
+      <Section title={t('members.sections.health.title')} description={t('members.sections.health.description')}>
+        <SelectField
+          control={control}
+          name="hasHealthCondition"
+          label={t('members.fields.hasHealthCondition')}
+          options={[
+            { value: 'no', label: t('members.health.no') },
+            { value: 'yes', label: t('members.health.yes') },
+          ]}
+          allowEmpty
+          emptyLabel={t('members.health.notRecorded')}
+        />
+        {hasHealthCondition === 'yes' && (
+          <TextareaField
+            control={control}
+            name="healthConditionNote"
+            label={t('members.fields.healthConditionNote')}
+            placeholder={t('members.health.notePlaceholder')}
+            rows={3}
+            required
+            className="sm:col-span-2"
+          />
+        )}
+        <div className="space-y-3 rounded-lg border border-dashed p-4 sm:col-span-2">
+          <SwitchField
+            control={control}
+            name="agreementAccepted"
+            label={t('members.fields.agreementAccepted')}
+            description={t('members.agreement.hint')}
+          />
+          <details className="group text-sm">
+            <summary className="cursor-pointer font-medium text-brand select-none hover:underline">
+              {t('members.agreement.read', { title: agreement.title })}
+            </summary>
+            <ol className="mt-2 list-decimal space-y-1 ps-5 text-muted-foreground">
+              {agreement.rules.map((rule) => (
+                <li key={rule}>{rule}</li>
+              ))}
+            </ol>
+            <p className="mt-2 text-muted-foreground italic">{agreement.pledge}</p>
+          </details>
+        </div>
       </Section>
 
       <Section title={t('members.sections.notes.title')} description={t('members.sections.notes.description')}>

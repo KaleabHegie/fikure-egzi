@@ -37,6 +37,29 @@ describe('memberFormSchema', () => {
   it('rejects a future date of birth', () => {
     expect(issuesFor({ ...valid(), dateOfBirth: '2999-01-01' }).dateOfBirth).toBe('validation.dateOfBirthFuture')
   })
+
+  it('requires a description when a health condition is reported', () => {
+    expect(issuesFor({ ...valid(), hasHealthCondition: 'yes' }).healthConditionNote).toBe('validation.healthNoteRequired')
+    expect(issuesFor({ ...valid(), hasHealthCondition: 'yes', healthConditionNote: 'Asthma' }).healthConditionNote).toBeUndefined()
+    expect(issuesFor({ ...valid(), hasHealthCondition: 'no' }).healthConditionNote).toBeUndefined()
+  })
+})
+
+describe('toMemberPayload — health and agreement', () => {
+  it('sends the yes/no answer as a boolean and keeps the note only with a yes', () => {
+    const yes = toMemberPayload({ ...valid(), hasHealthCondition: 'yes', healthConditionNote: 'Asthma' })
+    expect(yes).toMatchObject({ hasHealthCondition: true, healthConditionNote: 'Asthma' })
+
+    const no = toMemberPayload({ ...valid(), hasHealthCondition: 'no', healthConditionNote: 'leftover text' })
+    expect(no).toMatchObject({ hasHealthCondition: false, healthConditionNote: null })
+
+    expect(toMemberPayload(valid())).toMatchObject({ hasHealthCondition: null, healthConditionNote: null })
+  })
+
+  it('passes the agreement switch through', () => {
+    expect(toMemberPayload({ ...valid(), agreementAccepted: true }).agreementAccepted).toBe(true)
+    expect(toMemberPayload(valid()).agreementAccepted).toBe(false)
+  })
 })
 
 describe('toMemberPayload', () => {

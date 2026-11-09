@@ -1,6 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsEnum, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto.js';
 import { Trim } from '../../../common/transforms/string.transforms.js';
 import { Gender, MembershipStatus } from '../../../generated/prisma/enums.js';
@@ -43,6 +52,12 @@ export class QueryMembersDto extends PaginationQueryDto {
   @IsInt()
   @Min(1)
   departmentId?: number;
+
+  @ApiPropertyOptional({ description: 'Only members who registered themselves through the bot' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => value === true || value === 'true')
+  @IsBoolean()
+  selfRegistered?: boolean;
 
   @ApiPropertyOptional({ enum: MEMBER_SORT_FIELDS, default: 'createdAt' })
   @IsOptional()

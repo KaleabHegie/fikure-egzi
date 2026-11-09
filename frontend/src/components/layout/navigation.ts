@@ -7,6 +7,7 @@ import {
   Package,
   type LucideIcon,
   ScrollText,
+  Settings,
   ShieldCheck,
   Users,
   UsersRound,
@@ -26,6 +27,7 @@ type NavKey =
   | 'assets'
   | 'users'
   | 'audit'
+  | 'settings'
 
 export interface NavChild {
   /** Translation key under `nav.` */
@@ -104,6 +106,7 @@ export const NAVIGATION: NavSection[] = [
     items: [
       { key: 'users', icon: ShieldCheck, to: '/users', permission: PERMISSIONS.USERS_MANAGE },
       { key: 'audit', icon: ScrollText, to: '/audit', permission: PERMISSIONS.AUDIT_READ },
+      { key: 'settings', icon: Settings, to: '/settings', permission: PERMISSIONS.SETTINGS_MANAGE },
     ],
   },
 ]

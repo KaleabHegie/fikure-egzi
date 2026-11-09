@@ -1,4 +1,18 @@
-import { ChevronLeft, Download, Heart, IdCard, Pencil, Phone, Printer, Trash2, UserRound } from 'lucide-react'
+import {
+  ChevronLeft,
+  CircleCheck,
+  Download,
+  Heart,
+  HeartPulse,
+  IdCard,
+  Pencil,
+  Phone,
+  Printer,
+  Send,
+  Trash2,
+  TriangleAlert,
+  UserRound,
+} from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
@@ -120,6 +134,12 @@ function MemberCard({ member: m }: { member: Member }) {
           </div>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
             <StatusBadge status={m.status} />
+            {m.selfRegistered && (
+              <span className="inline-flex h-5 items-center gap-1 rounded-full border border-gold/50 bg-gold/10 px-2 text-xs font-medium text-gilt-ink">
+                <Send className="size-3" aria-hidden />
+                {t('members.selfRegistered')}
+              </span>
+            )}
             <span className="tabular font-mono text-xs font-semibold tracking-wider text-foreground">{m.memberCode}</span>
             {age !== null && <span>{t('common.years', { count: age })}</span>}
             <span>{t('members.detail.memberSince', { date: formatDate(m.joinedAt) })}</span>
@@ -256,6 +276,36 @@ export function MemberDetailPage() {
                 { label: t('members.fields.emergencyName'), value: m.emergencyContactName },
                 { label: t('members.fields.emergencyRelation'), value: m.emergencyContactRelation },
                 { label: t('members.fields.emergencyPhone'), value: tel(m.emergencyContactPhone) },
+              ]}
+            />
+            <Facts
+              title={t('members.sections.health.title')}
+              icon={HeartPulse}
+              className="md:col-span-2"
+              rows={[
+                {
+                  label: t('members.fields.hasHealthCondition'),
+                  value:
+                    m.hasHealthCondition === null ? null : m.hasHealthCondition ? (
+                      <span className="inline-flex items-start gap-1.5 text-destructive">
+                        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                        <span className="whitespace-pre-line">{m.healthConditionNote || t('members.health.yes')}</span>
+                      </span>
+                    ) : (
+                      t('members.health.none')
+                    ),
+                },
+                {
+                  label: t('members.fields.agreement'),
+                  value: m.agreementAcceptedAt ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <CircleCheck className="size-3.5 text-brand" aria-hidden />
+                      {t('members.agreement.acceptedOn', { date: formatDate(m.agreementAcceptedAt) })}
+                    </span>
+                  ) : (
+                    t('members.agreement.notSigned')
+                  ),
+                },
               ]}
             />
           </div>

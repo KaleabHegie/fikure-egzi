@@ -35,6 +35,7 @@ export function useMemberListParams() {
       status: pick<MembershipStatus>(searchParams.get('status'), MEMBERSHIP_STATUSES),
       classGradeId: searchParams.get('classGradeId') ? positiveInt(searchParams.get('classGradeId'), 0) || undefined : undefined,
       departmentId: searchParams.get('departmentId') ? positiveInt(searchParams.get('departmentId'), 0) || undefined : undefined,
+      selfRegistered: searchParams.get('selfRegistered') === 'true' || undefined,
     }),
     [searchParams],
   )
@@ -58,7 +59,9 @@ export function useMemberListParams() {
     [setSearchParams],
   )
 
-  const hasFilters = Boolean(params.search || params.gender || params.status || params.classGradeId || params.departmentId)
+  const hasFilters = Boolean(
+    params.search || params.gender || params.status || params.classGradeId || params.departmentId || params.selfRegistered,
+  )
   const reset = useCallback(() => setSearchParams({}, { replace: true }), [setSearchParams])
 
   return { params, update, reset, hasFilters }

@@ -48,6 +48,10 @@ const MEMBER_SELECT = {
   emergencyContactName: true,
   emergencyContactPhone: true,
   emergencyContactRelation: true,
+  hasHealthCondition: true,
+  healthConditionNote: true,
+  agreementAcceptedAt: true,
+  selfRegistered: true,
   photoPath: true,
   notes: true,
   createdAt: true,
@@ -133,6 +137,15 @@ const toDate = dateOnly;
 const toOptionalDate = (value: string | null | undefined): Date | null | undefined =>
   value === undefined || value === null ? value : toDate(value);
 
+/** A note only belongs with a "yes": answering no (or clearing the answer) drops it. */
+const healthFields = (
+  has: boolean | null | undefined,
+  note: string | null | undefined,
+): { hasHealthCondition?: boolean | null; healthConditionNote?: string | null } => {
+  if (has === undefined) return note === undefined ? {} : { healthConditionNote: note };
+  return { hasHealthCondition: has, healthConditionNote: has ? (note ?? null) : null };
+};
+
 @Injectable()
 export class MembersService {
   constructor(
@@ -185,12 +198,14 @@ export class MembersService {
   /**
    * Registers a member. Pass `outerTx` to run inside a caller's transaction
    * (the Excel import uses this so a whole file is all-or-nothing).
+   * `userId` is null when members register themselves through the bot.
    */
   async create(
     dto: CreateMemberDto,
-    userId: number,
+    userId: number | null,
     ipAddress: string | null,
     outerTx?: Prisma.TransactionClient,
+    options: { selfRegistered?: boolean } = {},
   ): Promise<MemberRecord> {
     if (!dto.dateOfBirth) {
       throw new ValidationFailedException([
@@ -198,9 +213,11 @@ export class MembersService {
       ]);
     }
 
-    const { classGradeIds, ...fields } = dto;
+    const { classGradeIds, agreementAccepted, hasHealthCondition, healthConditionNote, ...fields } =
+      dto;
     await this.assertUniqueName(dto, null, outerTx);
     const placements = classGradeIds ? await this.resolveClassGrades(classGradeIds) : [];
+    const selfRegistered = options.selfRegistered === true;
 
     const run = async (tx: Prisma.TransactionClient) => {
       // The code is derived from the auto-increment id, so insert with a
@@ -208,6 +225,9 @@ export class MembersService {
       const created = await tx.member.create({
         data: {
           ...fields,
+          ...healthFields(hasHealthCondition, healthConditionNote),
+          agreementAcceptedAt: agreementAccepted ? new Date() : null,
+          selfRegistered,
           memberCode: `TMP-${randomUUID().replace(/-/g, '').slice(0, 16)}`,
           dateOfBirth: toOptionalDate(dto.dateOfBirth),
           joinedAt: toDate(dto.joinedAt ?? todayIso()),
@@ -241,7 +261,7 @@ export class MembersService {
           action: 'CREATE',
           entity: ENTITY,
           entityId: member.id,
-          changes: { memberCode: member.memberCode },
+          changes: { memberCode: member.memberCode, ...(selfRegistered && { via: 'telegram' }) },
           ipAddress,
         },
         tx,
@@ -280,7 +300,15 @@ export class MembersService {
       );
     }
 
-    const { dateOfBirth, joinedAt, classGradeIds, ...rest } = dto;
+    const {
+      dateOfBirth,
+      joinedAt,
+      classGradeIds,
+      agreementAccepted,
+      hasHealthCondition,
+      healthConditionNote,
+      ...rest
+    } = dto;
     const placements =
       classGradeIds === undefined || classGradeIds === null
         ? null
@@ -294,6 +322,11 @@ export class MembersService {
         dateOfBirth: toOptionalDate(dateOfBirth),
       }),
       ...(joinedAt && { joinedAt: toDate(joinedAt) }),
+      ...healthFields(hasHealthCondition, healthConditionNote),
+      // Keep the original acceptance time when it is re-confirmed.
+      ...(agreementAccepted === false && { agreementAcceptedAt: null }),
+      ...(agreementAccepted === true &&
+        current.agreementAcceptedAt === null && { agreementAcceptedAt: new Date() }),
       updatedById: userId,
     };
 
@@ -614,6 +647,7 @@ export class MembersService {
       deletedAt: null,
       ...(query.gender && { gender: query.gender }),
       ...(query.status && { status: query.status }),
+      ...(query.selfRegistered && { selfRegistered: true }),
       ...(query.classGradeId && {
         classEnrollments: { some: { classGradeId: query.classGradeId } },
       }),

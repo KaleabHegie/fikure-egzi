@@ -70,16 +70,26 @@ const memberFields = z.object({
   emergencyContactPhone: optionalPhone,
   emergencyContactRelation: optionalText(50),
 
+  /** '' = not recorded. */
+  hasHealthCondition: z.enum(['', 'yes', 'no']),
+  healthConditionNote: optionalText(1000),
+  agreementAccepted: z.boolean(),
+
   notes: optionalText(2000),
 
   /** classTypeId → classGradeId ('' or missing = not assigned). */
   classGrades: z.record(z.string(), z.string().optional()),
 })
 
-export const memberFormSchema = memberFields.refine(
-  (v) => v.dateOfBirth === '' || v.joinedAt === '' || v.joinedAt >= v.dateOfBirth,
-  { path: ['joinedAt'], message: msg('validation.joinedBeforeBirth') },
-)
+export const memberFormSchema = memberFields
+  .refine((v) => v.dateOfBirth === '' || v.joinedAt === '' || v.joinedAt >= v.dateOfBirth, {
+    path: ['joinedAt'],
+    message: msg('validation.joinedBeforeBirth'),
+  })
+  .refine((v) => v.hasHealthCondition !== 'yes' || v.healthConditionNote.trim() !== '', {
+    path: ['healthConditionNote'],
+    message: msg('validation.healthNoteRequired'),
+  })
 
 export type MemberFormValues = z.infer<typeof memberFormSchema>
 export const MEMBER_FORM_FIELDS = Object.keys(memberFields.shape) as (keyof MemberFormValues)[]
@@ -108,6 +118,9 @@ export const emptyMemberForm = (): MemberFormValues => ({
   emergencyContactName: '',
   emergencyContactPhone: '',
   emergencyContactRelation: '',
+  hasHealthCondition: '',
+  healthConditionNote: '',
+  agreementAccepted: false,
   notes: '',
   classGrades: {},
 })
@@ -138,22 +151,33 @@ export function memberToForm(m: Member): MemberFormValues {
     emergencyContactName: s(m.emergencyContactName),
     emergencyContactPhone: s(m.emergencyContactPhone),
     emergencyContactRelation: s(m.emergencyContactRelation),
+    hasHealthCondition: m.hasHealthCondition === null ? '' : m.hasHealthCondition ? 'yes' : 'no',
+    healthConditionNote: s(m.healthConditionNote),
+    agreementAccepted: m.agreementAcceptedAt !== null,
     notes: s(m.notes),
     classGrades: Object.fromEntries(m.classes.map((c) => [String(c.classType.id), String(c.classGrade.id)])),
   }
 }
 
-type TextFields = Omit<MemberFormValues, 'classGrades'>
-export type MemberPayload = { [K in keyof TextFields]: TextFields[K] | null } & { classGradeIds: number[] }
+type TextFields = Omit<MemberFormValues, 'classGrades' | 'hasHealthCondition' | 'agreementAccepted'>
+export type MemberPayload = { [K in keyof TextFields]: TextFields[K] | null } & {
+  classGradeIds: number[]
+  hasHealthCondition: boolean | null
+  agreementAccepted: boolean
+}
 
 /** '' → null, so a cleared field clears the stored value; class picks → grade ids. */
 export function toMemberPayload(values: MemberFormValues): MemberPayload {
-  const { classGrades, ...text } = values
+  const { classGrades, hasHealthCondition, agreementAccepted, ...text } = values
   const fields = Object.fromEntries(
     Object.entries(text).map(([k, v]) => [k, typeof v === 'string' && v.trim() === '' ? null : v]),
   ) as { [K in keyof TextFields]: TextFields[K] | null }
   return {
     ...fields,
+    hasHealthCondition: hasHealthCondition === '' ? null : hasHealthCondition === 'yes',
+    // A note only belongs with a "yes".
+    healthConditionNote: hasHealthCondition === 'yes' ? fields.healthConditionNote : null,
+    agreementAccepted,
     classGradeIds: Object.values(classGrades)
       .filter((v): v is string => Boolean(v))
       .map(Number),

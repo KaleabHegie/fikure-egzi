@@ -71,11 +71,50 @@ export const esc = (value: unknown) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
+/**
+ * The discipline and code-of-conduct agreement every member signs (the paper
+ * form's text). Self-registration cannot finish until it is accepted.
+ */
+export const AGREEMENT: Record<BotLang, { title: string; rules: string[]; pledge: string }> = {
+  am: {
+    title: 'የዲሲፕሊን እና የሥነ-ምግባር ስምምነት',
+    rules: [
+      'የክፍሉን ሥርዓትና ደንብ ማክበር።',
+      'በአገልግሎት ወቅት ተገቢ አለባበስና ባህሪ መከተል።',
+      'ከኃላፊዎችና ከሌሎች አባላት ጋር በአክብሮት መግባባት።',
+      'የሰንበት ት/ቤቱንና የክፍሉን ስምና ክብር መጠበቅ።',
+      'የተሰጠኝን ኃላፊነት በታማኝነት መወጣት።',
+      'የክፍሉን ውስጣዊ መረጃ ምስጢራዊነት መጠበቅ።',
+      'የክፍሉን ሥርዓት የሚጥስ ተግባር ከመፈጸም መቆጠብ።',
+    ],
+    pledge:
+      'እኔ ከላይ የተጠቀሱትን ደንቦች ተረድቼ በመከተል ተስማምቻለሁ። ይህ ሳይሆን ቢቀር ክፍሉ የሚወስድብኝን ህጋዊ እርምጃ የምቀበል መሆኑን አረጋግጣለሁ።',
+  },
+  en: {
+    title: 'Discipline and Code of Conduct Agreement',
+    rules: [
+      'Respect the order and rules of the department.',
+      'Dress and behave appropriately during service.',
+      'Treat leaders and fellow members with respect.',
+      'Protect the name and honour of the Sunday school and the department.',
+      'Carry out the responsibilities given to me faithfully.',
+      'Keep the department’s internal information confidential.',
+      'Refrain from any act that breaks the department’s order.',
+    ],
+    pledge:
+      'I have understood the rules above and agree to follow them. If I do not, I accept the action the department takes against me.',
+  },
+};
+
 /** Every message the bot sends, in Amharic and English. */
 export const TEXT = {
   am: {
-    welcome: (brand: string) =>
-      `<b>${brand}</b>\nእንኳን ደህና መጡ!\n\nይህ ቦት የአባልነት መረጃዎን፣ አቴንዳንስዎን፣ ኮርሶችዎንና የQR ኮድዎን ያሳያል።\n\nለመቀጠል ከታች ያለውን <b>«📱 ስልክ ቁጥሬን አጋራ»</b> ይጫኑ። ቁጥሩ በሰንበት ትምህርት ቤቱ የተመዘገበ መሆን አለበት።`,
+    welcome: (brand: string, selfRegistration: boolean) =>
+      `<b>${brand}</b>\nእንኳን ደህና መጡ!\n\nይህ ቦት የአባልነት መረጃዎን፣ አቴንዳንስዎን፣ ኮርሶችዎንና የQR ኮድዎን ያሳያል።\n\nለመቀጠል ከታች ያለውን <b>«📱 ስልክ ቁጥሬን አጋራ»</b> ይጫኑ።${
+        selfRegistration
+          ? ' ገና አባል ካልሆኑ፣ ቁጥርዎን ካጋሩ በኋላ እዚሁ ራስዎን መመዝገብ ይችላሉ።'
+          : ' ቁጥሩ በሰንበት ትምህርት ቤቱ የተመዘገበ መሆን አለበት።'
+      }`,
     shareButton: '📱 ስልክ ቁጥሬን አጋራ',
     shareOwn: 'እባክዎ የራስዎን ቁጥር ከታች ባለው «📱 ስልክ ቁጥሬን አጋራ» ቁልፍ ያጋሩ።',
     notRegistered: (phone: string) =>
@@ -160,10 +199,75 @@ export const TEXT = {
     },
     qrCaption: (name: string, code: string) =>
       `🔳 <b>${name}</b>\n${code}\n\nይህን ኮድ በአቴንዳንስ ጊዜ ያሳዩ።`,
+    register: {
+      offer: (phone: string) =>
+        `📋 <b>${phone}</b> ገና አልተመዘገበም።\n\nአሁን እዚሁ ራስዎን እንደ አዲስ አባል መመዝገብ ይችላሉ — 10 ጥያቄዎች፣ 2 ደቂቃ ገደማ።`,
+      start: '📝 ልመዝገብ',
+      cancel: '✖ ሰርዝ',
+      skip: '⏭ እለፍ',
+      step: (n: number) => `<i>ጥያቄ ${n}/10</i>`,
+      ask: {
+        firstName: '👤 ስምዎን ይጻፉ።',
+        fatherName: '👤 የአባትዎን ስም ይጻፉ።',
+        grandfatherName: '👤 የአያትዎን ስም ይጻፉ።',
+        christianName: '✝️ የክርስትና ስምዎን ይጻፉ። ከሌለዎት «⏭ እለፍ» ይጫኑ።',
+        gender: '👥 ጾታዎን ይምረጡ።',
+        dateOfBirth:
+          '🎂 የትውልድ ቀንዎን በኢትዮጵያ አቆጣጠር ቀን/ወር/ዓመት ብለው ይጻፉ።\nለምሳሌ፦ <code>15/01/2000</code> (መስከረም 15 ቀን 2000)',
+        subCity: '🏙 የሚኖሩበትን ክፍለ ከተማ ይጻፉ፣ ወይም «⏭ እለፍ» ይጫኑ።',
+        woreda: '📍 ወረዳዎን ይጻፉ፣ ወይም «⏭ እለፍ» ይጫኑ።',
+        health: '🩺 ክትትል ወይም ልዩ ትኩረት የሚፈልግ የጤና ሁኔታ አለዎት?',
+        healthNote: '🩺 የጤና ሁኔታዎን በአጭሩ ይግለጹ (ለምሳሌ፦ አስም፣ የስኳር ሕመም፣ አለርጂ)።',
+      },
+      male: '👨 ወንድ',
+      female: '👩 ሴት',
+      yes: '✔️ አዎ፣ አለኝ',
+      no: '➖ የለኝም',
+      agreementIntro: 'ምዝገባውን ለማጠናቀቅ የሚከተለውን ስምምነት ያንብቡ፦',
+      agree: '✅ አንብቤ ተስማምቻለሁ',
+      invalid: {
+        name: 'እባክዎ ትክክለኛ ስም ይጻፉ — ፊደላት ብቻ፣ ከ100 ፊደል ያልበለጠ።',
+        choose: 'እባክዎ ከታች ካሉት ቁልፎች አንዱን ይጫኑ።',
+        date: 'ቀኑ አልተነበበም። በኢትዮጵያ አቆጣጠር ቀን/ወር/ዓመት ይጻፉ፤ ለምሳሌ <code>15/01/2000</code>።',
+        dateRange: 'የትውልድ ቀኑ ያለፈ ቀን መሆን አለበት፣ ከ100 ዓመት በፊትም መሆን የለበትም።',
+        tooLong: (max: number) => `እባክዎ ከ${max} ፊደል ባልበለጠ ይጻፉ።`,
+        note: 'እባክዎ የጤና ሁኔታውን በጥቂት ቃላት ይግለጹ።',
+      },
+      summaryTitle: '📋 <b>መረጃዎን ያረጋግጡ</b>',
+      summaryHint: 'ትክክል ከሆነ «✅ ይመዝገብ» ይጫኑ።',
+      fields: {
+        name: 'ሙሉ ስም',
+        christianName: 'የክርስትና ስም',
+        gender: 'ጾታ',
+        birth: 'የትውልድ ቀን',
+        phone: 'ስልክ',
+        address: 'አድራሻ',
+        woreda: 'ወረዳ',
+        health: 'የጤና ሁኔታ',
+        none: 'የለም',
+        agreement: 'ስምምነት',
+        accepted: 'ተቀብለዋል',
+      },
+      confirm: '✅ ይመዝገብ',
+      restart: '🔁 እንደገና ልሙላ',
+      wait: '⏳ በመመዝገብ ላይ…',
+      done: (name: string, code: string) =>
+        `🎉 <b>እንኳን ደስ አለዎት፣ ${name}!</b>\n\nተመዝግበዋል። የአባልነት መለያ ቁጥርዎ፦ <code>${code}</code>\n\nጽሕፈት ቤቱ ቀሪ መረጃዎን ለማሟላት ሊያገኝዎት ይችላል። አሁን ከታች ካሉት ቁልፎች ይምረጡ።`,
+      cancelled: 'ምዝገባው ተሰርዟል። በፈለጉ ጊዜ ስልክ ቁጥርዎን በማጋራት እንደገና መጀመር ይችላሉ።',
+      declined: 'ምዝገባው የሚጠናቀቀው ስምምነቱን ሲቀበሉ ብቻ ነው፤ ስለዚህ ተሰርዟል። ጥያቄ ካለዎት ጽሕፈት ቤቱን ያነጋግሩ።',
+      closed: 'ራስን መመዝገብ በአሁኑ ጊዜ ዝግ ነው። እባክዎ ጽሕፈት ቤቱን ያነጋግሩ።',
+      duplicate: (code: string) =>
+        `ይህ ሙሉ ስም ቀድሞ ተመዝግቧል (<code>${code}</code>)። እርስዎ ከሆኑ ይህን ስልክ ቁጥር በመዝገብዎ ላይ እንዲጨምሩልዎ ጽሕፈት ቤቱን ያነጋግሩ።`,
+      failed: 'ምዝገባው አልተጠናቀቀም። እባክዎ «✅ ይመዝገብ»ን እንደገና ይጫኑ፤ ካልሰራ ጽሕፈት ቤቱን ያነጋግሩ።',
+    },
   },
   en: {
-    welcome: (brand: string) =>
-      `<b>${brand}</b>\nWelcome!\n\nThis bot shows your membership details, attendance, courses and QR code.\n\nTo continue, tap <b>“📱 Share my phone number”</b> below. The number must be registered with the Sunday school.`,
+    welcome: (brand: string, selfRegistration: boolean) =>
+      `<b>${brand}</b>\nWelcome!\n\nThis bot shows your membership details, attendance, courses and QR code.\n\nTo continue, tap <b>“📱 Share my phone number”</b> below.${
+        selfRegistration
+          ? ' Not a member yet? After sharing your number you can register yourself right here.'
+          : ' The number must be registered with the Sunday school.'
+      }`,
     shareButton: '📱 Share my phone number',
     shareOwn: 'Please share your own number with the “📱 Share my phone number” button below.',
     notRegistered: (phone: string) =>
@@ -251,6 +355,70 @@ export const TEXT = {
     },
     qrCaption: (name: string, code: string) =>
       `🔳 <b>${name}</b>\n${code}\n\nShow this code at attendance.`,
+    register: {
+      offer: (phone: string) =>
+        `📋 <b>${phone}</b> is not registered yet.\n\nYou can register yourself as a new member right here — 10 questions, about 2 minutes.`,
+      start: '📝 Register me',
+      cancel: '✖ Cancel',
+      skip: '⏭ Skip',
+      step: (n: number) => `<i>Question ${n}/10</i>`,
+      ask: {
+        firstName: '👤 Type your first name.',
+        fatherName: '👤 Type your father’s name.',
+        grandfatherName: '👤 Type your grandfather’s name.',
+        christianName: '✝️ Type your Christian (baptismal) name, or tap “⏭ Skip”.',
+        gender: '👥 Choose your gender.',
+        dateOfBirth:
+          '🎂 Type your date of birth in the Ethiopian calendar as day/month/year.\nFor example: <code>15/01/2000</code> (Meskerem 15, 2000)',
+        subCity: '🏙 Type the sub-city you live in, or tap “⏭ Skip”.',
+        woreda: '📍 Type your woreda, or tap “⏭ Skip”.',
+        health: '🩺 Do you have a health condition that needs attention or care?',
+        healthNote:
+          '🩺 Briefly describe the condition (for example: asthma, diabetes, an allergy).',
+      },
+      male: '👨 Male',
+      female: '👩 Female',
+      yes: '✔️ Yes, I do',
+      no: '➖ No',
+      agreementIntro: 'To finish registering, read the following agreement:',
+      agree: '✅ I have read it and agree',
+      invalid: {
+        name: 'Please type a real name — letters only, at most 100 characters.',
+        choose: 'Please tap one of the buttons below.',
+        date: 'That date could not be read. Type it in the Ethiopian calendar as day/month/year, e.g. <code>15/01/2000</code>.',
+        dateRange: 'The date of birth must be in the past and within the last 100 years.',
+        tooLong: (max: number) => `Please keep it to ${max} characters or fewer.`,
+        note: 'Please describe the condition in a few words.',
+      },
+      summaryTitle: '📋 <b>Check your details</b>',
+      summaryHint: 'If everything is right, tap “✅ Register”.',
+      fields: {
+        name: 'Full name',
+        christianName: 'Christian name',
+        gender: 'Gender',
+        birth: 'Date of birth',
+        phone: 'Phone',
+        address: 'Address',
+        woreda: 'Woreda',
+        health: 'Health condition',
+        none: 'None',
+        agreement: 'Agreement',
+        accepted: 'Accepted',
+      },
+      confirm: '✅ Register',
+      restart: '🔁 Start over',
+      wait: '⏳ Registering…',
+      done: (name: string, code: string) =>
+        `🎉 <b>Welcome, ${name}!</b>\n\nYou are registered. Your member ID is <code>${code}</code>.\n\nThe office may contact you to complete the rest of your details. Choose from the buttons below.`,
+      cancelled: 'Registration cancelled. Share your phone number any time to start again.',
+      declined:
+        'Registration can only be completed by accepting the agreement. If you have questions, contact the office.',
+      closed: 'Self-registration is closed right now. Please contact the office.',
+      duplicate: (code: string) =>
+        `A member with this full name is already registered (<code>${code}</code>). If that is you, ask the office to add this phone number to your record.`,
+      failed:
+        'Registration did not go through. Tap “✅ Register” again; if it still fails, contact the office.',
+    },
   },
 } satisfies Record<BotLang, unknown>;
 

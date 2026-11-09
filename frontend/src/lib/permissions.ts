@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   USERS_MANAGE: 'users.manage',
   ROLES_MANAGE: 'roles.manage',
   AUDIT_READ: 'audit.read',
+  SETTINGS_MANAGE: 'settings.manage',
 } as const
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]

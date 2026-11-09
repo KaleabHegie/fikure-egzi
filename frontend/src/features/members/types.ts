@@ -55,6 +55,13 @@ export interface Member {
   emergencyContactName: string | null
   emergencyContactPhone: string | null
   emergencyContactRelation: string | null
+  /** null = not recorded, false = stated none, true = see healthConditionNote. */
+  hasHealthCondition: boolean | null
+  healthConditionNote: string | null
+  /** When the discipline and code-of-conduct agreement was accepted. */
+  agreementAcceptedAt: string | null
+  /** Registered by the member themself through the Telegram bot. */
+  selfRegistered: boolean
   /** Fetch the image with useMemberPhoto(); it is served only to signed-in users. */
   hasPhoto: boolean
   /** Current grade per class type, in class-type order. */
@@ -78,6 +85,8 @@ export interface MemberListParams {
   status?: MembershipStatus
   classGradeId?: number
   departmentId?: number
+  /** Only members who registered themselves through the bot. */
+  selfRegistered?: boolean
   sortBy?: MemberSortField
   sortOrder?: SortOrder
 }

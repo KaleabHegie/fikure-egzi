@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   USERS_MANAGE: 'users.manage',
   ROLES_MANAGE: 'roles.manage',
   AUDIT_READ: 'audit.read',
+  SETTINGS_MANAGE: 'settings.manage',
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -159,6 +160,11 @@ export const PERMISSION_DEFINITIONS: readonly PermissionDefinition[] = [
     code: PERMISSIONS.AUDIT_READ,
     module: 'audit',
     description: 'View the audit trail',
+  },
+  {
+    code: PERMISSIONS.SETTINGS_MANAGE,
+    module: 'settings',
+    description: 'Change office-wide settings, such as opening self-registration in the bot',
   },
 ];
 

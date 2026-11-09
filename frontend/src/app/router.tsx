@@ -155,6 +155,14 @@ export const router = createBrowserRouter([
             ...page(() => import('@/features/users/pages/users-page'), (m) => m.UsersPage, PERMISSIONS.USERS_MANAGE),
           },
           {
+            path: 'settings',
+            ...page(
+              () => import('@/features/settings/pages/settings-page'),
+              (m) => m.SettingsPage,
+              PERMISSIONS.SETTINGS_MANAGE,
+            ),
+          },
+          {
             path: 'service-groups',
             ...page(
               () => import('@/features/service-groups/pages/service-groups-page'),

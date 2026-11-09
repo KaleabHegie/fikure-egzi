@@ -386,7 +386,7 @@ export class TelegramRegistrationService {
 
   /**
    * Active class types that have at least one active grade, and the active
-   * service departments in tree order (the top office itself is not offered).
+   * main service departments (the top office itself is not offered).
    */
   private async catalog(): Promise<Catalog> {
     if (this.catalogCache && Date.now() - this.catalogCache.at < CATALOG_CACHE_MS) {
@@ -424,15 +424,13 @@ export class TelegramRegistrationService {
         select: { id: true, parentId: true, nameAm: true, nameEn: true },
       }),
     ]);
-    // Depth-first from the top, so sub-departments follow their parent.
-    const ordered: DepartmentOption[] = [];
-    const visit = (parentId: number | null, depth: number) => {
-      for (const d of departments.filter((x) => x.parentId === parentId)) {
-        if (depth > 0) ordered.push({ id: d.id, nameAm: d.nameAm, nameEn: d.nameEn });
-        visit(d.id, depth + 1);
-      }
-    };
-    visit(null, 0);
+    // The main departments only (those directly under the top office); with
+    // sub-departments the list would be too long for a phone, and department
+    // heads place people into their sub-departments themselves.
+    const tops = new Set(departments.filter((d) => d.parentId === null).map((d) => d.id));
+    const ordered: DepartmentOption[] = departments
+      .filter((d) => d.parentId !== null && tops.has(d.parentId))
+      .map((d) => ({ id: d.id, nameAm: d.nameAm, nameEn: d.nameEn }));
     const catalog = {
       classes: types.filter((type) => type.grades.length > 0),
       departments: ordered,

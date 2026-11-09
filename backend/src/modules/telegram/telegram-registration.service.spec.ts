@@ -330,24 +330,27 @@ describe('TelegramRegistrationService', () => {
     expect(last()).toContain('Mezmur class');
   });
 
-  it('lets the person pick several service departments and change their mind', async () => {
+  it('lets the person pick several main departments and change their mind', async () => {
     await start();
     await sayAll(FULL.slice(0, 12));
     expect(step()).toBe('departments');
     expect(last()).toContain(t.sections.service);
-    // The office itself is not offered; a sub-department follows its parent.
+    // Only main departments: not the office above them, not sub-departments below.
     expect(last()).not.toContain('Office');
+    expect(last()).not.toContain('Children teaching');
     expect(last()).toContain(t.departmentsNone);
 
     await say('▫️ Teaching');
-    await say('▫️ Children teaching');
+    await say('▫️ Choir');
     expect(step()).toBe('departments');
-    expect(last()).toContain(t.departmentsChosen('Teaching፣ Children teaching'));
+    expect(last()).toContain(t.departmentsChosen('Teaching፣ Choir'));
     await say('✅ Teaching'); // tapping a chosen one removes it
-    expect(last()).toContain(t.departmentsChosen('Children teaching'));
+    expect(last()).toContain(t.departmentsChosen('Choir'));
+    await say('▫️ Children teaching'); // a sub-department is not offered
+    expect(sent.at(-2)).toContain(t.invalid.choose);
     await say(t.departmentsDone);
     expect(step()).toBe('alternatePhone');
-    expect(db.rows[0]?.answers).toMatchObject({ departmentIds: [4] });
+    expect(db.rows[0]?.answers).toMatchObject({ departmentIds: [3] });
   });
 
   it('only accepts a grade of the class being asked about', async () => {

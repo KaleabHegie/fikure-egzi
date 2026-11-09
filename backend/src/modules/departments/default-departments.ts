@@ -20,22 +20,32 @@ export const OFFICE_DEPARTMENT: DefaultDepartment = {
   descriptionAm: 'የሰንበት ትምህርት ቤቱን ክፍሎች በሙሉ የሚያስተዳድር',
 };
 
-/** Departments administered by the office, in the Sunday school's own structure chart. */
+/**
+ * Departments administered by the office, as in the Sunday school's
+ * "የክፍላት ተግባራት" document (their sub-departments are managed in the app).
+ * Codes are permanent: renamed departments keep the code they were created
+ * with (e.g. MEMBER_AFFAIRS is now Human Resource Administration).
+ */
 export const DEFAULT_DEPARTMENTS: readonly DefaultDepartment[] = [
-  { code: 'EDUCATION', nameEn: 'Education', nameAm: 'ትምህርት ክፍል' },
   {
-    code: 'MEMBER_AFFAIRS',
-    nameEn: 'Member Affairs & Programs',
-    nameAm: 'አባላት ጉዳይ እና መርሐ ግብር ክፍል',
+    code: 'PLANNING',
+    nameEn: 'Planning, Implementation and Monitoring',
+    nameAm: 'ዕቅድ ትግበራ እና ክትትል ዋና ክፍል',
   },
-  { code: 'MEZMUR', nameEn: 'Mezmur (Hymns)', nameAm: 'መዝሙር ክፍል' },
-  { code: 'ARTS', nameEn: 'Arts', nameAm: 'ሥነ-ጥበብ ክፍል' },
+  { code: 'EDUCATION', nameEn: 'Education and Training', nameAm: 'ትምህርት እና ሥልጠና ክፍል' },
+  { code: 'PROGRAMS', nameEn: 'Programs and Conferences', nameAm: 'የመርሐ ግብርና ጉባኤያት ክፍል' },
+  { code: 'MEMBER_AFFAIRS', nameEn: 'Human Resource Administration', nameAm: 'የሰው ሀብት አስተዳደር ክፍል' },
   {
-    code: 'PROFESSIONAL_SERVICES',
-    nameEn: 'Professional Services Coordination',
-    nameAm: 'የሙያ አገልግሎት ማስተባበሪያ ክፍል',
+    code: 'MEDIA',
+    nameEn: 'Information and Internal Communication',
+    nameAm: 'የመረጃ እና የውስጥ ግንኙነት ክፍል',
   },
-  { code: 'PRAYER_CHARITY', nameEn: 'Prayer & Charity', nameAm: 'ጸሎት እና በጎ አድራጎት ክፍል' },
-  { code: 'CHILDREN', nameEn: 'Children', nameAm: 'ሕጻናት ክፍል' },
-  { code: 'MEDIA', nameEn: 'Media & Communications', nameAm: 'የመገናኛ ብዙኃን ክፍል' },
+  {
+    code: 'MEZMUR',
+    nameEn: 'Mezmur and Festival Preparation',
+    nameAm: 'የመዝሙር እና በዓላት ዝግጅት ክፍል',
+  },
+  { code: 'ARTS', nameEn: 'Arts', nameAm: 'የሥነ ጥበብ ክፍል' },
+  { code: 'PRAYER_CHARITY', nameEn: 'Development and Charity', nameAm: 'የልማትና በጎ አድራጎት ክፍል' },
+  { code: 'BUDGET', nameEn: 'Budget and Property Administration', nameAm: 'የበጀትና ንብረት አስተዳደር ክፍል' },
 ];

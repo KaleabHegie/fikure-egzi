@@ -8,7 +8,7 @@ import { EmptyState, ErrorState } from '@/components/common/states'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useLocalizedName } from '@/features/classes/use-localized'
+import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { memberFullName } from '@/features/members/utils'
 import { getErrorMessage } from '@/lib/api/errors'
 import { formatDate } from '@/lib/format'
@@ -33,6 +33,7 @@ function Figure({ label, value, hint }: { label: string; value: React.ReactNode;
 export function ExamPage() {
   const { t, i18n } = useTranslation()
   const name = useLocalizedName()
+  const gradeLabel = useGradeLabel()
   const navigate = useNavigate()
   const id = Number(useParams().id)
   const sheet = useExamSheet(id)
@@ -69,7 +70,10 @@ export function ExamPage() {
         title={title}
         description={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-medium text-foreground/80">{name(exam.department)}</span>
+            <span className="font-medium text-foreground/80">
+              {name(exam.classType)} · {exam.classGrade ? gradeLabel(exam.classGrade) : t('exams.fields.allLevels')}
+            </span>
+            <span>· {name(exam.department)}</span>
             {exam.heldOn && <span>· {formatDate(exam.heldOn)}</span>}
             <span>· {t('exams.passMarkIs', { mark: exam.passMark })}</span>
           </span>
@@ -183,6 +187,7 @@ export function ExamPage() {
         open={adding}
         onOpenChange={setAdding}
         examId={id}
+        classTypeId={exam.classTypeId}
         onAdd={async (input) => (await addCandidates.mutateAsync(input)).added}
       />
       <ConfirmDialog

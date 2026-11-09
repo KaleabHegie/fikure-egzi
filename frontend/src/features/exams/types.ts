@@ -10,8 +10,24 @@ export interface ExamPart {
   sortOrder: number
 }
 
+/** The class that holds an exam, and optionally the one level of it. */
+export interface ExamClass {
+  id: number
+  nameAm: string
+  nameEn: string
+}
+export interface ExamLevel extends ExamClass {
+  shortLabel: string | null
+}
+
 export interface Exam {
   id: number
+  classTypeId: number
+  /** null = the whole class. */
+  classGradeId: number | null
+  classType: ExamClass & { departmentId: number }
+  classGrade: ExamLevel | null
+  /** The department that runs the class, and so manages the exam. */
   departmentId: number
   nameAm: string
   nameEn: string | null
@@ -32,7 +48,8 @@ export interface Exam {
 }
 
 export interface ExamInput {
-  departmentId: number
+  classTypeId: number
+  classGradeId: number | null
   nameAm: string
   nameEn: string | null
   description: string | null
@@ -87,6 +104,8 @@ export interface MemberExam {
   nameEn: string | null
   heldOn: string | null
   passMark: number
+  classType: ExamClass
+  classGrade: ExamLevel | null
   department: { id: number; nameAm: string; nameEn: string }
   parts: (ExamPart & { score: number | null })[]
   total: number | null
@@ -95,5 +114,5 @@ export interface MemberExam {
 
 export interface ExamListParams {
   search?: string
-  departmentId?: number
+  classTypeId?: number
 }

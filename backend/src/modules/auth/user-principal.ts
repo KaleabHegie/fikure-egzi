@@ -3,8 +3,15 @@ import type { AuthenticatedUser } from '../../common/types/authenticated-user.js
 import type { Prisma } from '../../generated/prisma/client.js';
 
 /** Prisma include that loads everything needed to build an AuthenticatedUser. */
+/** Sub-departments down to three levels below an assigned department (sections included). */
+const CHILDREN = {
+  select: { id: true, children: { select: { id: true, children: { select: { id: true } } } } },
+} as const;
+
 export const USER_WITH_ACCESS = {
-  departments: { select: { departmentId: true } },
+  departments: {
+    select: { departmentId: true, department: { select: { children: CHILDREN } } },
+  },
   roles: {
     include: {
       role: { include: { permissions: { include: { permission: true } } } },
@@ -15,6 +22,10 @@ export const USER_WITH_ACCESS = {
 export type UserWithAccess = Prisma.UserGetPayload<{
   include: typeof USER_WITH_ACCESS;
 }>;
+
+type Child = { id: number; children?: Child[] };
+const descendants = (children: Child[] | undefined): number[] =>
+  (children ?? []).flatMap((c) => [c.id, ...descendants(c.children)]);
 
 export function toAuthenticatedUser(user: UserWithAccess): AuthenticatedUser {
   const permissions = new Set<PermissionCode>();
@@ -30,9 +41,17 @@ export function toAuthenticatedUser(user: UserWithAccess): AuthenticatedUser {
     roles: user.roles.map(({ role }) => role.code),
     permissions: [...permissions].sort(),
     // Any unscoped role (e.g. office administrator) lifts the department restriction.
+    // A department's admin also looks after its sub-departments and their sections.
     departmentIds:
       user.roles.length > 0 && user.roles.every(({ role }) => role.departmentScoped)
-        ? user.departments.map((d) => d.departmentId).sort((a, b) => a - b)
+        ? [
+            ...new Set(
+              user.departments.flatMap((d) => [
+                d.departmentId,
+                ...descendants(d.department?.children),
+              ]),
+            ),
+          ].sort((a, b) => a - b)
         : null,
   };
 }

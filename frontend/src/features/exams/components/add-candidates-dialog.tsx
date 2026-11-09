@@ -1,4 +1,4 @@
-import { Check, GraduationCap, Loader2, Search, UserPlus, Users } from 'lucide-react'
+import { Check, GraduationCap, Loader2, Search, UserPlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -6,17 +6,18 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useClassTypes } from '@/features/classes/api'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
-import { useDepartments } from '@/features/departments/api'
 import { MemberAvatar } from '@/features/members/components/member-avatar'
 import { memberFullName } from '@/features/members/utils'
 import { getErrorMessage } from '@/lib/api/errors'
 import { useCandidateSearch } from '../api'
 
-type AddInput = { memberIds?: number[]; classGradeId?: number; departmentId?: number }
+type AddInput = { memberIds?: number[]; classGradeId?: number; wholeClass?: boolean }
+
+const WHOLE_CLASS = '__whole__'
 
 /** Search box that commits after typing pauses, so each keystroke isn't a request. */
 function useDebounced(value: string, ms = 300) {
@@ -29,28 +30,29 @@ function useDebounced(value: string, ms = 300) {
 }
 
 /**
- * Who sits the exam: everyone in a class level (e.g. Mezmur · Ezel), everyone
- * on a department's roster, or members picked one by one. People already
- * sitting it are skipped.
+ * Who sits the exam: everyone now in one of the exam's class levels (or in
+ * the whole class), or members picked one by one. People already sitting it
+ * are skipped, so this also brings in anyone who joined the class later.
  */
 export function AddCandidatesDialog({
   open,
   onOpenChange,
   examId,
+  classTypeId,
   onAdd,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   examId: number
+  classTypeId: number
   onAdd: (input: AddInput) => Promise<number>
 }) {
   const { t } = useTranslation()
   const name = useLocalizedName()
   const gradeLabel = useGradeLabel()
   const { data: classTypes } = useClassTypes()
-  const { data: departments } = useDepartments()
-  const [gradeId, setGradeId] = useState('')
-  const [departmentId, setDepartmentId] = useState('')
+  const examClass = classTypes?.find((c) => c.id === classTypeId)
+  const [level, setLevel] = useState(WHOLE_CLASS)
   const [search, setSearch] = useState('')
   const [pending, setPending] = useState<string | null>(null)
   const query = useDebounced(search.trim())
@@ -82,14 +84,10 @@ export function AddCandidatesDialog({
           <DialogDescription>{t('exams.candidates.addBody')}</DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="class">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="class">
               <GraduationCap />
               {t('exams.candidates.byClass')}
-            </TabsTrigger>
-            <TabsTrigger value="department">
-              <Users />
-              {t('exams.candidates.byDepartment')}
             </TabsTrigger>
             <TabsTrigger value="member">
               <UserPlus />
@@ -99,57 +97,34 @@ export function AddCandidatesDialog({
 
           <TabsContent value="class" className="grid gap-3 pt-3">
             <Field>
-              <FieldLabel>{t('exams.candidates.classLevel')}</FieldLabel>
-              <Select value={gradeId} onValueChange={setGradeId}>
+              <FieldLabel>{examClass ? t('exams.candidates.levelOf', { name: name(examClass) }) : t('exams.candidates.classLevel')}</FieldLabel>
+              <Select value={level} onValueChange={setLevel}>
                 <SelectTrigger>
-                  <SelectValue placeholder={t('exams.candidates.chooseLevel')} />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(classTypes ?? []).map((type) => (
-                    <SelectGroup key={type.id}>
-                      <SelectLabel>{name(type)}</SelectLabel>
-                      {type.grades.map((g) => (
-                        <SelectItem key={g.id} value={String(g.id)}>
-                          {gradeLabel(g)} · {t('exams.candidates.people', { count: g.memberCount })}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Button
-              disabled={!gradeId || pending !== null}
-              onClick={() => void add('class', { classGradeId: Number(gradeId) })}
-              className="justify-self-end"
-            >
-              {pending === 'class' && <Loader2 className="animate-spin" />}
-              {t('exams.candidates.addAll')}
-            </Button>
-          </TabsContent>
-
-          <TabsContent value="department" className="grid gap-3 pt-3">
-            <Field>
-              <FieldLabel>{t('exams.candidates.departmentRoster')}</FieldLabel>
-              <Select value={departmentId} onValueChange={setDepartmentId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('exams.candidates.chooseDepartment')} />
-                </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  {(departments ?? []).map((d) => (
-                    <SelectItem key={d.id} value={String(d.id)}>
-                      {name(d)} · {t('exams.candidates.people', { count: d.memberCount })}
+                  <SelectItem value={WHOLE_CLASS}>
+                    {t('exams.fields.allLevels')} ·{' '}
+                    {t('exams.candidates.people', {
+                      count: (examClass?.grades ?? []).reduce((sum, g) => sum + g.memberCount, 0),
+                    })}
+                  </SelectItem>
+                  {(examClass?.grades ?? []).map((g) => (
+                    <SelectItem key={g.id} value={String(g.id)}>
+                      {gradeLabel(g)} · {t('exams.candidates.people', { count: g.memberCount })}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
             <Button
-              disabled={!departmentId || pending !== null}
-              onClick={() => void add('department', { departmentId: Number(departmentId) })}
+              disabled={pending !== null}
+              onClick={() =>
+                void add('class', level === WHOLE_CLASS ? { wholeClass: true } : { classGradeId: Number(level) })
+              }
               className="justify-self-end"
             >
-              {pending === 'department' && <Loader2 className="animate-spin" />}
+              {pending === 'class' && <Loader2 className="animate-spin" />}
               {t('exams.candidates.addAll')}
             </Button>
           </TabsContent>

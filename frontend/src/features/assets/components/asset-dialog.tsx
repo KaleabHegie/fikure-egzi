@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useLocalizedName } from '@/features/classes/use-localized'
 import { useDepartments } from '@/features/departments/api'
+import { mainDepartments } from '@/features/departments/types'
 import type { PhotoChange } from '@/features/members/api'
 import { PhotoPicker } from '@/features/members/components/photo-picker'
 import { msg } from '@/i18n'
@@ -71,9 +72,10 @@ export function AssetDialog({
   const { t } = useTranslation()
   const name = useLocalizedName()
   // Department admins only get their own departments; with one, it's preselected.
-  const { data: departments } = useDepartments()
+  const { data: allDepartments } = useDepartments()
+  const departments = mainDepartments(allDepartments ?? [], [asset?.departmentId])
   const { data: categories } = useAssetCategories()
-  const only = departments?.length === 1 ? String(departments[0]!.id) : undefined
+  const only = departments.length === 1 ? String(departments[0]!.id) : undefined
   const currentPhoto = useAssetPhoto(asset)
   const [photo, setPhoto] = useState<PhotoChange>({ kind: 'keep' })
   const form = useForm<Values>({ resolver: zodResolver(schema), values: initial(asset, only) })
@@ -137,7 +139,7 @@ export function AssetDialog({
               label={t('assets.fields.department')}
               description={t('assets.fields.departmentHint')}
               required
-              options={(departments ?? []).map((d) => ({ value: String(d.id), label: name(d) }))}
+              options={departments.map((d) => ({ value: String(d.id), label: name(d) }))}
             />
             <TextField control={control} name="quantity" label={t('assets.fields.quantity')} type="number" inputMode="numeric" min={1} required />
             <TextField control={control} name="location" label={t('assets.fields.location')} />

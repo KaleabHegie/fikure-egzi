@@ -82,3 +82,22 @@ export function buildDepartmentTree(departments: Department[]): DepartmentTreeNo
   }
   return roots
 }
+
+/**
+ * The main departments: those directly under the top office (ፅህፈት ቤት). For a
+ * department admin, whose list starts at their own departments, those are the
+ * main ones. Forms that choose a department offer only these; ids in `keep`
+ * (a record's current department) stay listed even if they sit lower.
+ */
+export function mainDepartments<T extends Pick<Department, 'id' | 'parentId'>>(
+  departments: T[],
+  keep: (number | null | undefined)[] = [],
+): T[] {
+  const byId = new Map(departments.map((d) => [d.id, d]))
+  return departments.filter((d) => {
+    if (keep.includes(d.id)) return true
+    if (d.parentId === null) return false
+    const parent = byId.get(d.parentId)
+    return !parent || parent.parentId === null
+  })
+}

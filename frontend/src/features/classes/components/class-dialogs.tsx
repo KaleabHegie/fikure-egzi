@@ -16,6 +16,7 @@ import {
 import { msg } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
 import { useDepartments } from '@/features/departments/api'
+import { mainDepartments } from '@/features/departments/types'
 import type {
   ClassAgreement,
   ClassAgreementInput,
@@ -132,7 +133,8 @@ export function ClassTypeDialog({
 }) {
   const { t } = useTranslation()
   const localized = useLocalizedName()
-  const { data: departments } = useDepartments()
+  const { data: allDepartments } = useDepartments()
+  const departments = mainDepartments(allDepartments ?? [], [type?.departmentId])
   const form = useForm<TypeValues, unknown, z.output<typeof typeSchema>>({
     resolver: zodResolver(typeSchema),
     values: {
@@ -142,7 +144,7 @@ export function ClassTypeDialog({
       descriptionEn: type?.descriptionEn ?? '',
       descriptionAm: type?.descriptionAm ?? '',
       // Department users only get their own departments; with just one, it's preselected.
-      departmentId: type ? String(type.departmentId) : departments?.length === 1 ? String(departments[0]!.id) : '',
+      departmentId: type ? String(type.departmentId) : departments.length === 1 ? String(departments[0]!.id) : '',
       isActive: type?.isActive ?? true,
     },
   })
@@ -186,7 +188,7 @@ export function ClassTypeDialog({
           label={t('classes.fields.department')}
           description={t('classes.fields.departmentHint')}
           required
-          options={(departments ?? []).map((d) => ({ value: String(d.id), label: localized(d) }))}
+          options={departments.map((d) => ({ value: String(d.id), label: localized(d) }))}
         />
         <SwitchField
           control={control}

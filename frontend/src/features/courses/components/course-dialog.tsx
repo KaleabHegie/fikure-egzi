@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useLocalizedName } from '@/features/classes/use-localized'
 import { useDepartments } from '@/features/departments/api'
+import { mainDepartments } from '@/features/departments/types'
 import { msg } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
 import { COURSE_DURATIONS, type Course, type CourseInput } from '../types'
@@ -42,9 +43,10 @@ export function CourseDialog({
   const { t } = useTranslation()
   const localized = useLocalizedName()
   // Department admins only get their own departments; with one, it's preselected.
-  const { data: departments } = useDepartments()
-  const only = departments?.length === 1 ? String(departments[0]!.id) : undefined
-  const education = departments?.find((d) => d.code === 'EDUCATION')
+  const { data: allDepartments } = useDepartments()
+  const departments = mainDepartments(allDepartments ?? [], [course?.departmentId])
+  const only = departments.length === 1 ? String(departments[0]!.id) : undefined
+  const education = departments.find((d) => d.code === 'EDUCATION')
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     values: {
@@ -108,7 +110,7 @@ export function CourseDialog({
             name="departmentId"
             label={t('courses.fields.department')}
             required
-            options={(departments ?? []).map((d) => ({ value: String(d.id), label: localized(d) }))}
+            options={departments.map((d) => ({ value: String(d.id), label: localized(d) }))}
           />
           <TextareaField control={control} name="description" label={t('courses.fields.description')} rows={3} />
           {course && (

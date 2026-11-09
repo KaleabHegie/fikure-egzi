@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/features/auth/use-auth'
 import { useLocalizedName } from '@/features/classes/use-localized'
 import { useDepartments } from '@/features/departments/api'
+import { mainDepartments } from '@/features/departments/types'
 import { msg, translateMessage } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
 import { cn } from '@/lib/utils'
@@ -164,7 +165,10 @@ export function UserDialog({
   const { data: departments } = useDepartments()
   const self = user?.id === me?.id
   const firstRole = roles?.find((r) => r.code === 'ATTENDANCE_TAKER')?.code ?? roles?.[0]?.code ?? 'ATTENDANCE_TAKER'
-  const ownDepartments = (departments ?? []).filter((d) => inDepartment(d.id))
+  const ownDepartments = mainDepartments(
+    (departments ?? []).filter((d) => inDepartment(d.id)),
+    user?.departments.map((d) => d.id) ?? [],
+  )
   // The member picked in this sitting; undefined = still the saved one.
   const [picked, setLinked] = useState<LinkedMember | null | undefined>(undefined)
   const linked = picked === undefined ? (user?.member ?? null) : picked

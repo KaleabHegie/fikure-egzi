@@ -305,6 +305,7 @@ model ClassType {
   history     ClassPlacementHistory[]
   /// What members placed in this class agree to (e.g. the Mezmur class's code of conduct).
   agreement   ClassAgreement?
+  exams       Exam[]
 
   @@index([isActive, sortOrder])
   @@index([departmentId])
@@ -333,6 +334,7 @@ model ClassGrade {
   /// Service groups usually drawn from this grade (e.g. Mezmur · Araray).
   serviceGroups ServiceGroup[]
   courses       CourseOffering[]
+  exams         Exam[]
 
   @@unique([classTypeId, code])
   @@index([classTypeId, sortOrder])
@@ -388,7 +390,6 @@ model Department {
   assets      Asset[]
   users       UserDepartment[]
   courses     Course[]
-  exams       Exam[]
 
   @@index([parentId, sortOrder])
   @@map("departments")
@@ -916,11 +917,14 @@ model MemberAgreement {
 // Exams (a department's own exams and assessments, not tied to a course)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// An exam or assessment a department runs on its own, e.g. the Mezmur
-/// department's St. John wereb assessment. Its parts and weights are free.
+/// An exam or assessment a class holds outside its courses, e.g. the Mezmur
+/// class's St. John wereb assessment. Its parts and weights are free. It is
+/// managed by the department that runs the class.
 model Exam {
   id           Int       @id @default(autoincrement())
-  departmentId Int       @map("department_id")
+  classTypeId  Int       @map("class_type_id")
+  /// One level of the class (e.g. Ezel), or null for the whole class.
+  classGradeId Int?      @map("class_grade_id")
   nameAm       String    @map("name_am") @db.VarChar(150)
   nameEn       String?   @map("name_en") @db.VarChar(150)
   description  String?   @db.VarChar(1000)
@@ -933,11 +937,13 @@ model Exam {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  department Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  classType  ClassType       @relation(fields: [classTypeId], references: [id], onDelete: Restrict)
+  classGrade ClassGrade?     @relation(fields: [classGradeId], references: [id], onDelete: SetNull)
   parts      ExamPart[]
   candidates ExamCandidate[]
 
-  @@index([departmentId, heldOn])
+  @@index([classTypeId, heldOn])
+  @@index([classGradeId])
   @@map("exams")
 }
 

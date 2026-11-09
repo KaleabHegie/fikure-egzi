@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsInt,
   IsISO8601,
   IsNotEmpty,
@@ -28,11 +29,11 @@ export class QueryExamsDto {
   @MaxLength(100)
   search?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Only exams of this class' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  departmentId?: number;
+  classTypeId?: number;
 }
 
 export class ExamPartDto {
@@ -57,10 +58,19 @@ export class ExamPartDto {
 }
 
 export class CreateExamDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'The class that holds the exam (e.g. the Mezmur class)' })
   @IsInt()
   @Min(1)
-  departmentId: number;
+  classTypeId: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'One level of the class (e.g. Ezel); null for the whole class',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  classGradeId?: number | null;
 
   @ApiProperty({ example: 'የቅዱስ ዮሐንስ ወረብ መመዘኛ', maxLength: 150 })
   @Trim()
@@ -125,17 +135,16 @@ export class AddCandidatesDto {
   @IsInt({ each: true })
   memberIds?: number[];
 
-  @ApiPropertyOptional({ description: 'Everyone now in this class grade (e.g. Mezmur · Geez)' })
+  @ApiPropertyOptional({ description: "Everyone now in this level of the exam's class" })
   @IsOptional()
   @IsInt()
   @Min(1)
   classGradeId?: number;
 
-  @ApiPropertyOptional({ description: "Everyone on this department's roster" })
+  @ApiPropertyOptional({ description: "Everyone now in any level of the exam's class" })
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  departmentId?: number;
+  @IsBoolean()
+  wholeClass?: boolean;
 }
 
 export class QueryCandidateSearchDto {

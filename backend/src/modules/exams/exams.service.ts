@@ -21,7 +21,7 @@ import type {
 } from './dto/exam.dto.js';
 
 const ENTITY = 'Exam';
-const OWN_DEPARTMENT = 'You can only manage the exams of your own departments.';
+const OWN_DEPARTMENT = 'You can only manage the exams of the classes your department runs.';
 
 const MEMBER_NAME = {
   id: true,
@@ -39,7 +39,8 @@ const toMember = ({ photoPath, ...m }: MemberRow) => ({ ...m, hasPhoto: photoPat
 
 const EXAM_SELECT = {
   id: true,
-  departmentId: true,
+  classTypeId: true,
+  classGradeId: true,
   nameAm: true,
   nameEn: true,
   description: true,
@@ -47,7 +48,16 @@ const EXAM_SELECT = {
   passMark: true,
   createdAt: true,
   updatedAt: true,
-  department: { select: { id: true, nameAm: true, nameEn: true } },
+  classType: {
+    select: {
+      id: true,
+      nameAm: true,
+      nameEn: true,
+      departmentId: true,
+      department: { select: { id: true, nameAm: true, nameEn: true } },
+    },
+  },
+  classGrade: { select: { id: true, nameAm: true, nameEn: true, shortLabel: true } },
   parts: {
     orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     select: { id: true, name: true, weight: true, sortOrder: true },
@@ -59,10 +69,14 @@ type ExamRow = Prisma.ExamGetPayload<{ select: typeof EXAM_SELECT }>;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-const toExam = ({ _count, parts, ...e }: ExamRow) => {
+const toExam = ({ _count, parts, classType: { department, ...classType }, ...e }: ExamRow) => {
   const outParts = parts.map((p) => ({ ...p, weight: Number(p.weight) }));
   return {
     ...e,
+    classType,
+    /** The department that runs the class, and so manages the exam. */
+    department,
+    departmentId: classType.departmentId,
     parts: outParts,
     totalWeight: round2(outParts.reduce((sum, p) => sum + p.weight, 0)),
     candidateCount: _count.candidates,
@@ -70,10 +84,10 @@ const toExam = ({ _count, parts, ...e }: ExamRow) => {
 };
 
 /**
- * A department's own exams and assessments (e.g. the Mezmur department's St.
- * John wereb assessment): free parts with weights, chosen candidates, and a
- * mark per candidate per part. Department admins manage only their own
- * departments' exams.
+ * A class's own exams and assessments outside its courses (e.g. the Mezmur
+ * class's St. John wereb assessment): free parts with weights, candidates
+ * from the class's levels, and a mark per candidate per part. Department
+ * admins manage the exams of the classes their departments run.
  */
 @Injectable()
 export class ExamsService {
@@ -88,8 +102,8 @@ export class ExamsService {
     const search = q.search?.trim();
     const exams = await this.prisma.exam.findMany({
       where: {
-        ...(scope !== null && { departmentId: { in: scope } }),
-        ...(q.departmentId && { departmentId: q.departmentId }),
+        ...(scope !== null && { classType: { departmentId: { in: scope } } }),
+        ...(q.classTypeId && { classTypeId: q.classTypeId }),
         ...(search && {
           OR: [{ nameAm: { contains: search } }, { nameEn: { contains: search } }],
         }),
@@ -114,46 +128,78 @@ export class ExamsService {
     };
   }
 
+  /**
+   * Creates the exam and, as its first candidates, everyone now in the chosen
+   * level (or in any level of the class when no level is chosen).
+   */
   async create(dto: CreateExamDto, actor: AuthenticatedUser) {
-    assertInScope(actor.departmentIds, dto.departmentId, OWN_DEPARTMENT);
-    await this.assertDepartment(dto.departmentId);
-    const { parts, heldOn, ...fields } = dto;
+    await this.assertClass(dto.classTypeId, dto.classGradeId ?? null, actor);
+    const { parts, heldOn, classGradeId, ...fields } = dto;
     if (parts) this.assertParts(parts);
-    const exam = await this.prisma.exam.create({
-      data: {
-        ...fields,
-        heldOn: heldOn ? dateOnly(heldOn) : null,
-        createdById: actor.id,
-        updatedById: actor.id,
-        ...(parts && {
-          parts: {
-            create: parts.map((p, sortOrder) => ({ name: p.name, weight: p.weight, sortOrder })),
+    const exam = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.exam.create({
+        data: {
+          ...fields,
+          classGradeId: classGradeId ?? null,
+          heldOn: heldOn ? dateOnly(heldOn) : null,
+          createdById: actor.id,
+          updatedById: actor.id,
+          ...(parts && {
+            parts: {
+              create: parts.map((p, sortOrder) => ({ name: p.name, weight: p.weight, sortOrder })),
+            },
+          }),
+        },
+        select: { id: true },
+      });
+      const members = await tx.member.findMany({
+        where: {
+          deletedAt: null,
+          classEnrollments: {
+            some: classGradeId ? { classGradeId } : { classTypeId: dto.classTypeId },
           },
-        }),
-      },
-      select: { id: true },
+        },
+        select: { id: true },
+      });
+      await tx.examCandidate.createMany({
+        data: members.map((m) => ({ examId: created.id, memberId: m.id, addedById: actor.id })),
+        skipDuplicates: true,
+      });
+      return created;
     });
     await this.audit.record({
       userId: actor.id,
       action: 'CREATE',
       entity: ENTITY,
       entityId: exam.id,
-      changes: { name: dto.nameAm, departmentId: dto.departmentId },
+      changes: {
+        name: dto.nameAm,
+        classTypeId: dto.classTypeId,
+        classGradeId: classGradeId ?? null,
+      },
     });
     return this.findOne(exam.id, actor);
   }
 
+  /** Changes the details. Moving it to another class or level keeps its candidates. */
   async update(id: number, dto: UpdateExamDto, actor: AuthenticatedUser) {
-    await this.managed(id, actor);
-    if (dto.departmentId !== undefined) {
-      assertInScope(actor.departmentIds, dto.departmentId, OWN_DEPARTMENT);
-      await this.assertDepartment(dto.departmentId);
+    const current = await this.managed(id, actor);
+    if (dto.classTypeId !== undefined || dto.classGradeId !== undefined) {
+      await this.assertClass(
+        dto.classTypeId ?? current.classTypeId,
+        dto.classGradeId !== undefined ? dto.classGradeId : current.classGradeId,
+        actor,
+      );
     }
     const { heldOn, ...fields } = dto;
     await this.prisma.exam.update({
       where: { id },
       data: {
         ...fields,
+        // Changing the class drops a level that belongs to the old one.
+        ...(dto.classTypeId !== undefined &&
+          dto.classTypeId !== current.classTypeId &&
+          dto.classGradeId === undefined && { classGradeId: null }),
         ...(heldOn !== undefined && { heldOn: heldOn ? dateOnly(heldOn) : null }),
         updatedById: actor.id,
       },
@@ -270,15 +316,26 @@ export class ExamsService {
     return { exam, candidates: rows };
   }
 
-  /** Adds individual members, a whole class grade, and/or a department's roster. */
+  /** Adds individual members, everyone in one of the class's levels, or the whole class. */
   async addCandidates(id: number, dto: AddCandidatesDto, actor: AuthenticatedUser) {
-    await this.managed(id, actor);
+    const exam = await this.managed(id, actor);
     const ors: Prisma.MemberWhereInput[] = [];
     if (dto.memberIds?.length) ors.push({ id: { in: dto.memberIds } });
-    if (dto.classGradeId)
+    if (dto.classGradeId) {
+      const grade = await this.prisma.classGrade.findFirst({
+        where: { id: dto.classGradeId, classTypeId: exam.classTypeId },
+        select: { id: true },
+      });
+      if (!grade) {
+        throw new ValidationFailedException([
+          { field: 'classGradeId', messages: ['exams.levelOutsideClass'] },
+        ]);
+      }
       ors.push({ classEnrollments: { some: { classGradeId: dto.classGradeId } } });
-    if (dto.departmentId)
-      ors.push({ departmentRoles: { some: { departmentId: dto.departmentId } } });
+    }
+    if (dto.wholeClass) {
+      ors.push({ classEnrollments: { some: { classTypeId: exam.classTypeId } } });
+    }
     if (ors.length === 0) {
       throw new ValidationFailedException([
         { field: 'memberIds', messages: ['exams.chooseCandidates'] },
@@ -405,7 +462,7 @@ export class ExamsService {
     const rows = await this.prisma.exam.findMany({
       where: {
         candidates: { some: { memberId } },
-        ...(scope !== null && { departmentId: { in: scope } }),
+        ...(scope !== null && { classType: { departmentId: { in: scope } } }),
       },
       orderBy: [{ heldOn: { sort: 'desc', nulls: 'first' } }, { id: 'desc' }],
       select: EXAM_SELECT,
@@ -428,6 +485,8 @@ export class ExamsService {
         nameEn: exam.nameEn,
         heldOn: exam.heldOn,
         passMark: exam.passMark,
+        classType: exam.classType,
+        classGrade: exam.classGrade,
         department: exam.department,
         parts: exam.parts.map((p) => ({ ...p, score: mine[p.id] ?? null })),
         ...this.result(exam, mine),
@@ -500,7 +559,7 @@ export class ExamsService {
 
   private async row(id: number, scope: DepartmentScope) {
     const row = await this.prisma.exam.findFirst({
-      where: { id, ...(scope !== null && { departmentId: { in: scope } }) },
+      where: { id, ...(scope !== null && { classType: { departmentId: { in: scope } } }) },
       select: EXAM_SELECT,
     });
     if (!row) throw new NotFoundException(`Exam ${id} not found`);
@@ -510,14 +569,27 @@ export class ExamsService {
   /** An exam the actor may change (its department is theirs). */
   private async managed(id: number, actor: AuthenticatedUser) {
     const row = await this.row(id, actor.departmentIds);
-    assertInScope(actor.departmentIds, row.departmentId, OWN_DEPARTMENT);
+    assertInScope(actor.departmentIds, row.classType.departmentId, OWN_DEPARTMENT);
     return row;
   }
 
-  private async assertDepartment(departmentId: number) {
-    if (!(await this.prisma.department.count({ where: { id: departmentId } }))) {
+  /** The class exists, the level (if any) is one of its levels, and the actor's department runs it. */
+  private async assertClass(
+    classTypeId: number,
+    classGradeId: number | null,
+    actor: AuthenticatedUser,
+  ) {
+    const type = await this.prisma.classType.findUnique({
+      where: { id: classTypeId },
+      select: { departmentId: true, grades: { select: { id: true } } },
+    });
+    if (!type) {
+      throw new ValidationFailedException([{ field: 'classTypeId', messages: ['Unknown class'] }]);
+    }
+    assertInScope(actor.departmentIds, type.departmentId, OWN_DEPARTMENT);
+    if (classGradeId !== null && !type.grades.some((g) => g.id === classGradeId)) {
       throw new ValidationFailedException([
-        { field: 'departmentId', messages: ['Unknown department'] },
+        { field: 'classGradeId', messages: ['exams.levelOutsideClass'] },
       ]);
     }
   }

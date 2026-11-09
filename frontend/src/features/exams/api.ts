@@ -26,7 +26,7 @@ export const examsApi = {
   update: (id: number, input: Partial<ExamInput>) => api.patch<Exam>(`/exams/${id}`, input),
   remove: (id: number) => api.delete(`/exams/${id}`),
   setParts: (id: number, parts: ExamPartInput[]) => api.put<Exam>(`/exams/${id}/parts`, { parts }),
-  addCandidates: (id: number, input: { memberIds?: number[]; classGradeId?: number; departmentId?: number }) =>
+  addCandidates: (id: number, input: { memberIds?: number[]; classGradeId?: number; wholeClass?: boolean }) =>
     api.post<ExamSheet & { added: number }>(`/exams/${id}/candidates`, input),
   removeCandidate: (id: number, memberId: number) => api.delete(`/exams/${id}/candidates/${memberId}`),
   candidateSearch: (id: number, search: string) =>

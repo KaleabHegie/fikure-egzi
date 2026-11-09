@@ -2,7 +2,7 @@ import { ClipboardCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useLocalizedName } from '@/features/classes/use-localized'
+import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { formatDate } from '@/lib/format'
 import { useMemberExams } from '../api'
 import { ExamResultBadge } from './exam-result-badge'
@@ -11,6 +11,7 @@ import { ExamResultBadge } from './exam-result-badge'
 export function MemberExamsPanel({ memberId }: { memberId: number }) {
   const { t, i18n } = useTranslation()
   const name = useLocalizedName()
+  const gradeLabel = useGradeLabel()
   const { data, isPending } = useMemberExams(memberId)
 
   if (isPending) return <Skeleton className="h-32 rounded-xl" />
@@ -31,7 +32,8 @@ export function MemberExamsPanel({ memberId }: { memberId: number }) {
                   {i18n.language === 'en' && exam.nameEn ? exam.nameEn : exam.nameAm}
                 </Link>
                 <p className="text-xs text-muted-foreground">
-                  {name(exam.department)}
+                  {name(exam.classType)}
+                  {exam.classGrade && ` · ${gradeLabel(exam.classGrade)}`}
                   {exam.heldOn && ` · ${formatDate(exam.heldOn)}`}
                 </p>
               </div>

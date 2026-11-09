@@ -20,11 +20,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/features/auth/use-auth'
-import { useLocalizedName } from '@/features/classes/use-localized'
-import { useDepartments } from '@/features/departments/api'
+import { useClassTypes } from '@/features/classes/api'
+import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { formatDate } from '@/lib/format'
 import { PERMISSIONS } from '@/lib/permissions'
-import { cn } from '@/lib/utils'
 import { examsApi, useExamMutation, useExams } from '../api'
 import { ExamDialog } from '../components/exam-dialog'
 import type { Exam } from '../types'
@@ -34,6 +33,7 @@ const ALL = '__all__'
 function ExamCard({ exam, index }: { exam: Exam; index: number }) {
   const { t, i18n } = useTranslation()
   const name = useLocalizedName()
+  const gradeLabel = useGradeLabel()
   const title = i18n.language === 'en' && exam.nameEn ? exam.nameEn : exam.nameAm
   const other = i18n.language === 'en' ? (exam.nameEn ? exam.nameAm : null) : exam.nameEn
   const progress = exam.candidateCount > 0 ? Math.round((exam.markedCount / exam.candidateCount) * 100) : 0
@@ -52,7 +52,9 @@ function ExamCard({ exam, index }: { exam: Exam; index: number }) {
           </Link>
           {other && <p className="truncate text-xs text-muted-foreground">{other}</p>}
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground/80">{name(exam.department)}</span>
+            <span className="font-medium text-foreground/80">
+              {name(exam.classType)} · {exam.classGrade ? gradeLabel(exam.classGrade) : t('exams.fields.allLevels')}
+            </span>
             {exam.heldOn && (
               <span className="inline-flex items-center gap-1">
                 <CalendarDays className="size-3" aria-hidden />
@@ -108,10 +110,10 @@ export function ExamsPage() {
   const { can } = useAuth()
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [departmentId, setDepartmentId] = useState<number | undefined>()
+  const [classTypeId, setClassTypeId] = useState<number | undefined>()
   const [creating, setCreating] = useState(false)
-  const { data: departments } = useDepartments()
-  const { data, isPending, isError, error, refetch } = useExams({ search: query || undefined, departmentId })
+  const { data: classTypes } = useClassTypes()
+  const { data, isPending, isError, error, refetch } = useExams({ search: query || undefined, classTypeId })
   const create = useExamMutation(examsApi.create)
 
   useEffect(() => {
@@ -119,8 +121,8 @@ export function ExamsPage() {
     return () => clearTimeout(id)
   }, [search])
 
-  const department = departments?.find((d) => d.id === departmentId)
-  const hasFilters = Boolean(query || departmentId)
+  const chosenClass = classTypes?.find((c) => c.id === classTypeId)
+  const hasFilters = Boolean(query || classTypeId)
 
   let body: React.ReactNode
   if (isError) body = <ErrorState error={error} onRetry={() => void refetch()} className="rounded-xl border bg-card" />
@@ -187,8 +189,8 @@ export function ExamsPage() {
             className="pl-8"
           />
         </div>
-        {department && (
-          <FilterChip category={t('nav.departments')} value={name(department)} onClear={() => setDepartmentId(undefined)} />
+        {chosenClass && (
+          <FilterChip category={t('exams.fields.class')} value={name(chosenClass)} onClear={() => setClassTypeId(undefined)} />
         )}
         {hasFilters && (
           <Button
@@ -196,7 +198,7 @@ export function ExamsPage() {
             size="sm"
             onClick={() => {
               setSearch('')
-              setDepartmentId(undefined)
+              setClassTypeId(undefined)
             }}
           >
             <X />
@@ -208,7 +210,7 @@ export function ExamsPage() {
             <Button variant="outline">
               <ListFilter />
               {t('common.filter')}
-              {departmentId && (
+              {classTypeId && (
                 <span className="tabular grid size-5 place-items-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
                   1
                 </span>
@@ -217,16 +219,16 @@ export function ExamsPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>{t('nav.departments')}</DropdownMenuSubTrigger>
+              <DropdownMenuSubTrigger>{t('exams.fields.class')}</DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="max-h-80 overflow-y-auto">
                 <DropdownMenuRadioGroup
-                  value={departmentId ? String(departmentId) : ALL}
-                  onValueChange={(v) => setDepartmentId(v === ALL ? undefined : Number(v))}
+                  value={classTypeId ? String(classTypeId) : ALL}
+                  onValueChange={(v) => setClassTypeId(v === ALL ? undefined : Number(v))}
                 >
-                  <DropdownMenuRadioItem value={ALL}>{t('exams.allDepartments')}</DropdownMenuRadioItem>
-                  {(departments ?? []).map((d) => (
-                    <DropdownMenuRadioItem key={d.id} value={String(d.id)} className={cn(d.parentId !== null && 'pl-8')}>
-                      {name(d)}
+                  <DropdownMenuRadioItem value={ALL}>{t('exams.allClasses')}</DropdownMenuRadioItem>
+                  {(classTypes ?? []).map((c) => (
+                    <DropdownMenuRadioItem key={c.id} value={String(c.id)}>
+                      {name(c)}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>

@@ -886,6 +886,7 @@ export const en = {
       collectsTitle: 'What the bot asks for',
       collects: {
         personal: 'Full name, Christian name, gender, date and place of birth, marital status, spiritual father',
+        classes: 'Their current level in each class (Mezmur, Course, …)',
         contact: 'Phone verified by Telegram, another phone, email',
         address: 'City, sub-city, woreda, kebele, house number',
         work: 'Education level and occupation',

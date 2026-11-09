@@ -29,6 +29,7 @@ export function SettingsPage() {
     )
   const collected = [
     t('settings.selfRegistration.collects.personal'),
+    t('settings.selfRegistration.collects.classes'),
     t('settings.selfRegistration.collects.contact'),
     t('settings.selfRegistration.collects.address'),
     t('settings.selfRegistration.collects.work'),

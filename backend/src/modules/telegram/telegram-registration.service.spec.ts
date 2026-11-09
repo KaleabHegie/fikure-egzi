@@ -6,7 +6,7 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { MembersService } from '../members/members.service.js';
 import type { SettingsService } from '../settings/settings.service.js';
 import type { TelegramApi, TgMessage } from './telegram-api.js';
-import { QUESTION_COUNT, TelegramRegistrationService } from './telegram-registration.service.js';
+import { TelegramRegistrationService } from './telegram-registration.service.js';
 import { REG_TEXT } from './telegram-registration.texts.js';
 
 type Row = {
@@ -83,6 +83,29 @@ class FakeDb {
     },
   };
 
+  classes = [
+    {
+      id: 1,
+      nameAm: 'የመዝሙር ክፍል',
+      nameEn: 'Mezmur class',
+      grades: [
+        { id: 11, nameAm: 'ግዕዝ', nameEn: 'Geez' },
+        { id: 12, nameAm: 'ዕዝል', nameEn: 'Ezel' },
+      ],
+    },
+    {
+      id: 2,
+      nameAm: 'የኮርስ ክፍል',
+      nameEn: 'Course class',
+      grades: [
+        { id: 21, nameAm: '1ኛ ክፍል', nameEn: 'Grade 1' },
+        { id: 22, nameAm: '2ኛ ክፍል', nameEn: 'Grade 2' },
+      ],
+    },
+  ];
+
+  classType = { findMany: async () => this.classes };
+
   telegramLink = {
     upsert: async ({ create }: { create: Record<string, unknown> }) => {
       this.links.push(create);
@@ -115,6 +138,8 @@ const FULL: (string | Partial<TgMessage>)[] = [
   'Debre Berhan',
   t.maritalStatus.SINGLE!,
   'Aba Gebre Mariam',
+  'Geez', // Mezmur class
+  t.skip, // Course class: not placed
   '+251 922 33 44 55',
   'Abebe@Example.com',
   t.addisAbaba,
@@ -132,6 +157,8 @@ const FULL: (string | Partial<TgMessage>)[] = [
   PHOTO,
   t.agree,
 ];
+/** Index in FULL of the answer to each question used below. */
+const AT = { occupation: 20, photo: 26, agreement: 27 };
 
 describe('TelegramRegistrationService', () => {
   let db: FakeDb;
@@ -155,11 +182,13 @@ describe('TelegramRegistrationService', () => {
     create.mockReset().mockResolvedValue({ id: 7, memberCode: 'FE-00007' });
     setPhoto.mockReset().mockResolvedValue({});
     downloadFile.mockReset().mockResolvedValue(Buffer.from('jpeg-bytes'));
+    const record = (text: string) => {
+      sent.push(text);
+      return Promise.resolve(null);
+    };
     const api = {
-      sendMessage: (_chat: bigint, text: string) => {
-        sent.push(text);
-        return Promise.resolve(null);
-      },
+      sendMessage: (_chat: bigint, text: string) => record(text),
+      sendPhoto: (_chat: bigint, _photo: Buffer, _name: string, caption: string) => record(caption),
       downloadFile,
     };
     const settings = { get: () => Promise.resolve(open) };
@@ -188,12 +217,15 @@ describe('TelegramRegistrationService', () => {
   const last = () => sent.at(-1) ?? '';
   const start = () => service.offer(CHAT, 42, PHONE, 'en');
 
-  it('asks every member-form question and registers the member with all of it', async () => {
+  it('asks every member-form question, classes included, and registers the member', async () => {
     await start();
+    expect(last()).toContain('<b>26</b> short questions');
     await sayAll(FULL);
     expect(step()).toBe('confirm');
-    expect(sent.some((m) => m.includes(`Question ${QUESTION_COUNT}/${QUESTION_COUNT}`))).toBe(true);
+    expect(sent.some((m) => m.includes('26 / 26'))).toBe(true);
     expect(last()).toContain('Abebe Kebede Tesfaye');
+    expect(last()).toContain('Mezmur class: <b>Geez</b>');
+    expect(last()).toContain('Course class: <b>Not placed</b>');
 
     await say(t.confirm);
 
@@ -224,6 +256,7 @@ describe('TelegramRegistrationService', () => {
       hasHealthCondition: true,
       healthConditionNote: 'Asthma, carries an inhaler',
       agreementAccepted: true,
+      classGradeIds: [11],
     });
     expect(create.mock.calls[0]?.[4]).toEqual({ selfRegistered: true });
     // The largest size that fits the photo limit is the one downloaded and stored.
@@ -236,6 +269,28 @@ describe('TelegramRegistrationService', () => {
     expect(last()).toContain('FE-00007');
   });
 
+  it('shows each question under its section with a progress bar', async () => {
+    await start();
+    await say(t.start);
+    expect(last()).toContain(t.sections.personal);
+    expect(last()).toContain('▰▱▱▱▱▱▱▱▱▱');
+    expect(last()).toContain('1 / 26');
+    expect(last()).toContain(`<b>${t.ask.firstName.q}</b>`);
+
+    await sayAll(FULL.slice(1, 10));
+    expect(step()).toBe('class:1');
+    expect(last()).toContain(t.sections.classes);
+    expect(last()).toContain('Mezmur class');
+  });
+
+  it('only accepts a grade of the class being asked about', async () => {
+    await start();
+    await sayAll(FULL.slice(0, 10));
+    await say('Grade 1'); // a Course grade, not a Mezmur one
+    expect(step()).toBe('class:1');
+    expect(sent.at(-2)).toContain(t.invalid.choose);
+  });
+
   it('re-asks the same question when an answer is invalid', async () => {
     await start();
     await sayAll([t.start, 'Ab3be']);
@@ -246,7 +301,7 @@ describe('TelegramRegistrationService', () => {
     expect(step()).toBe('dateOfBirth');
     expect(sent.at(-2)).toContain('could not be read');
 
-    await sayAll(['15/01/2000', t.skip, t.skip, t.skip, '12345']);
+    await sayAll(['15/01/2000', t.skip, t.skip, t.skip, t.skip, t.skip, '12345']);
     expect(step()).toBe('alternatePhone');
     expect(sent.at(-2)).toContain(t.invalid.phone);
 
@@ -257,26 +312,26 @@ describe('TelegramRegistrationService', () => {
 
   it('skips follow-up questions whose lead answer was "none"', async () => {
     await start();
-    // Up to and including occupation (FULL[18]), then no emergency contact.
-    await sayAll([...FULL.slice(0, 19), t.skip]);
+    await sayAll([...FULL.slice(0, AT.occupation + 1), t.skip]);
     expect(step()).toBe('health');
     await say(t.no);
     expect(step()).toBe('photo');
   });
 
-  it('goes back to the previous question that was actually asked', async () => {
+  it('goes back to the previous question that was asked, showing the earlier answer', async () => {
     await start();
-    await sayAll([...FULL.slice(0, 19), t.skip]);
+    await sayAll([...FULL.slice(0, AT.occupation + 1), t.skip]);
     expect(step()).toBe('health');
     await say(t.back);
     expect(step()).toBe('emergencyContactName');
     await say(t.back);
     expect(step()).toBe('occupation');
+    expect(last()).toContain(t.current('Teacher'));
   });
 
   it('turns away a photo that is too large and lets the person skip the photo', async () => {
     await start();
-    await sayAll(FULL.slice(0, 24));
+    await sayAll(FULL.slice(0, AT.photo));
     expect(step()).toBe('photo');
     await say({ photo: [{ file_id: 'huge', file_size: 5_000_000, width: 4000, height: 4000 }] });
     expect(step()).toBe('photo');
@@ -320,7 +375,7 @@ describe('TelegramRegistrationService', () => {
 
   it('ends without registering when the agreement is not accepted', async () => {
     await start();
-    await sayAll(FULL.slice(0, 25));
+    await sayAll(FULL.slice(0, AT.agreement));
     expect(step()).toBe('agreement');
     await say(t.cancel);
     expect(db.rows).toHaveLength(0);

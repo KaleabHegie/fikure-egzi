@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { isEmail } from 'class-validator';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
 import {
   ETHIOPIAN_PHONE_REGEX,
@@ -14,11 +16,11 @@ import { MAX_PHOTO_BYTES, MembersService } from '../members/members.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { TelegramApi, type TgMessage } from './telegram-api.js';
 import { buttons, menu, shareKeyboard } from './telegram.keyboards.js';
-import { REG_TEXT } from './telegram-registration.texts.js';
+import { type Ask, REG_TEXT } from './telegram-registration.texts.js';
 import { AGREEMENT, type BotLang, ecDate, esc, TEXT } from './telegram.texts.js';
 
-/** Every question, in the order asked: the whole member form, then health, photo and agreement. */
-const QUESTIONS = [
+/** The member form's personal section, asked first. */
+const PERSONAL = [
   'firstName',
   'fatherName',
   'grandfatherName',
@@ -28,6 +30,10 @@ const QUESTIONS = [
   'placeOfBirth',
   'maritalStatus',
   'spiritualFatherName',
+] as const;
+
+/** Everything after the class placements: the rest of the form, then health, photo and agreement. */
+const REST = [
   'alternatePhone',
   'email',
   'city',
@@ -46,16 +52,39 @@ const QUESTIONS = [
   'agreement',
 ] as const;
 
-type Question = (typeof QUESTIONS)[number];
-type Step = 'offer' | Question | 'confirm' | 'submitting';
+type Question = (typeof PERSONAL)[number] | (typeof REST)[number];
+/** One question per class type: which grade the person is in. */
+type ClassStep = `class:${number}`;
+type Step = 'offer' | Question | ClassStep | 'confirm' | 'submitting';
+type Section = keyof (typeof REG_TEXT)['am']['sections'];
 
-const FLOW: readonly Step[] = [...QUESTIONS, 'confirm'];
-
-/** The health note shares the health question's number. */
-const NUMBERED = QUESTIONS.filter((q) => q !== 'healthNote');
-export const QUESTION_COUNT = NUMBERED.length;
-const questionNumber = (step: Step) =>
-  NUMBERED.indexOf((step === 'healthNote' ? 'health' : step) as (typeof NUMBERED)[number]) + 1;
+const SECTION: Record<Question, Section> = {
+  firstName: 'personal',
+  fatherName: 'personal',
+  grandfatherName: 'personal',
+  christianName: 'personal',
+  gender: 'personal',
+  dateOfBirth: 'personal',
+  placeOfBirth: 'personal',
+  maritalStatus: 'personal',
+  spiritualFatherName: 'personal',
+  alternatePhone: 'contact',
+  email: 'contact',
+  city: 'address',
+  subCity: 'address',
+  woreda: 'address',
+  kebele: 'address',
+  houseNumber: 'address',
+  educationLevel: 'work',
+  occupation: 'work',
+  emergencyContactName: 'emergency',
+  emergencyContactRelation: 'emergency',
+  emergencyContactPhone: 'emergency',
+  health: 'health',
+  healthNote: 'health',
+  photo: 'photo',
+  agreement: 'agreement',
+};
 
 type TextKey =
   | 'firstName'
@@ -101,20 +130,40 @@ const TEXT_RULES: Record<
   emergencyContactPhone: { kind: 'phone', max: 20, optional: false },
 };
 const isTextKey = (step: Step): step is TextKey => step in TEXT_RULES;
+const isClassStep = (step: Step): step is ClassStep => step.startsWith('class:');
+const classIdOf = (step: ClassStep) => Number(step.slice('class:'.length));
 const OPTIONAL_CHOICES = new Set<Step>(['maritalStatus', 'educationLevel', 'photo']);
 const isOptional = (step: Step) =>
-  (isTextKey(step) && TEXT_RULES[step].optional) || OPTIONAL_CHOICES.has(step);
+  (isTextKey(step) && TEXT_RULES[step].optional) || OPTIONAL_CHOICES.has(step) || isClassStep(step);
 
 type Answers = { [K in TextKey]?: string | null } & {
   gender?: 'MALE' | 'FEMALE';
   dateOfBirth?: string;
   maritalStatus?: MaritalStatus | null;
   educationLevel?: EducationLevel | null;
+  /** classTypeId → classGradeId (null = not placed). */
+  classGrades?: Record<string, number | null>;
   hasHealthCondition?: boolean;
   healthConditionNote?: string | null;
   photoFileId?: string | null;
   agreed?: boolean;
 };
+
+/** A class type offered on the member form, with its grades. */
+type ClassOption = {
+  id: number;
+  nameAm: string;
+  nameEn: string;
+  grades: { id: number; nameAm: string; nameEn: string }[];
+};
+
+/** The questions for this conversation: class questions depend on what the office offers. */
+const flowFor = (classes: ClassOption[]): Step[] => [
+  ...PERSONAL,
+  ...classes.map((c): ClassStep => `class:${c.id}`),
+  ...REST,
+  'confirm',
+];
 
 /** Follow-up questions are asked only when their lead question was answered. */
 const applies = (step: Step, a: Answers) => {
@@ -124,10 +173,12 @@ const applies = (step: Step, a: Answers) => {
   }
   return true;
 };
-const nextStep = (step: Step, a: Answers): Step =>
-  FLOW.slice(FLOW.indexOf(step) + 1).find((s) => applies(s, a)) ?? 'confirm';
-const previousStep = (step: Step, a: Answers): Step | null =>
-  FLOW.slice(0, Math.max(FLOW.indexOf(step), 0)).findLast((s) => applies(s, a)) ?? null;
+const nextStep = (flow: Step[], step: Step, a: Answers): Step =>
+  flow.slice(flow.indexOf(step) + 1).find((s) => applies(s, a)) ?? 'confirm';
+const previousStep = (flow: Step[], step: Step, a: Answers): Step | null =>
+  flow.slice(0, Math.max(flow.indexOf(step), 0)).findLast((s) => applies(s, a)) ?? null;
+/** Numbered questions; the health note shares the health question's number. */
+const numbered = (flow: Step[]) => flow.filter((s) => s !== 'healthNote' && s !== 'confirm');
 
 type Registration = {
   id: number;
@@ -144,11 +195,16 @@ type PhotoInput = { fileId: string } | 'tooLarge' | 'badType';
 
 /** Abandoned conversations are cleared after this long. */
 const STALE_AFTER_MS = 30 * 86_400_000;
+/** Class types change rarely; re-read them at most this often. */
+const CLASS_CACHE_MS = 60_000;
 const ADDIS_ABABA = 'Addis Ababa';
+const BAR_CELLS = 10;
 
 const toLang = (value: string): BotLang => (value === 'en' ? 'en' : 'am');
 const fullName = (a: Answers) =>
   [a.firstName, a.fatherName, a.grandfatherName].filter(Boolean).join(' ');
+const localName = (x: { nameAm: string; nameEn: string }, lang: BotLang) =>
+  lang === 'am' ? x.nameAm : x.nameEn;
 
 /** Letters (any script), spaces, apostrophes, dots and hyphens; no digits or markup. */
 const validName = (text: string) =>
@@ -159,6 +215,20 @@ const validName = (text: string) =>
 
 const keyFor = (labels: Record<string, string>, label: string) =>
   Object.entries(labels).find(([, text]) => text === label)?.[0];
+
+/** Splits button labels into rows of `size`. */
+const rows = (labels: string[], size: number) =>
+  labels.reduce<string[][]>((out, label, i) => {
+    if (i % size === 0) out.push([label]);
+    else out.at(-1)!.push(label);
+    return out;
+  }, []);
+
+/** ▰▰▰▱▱▱▱▱▱▱ */
+const progressBar = (n: number, total: number) => {
+  const filled = Math.max(1, Math.round((n / total) * BAR_CELLS));
+  return '▰'.repeat(filled) + '▱'.repeat(BAR_CELLS - filled);
+};
 
 function photoFrom(message: TgMessage): PhotoInput | undefined {
   if (message.photo?.length) {
@@ -180,14 +250,16 @@ type Outcome = { answers: Answers } | { error: string } | { action: 'restart' | 
 
 /**
  * Self-registration through the bot, one question at a time, covering every
- * field of the member form. Only offered to a chat whose shared
- * (Telegram-verified) number is on no member record, and only while the
- * office has it switched on in Settings. The conversation lives in the
- * database so any process can pick up the next answer.
+ * field of the member form (class placements included). Only offered to a
+ * chat whose shared (Telegram-verified) number is on no member record, and
+ * only while the office has it switched on in Settings. The conversation
+ * lives in the database so any process can pick up the next answer.
  */
 @Injectable()
 export class TelegramRegistrationService {
   private readonly logger = new Logger('TelegramRegistration');
+  private classCache: { at: number; classes: ClassOption[] } | null = null;
+  private seal: Buffer | null = null;
 
   constructor(
     private readonly api: TelegramApi,
@@ -226,17 +298,22 @@ export class TelegramRegistrationService {
       create: { chatId, ...data },
       update: data,
     });
-    return this.ask(chatId, 'offer', {}, lang, phone);
+    return this.ask(chatId, 'offer', {}, lang, phone, await this.classes());
   }
 
   /** The next message from a chat that is registering. */
   async onMessage(reg: Registration, message: TgMessage) {
     const lang = toLang(reg.language);
     const t = REG_TEXT[lang];
-    const step = reg.step as Step;
+    const classes = await this.classes();
+    const flow = flowFor(classes);
     const answers = (reg.answers ?? {}) as Answers;
+    let step = reg.step as Step;
+    // A class the office stopped offering mid-conversation: carry on after the classes.
+    if (isClassStep(step) && !flow.includes(step)) step = REST[0];
     const input = (message.text ?? message.caption ?? '').trim();
     const photo = photoFrom(message);
+    const ask = (s: Step, a: Answers) => this.ask(reg.chatId, s, a, lang, reg.phone, classes);
 
     if (step === 'submitting') return this.api.sendMessage(reg.chatId, t.wait);
     if (input === t.cancel || input === '/cancel') {
@@ -244,30 +321,52 @@ export class TelegramRegistrationService {
     }
     if (!(await this.isOpen())) return this.end(reg, lang, t.closed);
     // /start, or a message with nothing to read, repeats the current question.
-    if (input === '/start' || (input === '' && !photo)) {
-      return this.ask(reg.chatId, step, answers, lang, reg.phone);
-    }
+    if (input === '/start' || (input === '' && !photo)) return ask(step, answers);
     if (input === t.back && step !== 'offer') {
-      const previous = previousStep(step, answers) ?? step;
+      const previous = previousStep(flow, step, answers) ?? step;
       await this.save(reg.id, previous, answers);
-      return this.ask(reg.chatId, previous, answers, lang, reg.phone);
+      return ask(previous, answers);
     }
 
-    const outcome = this.accept(step, input, photo, answers, lang);
+    const outcome = this.accept(step, input, photo, answers, lang, classes);
     if ('error' in outcome) {
       await this.api.sendMessage(reg.chatId, `⚠️ ${outcome.error}`);
-      return this.ask(reg.chatId, step, answers, lang, reg.phone);
+      return ask(step, answers);
     }
     if ('action' in outcome) {
       if (outcome.action === 'restart') {
         await this.save(reg.id, 'firstName', {});
-        return this.ask(reg.chatId, 'firstName', {}, lang, reg.phone);
+        return ask('firstName', {});
       }
-      return this.submit(reg, answers, lang);
+      return this.submit(reg, answers, lang, classes);
     }
-    const next = step === 'offer' ? 'firstName' : nextStep(step, outcome.answers);
+    const next = step === 'offer' ? 'firstName' : nextStep(flow, step, outcome.answers);
     await this.save(reg.id, next, outcome.answers);
-    return this.ask(reg.chatId, next, outcome.answers, lang, reg.phone);
+    return ask(next, outcome.answers);
+  }
+
+  /** Active class types that have at least one active grade, in form order. */
+  private async classes(): Promise<ClassOption[]> {
+    if (this.classCache && Date.now() - this.classCache.at < CLASS_CACHE_MS) {
+      return this.classCache.classes;
+    }
+    const types = await this.prisma.classType.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        nameAm: true,
+        nameEn: true,
+        grades: {
+          where: { isActive: true },
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+          select: { id: true, nameAm: true, nameEn: true },
+        },
+      },
+    });
+    const classes = types.filter((type) => type.grades.length > 0);
+    this.classCache = { at: Date.now(), classes };
+    return classes;
   }
 
   /** Validates one answer. */
@@ -277,9 +376,20 @@ export class TelegramRegistrationService {
     photo: PhotoInput | undefined,
     a: Answers,
     lang: BotLang,
+    classes: ClassOption[],
   ): Outcome {
     const t = REG_TEXT[lang];
     const skipped = isOptional(step) && input === t.skip;
+
+    if (isClassStep(step)) {
+      const typeId = classIdOf(step);
+      const type = classes.find((c) => c.id === typeId);
+      const grade = type?.grades.find((g) => localName(g, lang) === input);
+      if (!skipped && !grade) return { error: t.invalid.choose };
+      return {
+        answers: { ...a, classGrades: { ...a.classGrades, [typeId]: grade ? grade.id : null } },
+      };
+    }
 
     if (isTextKey(step)) {
       if (skipped) return { answers: { ...a, [step]: null } };
@@ -367,121 +477,222 @@ export class TelegramRegistrationService {
     }
   }
 
-  /** Sends the question for a step, with the buttons that answer it. */
-  private ask(chatId: bigint, step: Step, a: Answers, lang: BotLang, phone: string) {
+  /**
+   * Sends the question for a step: a section header with a progress bar, the
+   * question in bold with an example under it, the current answer when the
+   * person came back to it, and the buttons that answer it.
+   */
+  private async ask(
+    chatId: bigint,
+    step: Step,
+    a: Answers,
+    lang: BotLang,
+    phone: string,
+    classes: ClassOption[],
+  ) {
     const t = REG_TEXT[lang];
-    if (step === 'offer') {
-      return this.api.sendMessage(
-        chatId,
-        t.offer(esc(phone), QUESTION_COUNT),
-        buttons([[t.start], [t.cancel]]),
-      );
-    }
+    const flow = flowFor(classes);
+    const total = numbered(flow).length;
+
+    if (step === 'offer') return this.sendOffer(chatId, phone, lang, total, classes.length > 0);
     if (step === 'submitting') return this.api.sendMessage(chatId, t.wait);
     if (step === 'confirm') {
       return this.api.sendMessage(
         chatId,
-        this.summary(a, lang, phone),
+        this.summary(a, lang, phone, classes),
         buttons([[t.confirm], [t.back, t.restart], [t.cancel]]),
       );
     }
 
+    const n = numbered(flow).indexOf(step === 'healthNote' ? 'health' : step) + 1;
+    const section = isClassStep(step) ? 'classes' : SECTION[step];
+    const header = `${t.sections[section]}\n<code>${progressBar(n, total)}</code>  <i>${n} / ${total}</i>`;
     const footer = step === 'firstName' ? [t.cancel] : [t.back, t.cancel];
-    const pairs = (labels: string[]) =>
-      labels.reduce<string[][]>((rows, label, i) => {
-        if (i % 2 === 0) rows.push([label]);
-        else rows.at(-1)!.push(label);
-        return rows;
-      }, []);
     const skipRow = isOptional(step) ? [[t.skip]] : [];
-    let question: string;
-    let options: string[][] = [];
 
     if (step === 'agreement') {
       const ag = AGREEMENT[lang];
-      question = [
-        t.agreementIntro,
+      const body = [
+        header,
         '',
-        `📜 <b>${ag.title}</b>`,
-        '',
-        ...ag.rules.map((rule) => `▫️ ${rule}`),
-        '',
+        `<b>${ag.title}</b>`,
+        `<blockquote>${ag.rules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')}</blockquote>`,
         `<i>${ag.pledge}</i>`,
+        '',
+        `👉 ${t.agreementAsk}`,
       ].join('\n');
-      options = [[t.agree]];
-    } else {
-      question = t.ask[step];
-      if (step === 'gender') options = [[t.male, t.female]];
-      if (step === 'health') options = [[t.yes, t.no]];
-      if (step === 'maritalStatus') options = pairs(Object.values(t.maritalStatus));
-      if (step === 'educationLevel') options = pairs(Object.values(t.education));
-      if (step === 'city') options = [[t.addisAbaba]];
-      if (isOptional(step)) question += `\n<i>${t.skipHint}</i>`;
+      return this.api.sendMessage(chatId, body, buttons([[t.agree], footer]));
     }
 
-    return this.api.sendMessage(
-      chatId,
-      `${t.step(questionNumber(step), QUESTION_COUNT)}\n${question}`,
-      buttons([...options, ...skipRow, footer]),
-    );
+    let question: Ask;
+    let options: string[][] = [];
+    if (isClassStep(step)) {
+      const type = classes.find((c) => c.id === classIdOf(step))!;
+      question = t.classQuestion(esc(localName(type, lang)));
+      const labels = type.grades.map((g) => localName(g, lang));
+      options = rows(labels, labels.length > 6 ? 3 : 2);
+    } else {
+      question = (t.ask as Record<string, Ask>)[step]!;
+      if (step === 'gender') options = [[t.male, t.female]];
+      if (step === 'health') options = [[t.yes, t.no]];
+      if (step === 'maritalStatus') options = rows(Object.values(t.maritalStatus), 2);
+      if (step === 'educationLevel') options = rows(Object.values(t.education), 2);
+      if (step === 'city') options = [[t.addisAbaba]];
+    }
+
+    const current = this.display(step, a, lang, classes);
+    const body = [
+      header,
+      '',
+      `<b>${question.q}</b>`,
+      ...(question.hint ? [`<i>${question.hint}</i>`] : []),
+      ...(isOptional(step) && !isClassStep(step) ? [`<i>${t.skipHint}</i>`] : []),
+      ...(current ? ['', `↩️ ${t.current(esc(current))}`] : []),
+    ].join('\n');
+    return this.api.sendMessage(chatId, body, buttons([...options, ...skipRow, footer]));
   }
 
-  private summary(a: Answers, lang: BotLang, phone: string): string {
+  /** The welcome card: the school seal, what will be asked, and how to start. */
+  private async sendOffer(
+    chatId: bigint,
+    phone: string,
+    lang: BotLang,
+    total: number,
+    hasClasses: boolean,
+  ) {
+    const t = REG_TEXT[lang];
+    const s = t.sections;
+    const caption = [
+      t.offerTitle,
+      '━━━━━━━━━━━━━━━',
+      t.offer(esc(phone), total),
+      '',
+      t.offerSections,
+      `<blockquote>${[
+        s.personal,
+        ...(hasClasses ? [s.classes] : []),
+        s.contact,
+        s.address,
+        s.work,
+        s.emergency,
+        s.health,
+        s.photo,
+        s.agreement,
+      ].join('\n')}</blockquote>`,
+      t.offerFoot,
+    ].join('\n');
+    const keyboard = buttons([[t.start], [t.cancel]]);
+    const seal = await this.sealImage();
+    if (seal) return this.api.sendPhoto(chatId, seal, 'fikure-egzi.png', caption, keyboard);
+    return this.api.sendMessage(chatId, caption, keyboard);
+  }
+
+  /** How an answer reads back to the person ("" when not answered yet). */
+  private display(step: Step, a: Answers, lang: BotLang, classes: ClassOption[]): string {
+    const t = REG_TEXT[lang];
+    if (isClassStep(step)) {
+      const typeId = classIdOf(step);
+      if (!a.classGrades || !(typeId in a.classGrades)) return '';
+      const gradeId = a.classGrades[typeId];
+      const grade = classes.find((c) => c.id === typeId)?.grades.find((g) => g.id === gradeId);
+      return grade ? localName(grade, lang) : t.fields.notAssigned;
+    }
+    if (isTextKey(step)) {
+      if (!(step in a)) return '';
+      const value = a[step];
+      if (step === 'city' && value === ADDIS_ABABA) return t.addisAbaba;
+      return value ?? t.fields.skipped;
+    }
+    switch (step) {
+      case 'gender':
+        return a.gender ? TEXT[lang].gender[a.gender]! : '';
+      case 'dateOfBirth':
+        return a.dateOfBirth ? ecDate(a.dateOfBirth, lang) : '';
+      case 'maritalStatus':
+        if (!('maritalStatus' in a)) return '';
+        return a.maritalStatus ? t.maritalStatus[a.maritalStatus]! : t.fields.skipped;
+      case 'educationLevel':
+        if (!('educationLevel' in a)) return '';
+        return a.educationLevel ? t.education[a.educationLevel]! : t.fields.skipped;
+      case 'health':
+        if (a.hasHealthCondition === undefined) return '';
+        return a.hasHealthCondition ? t.yes : t.no;
+      case 'healthNote':
+        return a.healthConditionNote ?? '';
+      case 'photo':
+        if (!('photoFileId' in a)) return '';
+        return a.photoFileId ? t.fields.photoSent : t.fields.skipped;
+      default:
+        return '';
+    }
+  }
+
+  private summary(a: Answers, lang: BotLang, phone: string, classes: ClassOption[]): string {
     const t = REG_TEXT[lang];
     const f = t.fields;
     const s = t.sections;
     const sep = lang === 'am' ? '፦' : ':';
     const row = (label: string, value: string | null | undefined) =>
-      `   ${label}${sep} <b>${value ? esc(value) : f.none}</b>`;
+      `${label}${sep} <b>${value ? esc(value) : f.none}</b>`;
+    const block = (title: string, lines: string[]) =>
+      `${title}\n<blockquote>${lines.join('\n')}</blockquote>`;
     const city = a.city === ADDIS_ABABA ? t.addisAbaba : a.city;
+    const classLines = classes.map((c) => {
+      const gradeId = a.classGrades?.[c.id];
+      const grade = c.grades.find((g) => g.id === gradeId);
+      return row(localName(c, lang), grade ? localName(grade, lang) : f.notAssigned);
+    });
+
     return [
       t.summaryTitle,
       '',
-      `👤 <b>${s.personal}</b>`,
-      row(f.name, fullName(a)),
-      row(f.christianName, a.christianName),
-      row(f.gender, a.gender && TEXT[lang].gender[a.gender]),
-      row(f.birth, a.dateOfBirth && ecDate(a.dateOfBirth, lang)),
-      row(f.placeOfBirth, a.placeOfBirth),
-      row(f.maritalStatus, a.maritalStatus && t.maritalStatus[a.maritalStatus]),
-      row(f.spiritualFather, a.spiritualFatherName),
-      '',
-      `📞 <b>${s.contact}</b>`,
-      row(f.phone, phone),
-      row(f.alternatePhone, a.alternatePhone),
-      row(f.email, a.email),
-      '',
-      `🏠 <b>${s.address}</b>`,
-      row(f.city, city),
-      row(f.subCity, a.subCity),
-      row(f.woreda, a.woreda),
-      row(f.kebele, a.kebele),
-      row(f.houseNumber, a.houseNumber),
-      '',
-      `🎓 <b>${s.work}</b>`,
-      row(f.education, a.educationLevel && t.education[a.educationLevel]),
-      row(f.occupation, a.occupation),
-      '',
-      `🆘 <b>${s.emergency}</b>`,
-      row(f.emergencyName, a.emergencyContactName),
-      ...(a.emergencyContactName
-        ? [
-            row(f.emergencyRelation, a.emergencyContactRelation),
-            row(f.emergencyPhone, a.emergencyContactPhone),
-          ]
-        : []),
-      '',
-      `🩺 <b>${s.health}</b>`,
-      row(f.health, a.hasHealthCondition ? a.healthConditionNote : f.noCondition),
-      row(f.photo, a.photoFileId ? f.photoSent : null),
-      row(f.agreement, f.accepted),
+      block(s.personal, [
+        row(f.name, fullName(a)),
+        row(f.christianName, a.christianName),
+        row(f.gender, a.gender && TEXT[lang].gender[a.gender]),
+        row(f.birth, a.dateOfBirth && ecDate(a.dateOfBirth, lang)),
+        row(f.placeOfBirth, a.placeOfBirth),
+        row(f.maritalStatus, a.maritalStatus && t.maritalStatus[a.maritalStatus]),
+        row(f.spiritualFather, a.spiritualFatherName),
+      ]),
+      ...(classLines.length > 0 ? [block(s.classes, classLines)] : []),
+      block(s.contact, [
+        row(f.phone, phone),
+        row(f.alternatePhone, a.alternatePhone),
+        row(f.email, a.email),
+      ]),
+      block(s.address, [
+        row(f.city, city),
+        row(f.subCity, a.subCity),
+        row(f.woreda, a.woreda),
+        row(f.kebele, a.kebele),
+        row(f.houseNumber, a.houseNumber),
+      ]),
+      block(s.work, [
+        row(f.education, a.educationLevel && t.education[a.educationLevel]),
+        row(f.occupation, a.occupation),
+      ]),
+      block(s.emergency, [
+        row(f.emergencyName, a.emergencyContactName),
+        ...(a.emergencyContactName
+          ? [
+              row(f.emergencyRelation, a.emergencyContactRelation),
+              row(f.emergencyPhone, a.emergencyContactPhone),
+            ]
+          : []),
+      ]),
+      block(`${s.health} · ${s.photo} · ${s.agreement}`, [
+        row(f.health, a.hasHealthCondition ? a.healthConditionNote : f.noCondition),
+        row(f.photo, a.photoFileId ? f.photoSent : null),
+        row(f.agreement, f.accepted),
+      ]),
       '',
       t.summaryHint,
     ].join('\n');
   }
 
   /** Creates the member and links the chat to them, so the bot's menu opens straight away. */
-  private async submit(reg: Registration, a: Answers, lang: BotLang) {
+  private async submit(reg: Registration, a: Answers, lang: BotLang, classes: ClassOption[]) {
     const t = REG_TEXT[lang];
     // Claim the submission so a double tap cannot register the person twice.
     const claimed = await this.prisma.telegramRegistration.updateMany({
@@ -491,8 +702,13 @@ export class TelegramRegistrationService {
     if (claimed.count === 0) return;
     if (!a.firstName || !a.fatherName || !a.gender || !a.dateOfBirth || !a.agreed) {
       await this.save(reg.id, 'firstName', {});
-      return this.ask(reg.chatId, 'firstName', {}, lang, reg.phone);
+      return this.ask(reg.chatId, 'firstName', {}, lang, reg.phone, classes);
     }
+    // Only grades still offered: one retired mid-conversation is dropped, not an error.
+    const offered = new Set(classes.flatMap((c) => c.grades.map((g) => g.id)));
+    const classGradeIds = Object.values(a.classGrades ?? {}).filter(
+      (id): id is number => id !== null && offered.has(id),
+    );
 
     try {
       const member = await this.members.create(
@@ -524,6 +740,7 @@ export class TelegramRegistrationService {
           hasHealthCondition: a.hasHealthCondition ?? null,
           healthConditionNote: a.healthConditionNote ?? null,
           agreementAccepted: true,
+          classGradeIds,
         },
         null,
         null,
@@ -576,6 +793,15 @@ export class TelegramRegistrationService {
     } catch (error) {
       this.logger.warn(`Photo for member ${memberId} not saved: ${(error as Error).message}`);
       return false;
+    }
+  }
+
+  private async sealImage(): Promise<Buffer | null> {
+    try {
+      this.seal ??= await readFile(resolve(process.cwd(), 'assets', 'telegram-seal.png'));
+      return this.seal;
+    } catch {
+      return null;
     }
   }
 

@@ -9,7 +9,7 @@ import { AttendanceService } from '../attendance/attendance.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { CoursesService } from '../courses/courses.service.js';
 import { MembersService } from '../members/members.service.js';
-import { TelegramApi, type TgMessage, type TgUpdate } from './telegram-api.js';
+import { type ReplyMarkup, TelegramApi, type TgMessage, type TgUpdate } from './telegram-api.js';
 import { TelegramRegistrationService } from './telegram-registration.service.js';
 import { menu, shareKeyboard } from './telegram.keyboards.js';
 import { BRAND, type BotLang, ecDate, ecShort, esc, TEXT } from './telegram.texts.js';
@@ -285,9 +285,14 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
 
   private async welcome(chatId: bigint, lang: BotLang) {
     const caption = TEXT[lang].welcome(BRAND[lang], await this.registration.isOpen());
-    const seal = await this.sealImage();
-    if (seal) return this.api.sendPhoto(chatId, seal.data, seal.name, caption, shareKeyboard(lang));
-    return this.api.sendMessage(chatId, caption, shareKeyboard(lang));
+    const sent = await this.api.sendFixedPhoto(
+      'seal',
+      chatId,
+      () => this.sealImage(),
+      caption,
+      shareKeyboard(lang),
+    );
+    return sent ?? this.api.sendMessage(chatId, caption, shareKeyboard(lang));
   }
 
   private async logout(link: Link, lang: BotLang) {
@@ -372,27 +377,18 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
       .map((lines) => lines.join('\n'))
       .join('\n\n');
 
-    const photo = (await this.memberPhoto(who.id)) ?? (await this.sealImage());
+    // The member's own photo, or else the school seal (uploaded once, then reused).
+    const own = await this.memberPhoto(who.id);
+    const sendPicture = (caption: string, markup?: ReplyMarkup) =>
+      own
+        ? this.api.sendPhoto(link.chatId, own.data, own.name, caption, markup, own.mime)
+        : this.api.sendFixedPhoto('seal', link.chatId, () => this.sealImage(), caption, markup);
     // Telegram captions hold 1024 characters; a longer card goes in its own message.
-    if (photo && card.length <= 1024) {
-      return this.api.sendPhoto(
-        link.chatId,
-        photo.data,
-        photo.name,
-        card,
-        menu(lang, count),
-        photo.mime,
-      );
-    }
-    if (photo) {
-      await this.api.sendPhoto(
-        link.chatId,
-        photo.data,
-        photo.name,
-        `👤 <b>${esc(fullName(m))}</b>`,
-        undefined,
-        photo.mime,
-      );
+    if (card.length <= 1024) {
+      const sent = await sendPicture(card, menu(lang, count));
+      if (sent) return sent;
+    } else {
+      await sendPicture(`👤 <b>${esc(fullName(m))}</b>`);
     }
     return this.api.sendMessage(link.chatId, card, menu(lang, count));
   }

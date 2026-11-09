@@ -727,9 +727,14 @@ export class TelegramRegistrationService {
       t.offerFoot,
     ].join('\n');
     const keyboard = buttons([[t.start], [t.cancel]]);
-    const seal = await this.sealImage();
-    if (seal) return this.api.sendPhoto(chatId, seal, 'fikure-egzi.png', caption, keyboard);
-    return this.api.sendMessage(chatId, caption, keyboard);
+    const sent = await this.api.sendFixedPhoto(
+      'seal',
+      chatId,
+      () => this.sealImage(),
+      caption,
+      keyboard,
+    );
+    return sent ?? this.api.sendMessage(chatId, caption, keyboard);
   }
 
   /** How an answer reads back to the person ("" when not answered yet). */
@@ -983,10 +988,10 @@ export class TelegramRegistrationService {
     }
   }
 
-  private async sealImage(): Promise<Buffer | null> {
+  private async sealImage(): Promise<{ data: Buffer; name: string; mime: string } | null> {
     try {
       this.seal ??= await readFile(resolve(process.cwd(), 'assets', 'telegram-seal.png'));
-      return this.seal;
+      return { data: this.seal, name: 'fikure-egzi.png', mime: 'image/png' };
     } catch {
       return null;
     }

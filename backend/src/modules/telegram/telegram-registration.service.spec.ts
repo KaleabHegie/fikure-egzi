@@ -226,7 +226,8 @@ describe('TelegramRegistrationService', () => {
     };
     const api = {
       sendMessage: (_chat: bigint, text: string) => record(text),
-      sendPhoto: (_chat: bigint, _photo: Buffer, _name: string, caption: string) => record(caption),
+      sendFixedPhoto: (_key: string, _chat: bigint, _load: unknown, caption: string) =>
+        record(caption),
       downloadFile,
     };
     const settings = { get: () => Promise.resolve(open) };

@@ -37,13 +37,38 @@ export type ReplyMarkup =
   | { inline_keyboard: { text: string; callback_data: string }[][] }
   | { remove_keyboard: true };
 
+/** Methods that send a message to a chat; Telegram caps these at about 30 a second per bot. */
+const SENDING = new Set(['sendMessage', 'sendPhoto']);
+/** Spacing between sends: 25 a second, safely under Telegram's limit. */
+const SEND_SPACING_MS = 40;
+/** Waits Telegram asks for ("retry after") that are worth sitting out; longer ones give up. */
+const MAX_RETRY_WAIT_S = 10;
+const MAX_RETRIES = 2;
+
+type TgResponse<T> = {
+  ok: boolean;
+  result?: T;
+  description?: string;
+  error_code?: number;
+  parameters?: { retry_after?: number };
+};
+
+/** What sendPhoto returns: the photo in its stored sizes (largest last). */
+export type TgSentPhoto = { photo?: { file_id: string }[] };
+
 /**
  * A minimal Telegram Bot API client (plain fetch, no library). Every call
- * fails soft: errors are logged, never thrown into the request that caused them.
+ * fails soft: errors are logged, never thrown into the request that caused
+ * them. Sends are paced to stay under Telegram's per-bot rate, and a
+ * "too many requests" answer is waited out and retried rather than dropped.
  */
 @Injectable()
 export class TelegramApi {
   private readonly logger = new Logger('TelegramApi');
+  /** When the next send may go out (shared by every chat this process serves). */
+  private nextSendAt = 0;
+  /** Telegram file ids of fixed pictures already uploaded once (e.g. the seal). */
+  private readonly photoIds = new Map<string, string>();
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -57,23 +82,38 @@ export class TelegramApi {
   ): Promise<T | null> {
     const token = this.config.telegram.token;
     if (!token) return null;
-    try {
-      const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-        method: 'POST',
-        ...(body instanceof FormData
-          ? { body }
-          : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) }),
-        signal: AbortSignal.timeout(method === 'getUpdates' ? 40_000 : 15_000),
-      });
-      const json = (await res.json()) as { ok: boolean; result?: T; description?: string };
-      if (!json.ok) {
+    for (let attempt = 0; ; attempt++) {
+      if (SENDING.has(method)) await this.paceSend();
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+          method: 'POST',
+          ...(body instanceof FormData
+            ? { body }
+            : {
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body ?? {}),
+              }),
+          signal: AbortSignal.timeout(method === 'getUpdates' ? 40_000 : 15_000),
+        });
+        const json = (await res.json()) as TgResponse<T>;
+        if (json.ok) return json.result ?? null;
+        const wait = json.parameters?.retry_after;
+        if (
+          (json.error_code === 429 || res.status === 429) &&
+          wait !== undefined &&
+          wait <= MAX_RETRY_WAIT_S &&
+          attempt < MAX_RETRIES
+        ) {
+          this.logger.warn(`${method} throttled by Telegram; retrying in ${wait}s`);
+          await this.sleep(wait * 1000);
+          continue;
+        }
         this.logger.warn(`${method} failed: ${json.description ?? res.status}`);
         return null;
+      } catch (error) {
+        this.logger.warn(`${method} failed: ${(error as Error).message}`);
+        return null;
       }
-      return json.result ?? null;
-    } catch (error) {
-      this.logger.warn(`${method} failed: ${(error as Error).message}`);
-      return null;
     }
   }
 
@@ -101,7 +141,59 @@ export class TelegramApi {
     form.append('caption', caption);
     form.append('parse_mode', 'HTML');
     if (replyMarkup) form.append('reply_markup', JSON.stringify(replyMarkup));
-    return this.call('sendPhoto', form);
+    return this.call<TgSentPhoto>('sendPhoto', form);
+  }
+
+  /**
+   * Sends a fixed picture (e.g. the school seal) by uploading it the first
+   * time and reusing Telegram's copy afterwards. Null when it could not be
+   * sent (or `load` has no picture), so the caller can fall back to text.
+   */
+  async sendFixedPhoto(
+    key: string,
+    chatId: number | bigint,
+    load: () => Promise<{ data: Buffer; name: string; mime: string } | null>,
+    caption: string,
+    replyMarkup?: ReplyMarkup,
+  ): Promise<TgSentPhoto | null> {
+    const fileId = this.photoIds.get(key);
+    if (fileId) {
+      const sent = await this.call<TgSentPhoto>('sendPhoto', {
+        chat_id: String(chatId),
+        photo: fileId,
+        caption,
+        parse_mode: 'HTML',
+        ...(replyMarkup && { reply_markup: replyMarkup }),
+      });
+      if (sent) return sent;
+      // Telegram no longer knows that copy: upload it again below.
+      this.photoIds.delete(key);
+    }
+    const file = await load();
+    if (!file) return null;
+    const sent = await this.sendPhoto(
+      chatId,
+      file.data,
+      file.name,
+      caption,
+      replyMarkup,
+      file.mime,
+    );
+    const uploaded = sent?.photo?.at(-1)?.file_id;
+    if (uploaded) this.photoIds.set(key, uploaded);
+    return sent;
+  }
+
+  /** Waits for this send's turn, so the bot never bursts past Telegram's rate. */
+  private async paceSend() {
+    const now = Date.now();
+    const at = Math.max(now, this.nextSendAt);
+    this.nextSendAt = at + SEND_SPACING_MS;
+    if (at > now) await this.sleep(at - now);
+  }
+
+  protected sleep(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
   }
 
   /** Downloads a file a user sent (photos, documents). Null when it cannot be fetched. */

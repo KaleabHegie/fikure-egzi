@@ -374,7 +374,7 @@ export class MembersService {
   async setPhoto(
     id: number,
     file: { buffer: Buffer; size: number } | undefined,
-    userId: number,
+    userId: number | null,
     ipAddress: string | null,
   ): Promise<MemberRecord> {
     if (!file || file.size === 0) {

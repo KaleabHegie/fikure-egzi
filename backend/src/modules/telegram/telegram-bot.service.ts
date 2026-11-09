@@ -106,7 +106,7 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     if (message.contact) return this.onContact(message, lang, link);
     if (!link) {
       const registering = await this.registration.find(chatId);
-      if (registering) return this.registration.onMessage(registering, message.text ?? '');
+      if (registering) return this.registration.onMessage(registering, message);
       return this.welcome(chatId, lang);
     }
 

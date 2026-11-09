@@ -28,11 +28,13 @@ export function SettingsPage() {
       },
     )
   const collected = [
-    t('settings.selfRegistration.collects.name'),
-    t('settings.selfRegistration.collects.phone'),
-    t('settings.selfRegistration.collects.birth'),
+    t('settings.selfRegistration.collects.personal'),
+    t('settings.selfRegistration.collects.contact'),
     t('settings.selfRegistration.collects.address'),
+    t('settings.selfRegistration.collects.work'),
+    t('settings.selfRegistration.collects.emergency'),
     t('settings.selfRegistration.collects.health'),
+    t('settings.selfRegistration.collects.photo'),
     t('settings.selfRegistration.collects.agreement'),
   ]
 
@@ -83,7 +85,7 @@ export function SettingsPage() {
 
           <div>
             <p className="mb-2 text-sm font-medium">{t('settings.selfRegistration.collectsTitle')}</p>
-            <ul className="grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-2">
+            <ul className="grid gap-1.5 text-sm text-muted-foreground">
               {collected.map((item) => (
                 <li key={item} className="flex items-start gap-2">
                   <Check className="mt-0.5 size-3.5 shrink-0 text-brand" aria-hidden />

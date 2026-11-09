@@ -13,7 +13,12 @@ export interface TgMessage {
   chat: { id: number; type: string };
   from?: TgUser;
   text?: string;
+  caption?: string;
   contact?: { phone_number: string; user_id?: number; first_name?: string };
+  /** One picture in several sizes, smallest first. */
+  photo?: { file_id: string; file_size?: number; width: number; height: number }[];
+  /** A file sent "as a document" (e.g. an uncompressed image). */
+  document?: { file_id: string; file_size?: number; mime_type?: string };
 }
 
 export interface TgUpdate {
@@ -97,6 +102,26 @@ export class TelegramApi {
     form.append('parse_mode', 'HTML');
     if (replyMarkup) form.append('reply_markup', JSON.stringify(replyMarkup));
     return this.call('sendPhoto', form);
+  }
+
+  /** Downloads a file a user sent (photos, documents). Null when it cannot be fetched. */
+  async downloadFile(fileId: string): Promise<Buffer | null> {
+    const token = this.config.telegram.token;
+    const file = await this.call<{ file_path?: string }>('getFile', { file_id: fileId });
+    if (!token || !file?.file_path) return null;
+    try {
+      const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`, {
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) {
+        this.logger.warn(`file download failed: ${res.status}`);
+        return null;
+      }
+      return Buffer.from(await res.arrayBuffer());
+    } catch (error) {
+      this.logger.warn(`file download failed: ${(error as Error).message}`);
+      return null;
+    }
   }
 
   answerCallback(id: string) {

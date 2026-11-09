@@ -452,6 +452,17 @@ export const am: Translations = {
     },
   },
   departments: {
+    view: { label: 'አቀራረብ', cards: 'ካርዶች', tree: 'ዛፍ' },
+    tree: {
+      label: 'የአገልግሎት ክፍሎች ዛፍ',
+      search: 'የአገልግሎት ክፍል ወይም ንዑስ ክፍል ይፈልጉ',
+      total: 'በአጠቃላይ {{count}} ክፍሎች',
+      expandAll: 'ሁሉንም ዘርጋ',
+      collapseAll: 'ሁሉንም ሰብስብ',
+      expand: '{{name}} የሚያስተዳድራቸውን አሳይ',
+      collapse: '{{name}} የሚያስተዳድራቸውን ደብቅ',
+      noMatch: 'በዚህ ስም የሚገኝ የአገልግሎት ክፍል የለም።',
+    },
     title: 'ፅህፈት ቤትና የአገልግሎት ክፍሎች',
     description: 'የሰንበት ትምህርት ቤቱ መዋቅር። ፅህፈት ቤቱ በሥሩ ያሉትን የአገልግሎት ክፍሎች ያስተዳድራል።',
     newDepartment: 'አዲስ የአገልግሎት ክፍል',

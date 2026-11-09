@@ -1,4 +1,4 @@
-import { Building2, ChevronRight, Crown, EyeOff, Landmark, Plus, Users } from 'lucide-react'
+import { Building2, ChevronRight, Crown, EyeOff, Landmark, LayoutGrid, ListTree, Plus, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -20,7 +20,48 @@ import { cn } from '@/lib/utils'
 import { departmentsApi, useDepartmentMutation, useDepartments } from '../api'
 import { DepartmentDialog } from '../components/department-dialog'
 import { type DepartmentActions, DepartmentMenu } from '../components/department-menu'
+import { DepartmentTree } from '../components/department-tree'
 import { buildDepartmentTree, type Department, type DepartmentInput, type DepartmentTreeNode } from '../types'
+
+type View = 'cards' | 'tree'
+const VIEW_KEY = 'fe.departments.view'
+
+/** The last view this browser used (a per-viewer convenience; storage may be unavailable). */
+function readView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'tree' ? 'tree' : 'cards'
+  } catch {
+    return 'cards'
+  }
+}
+
+/** Cards ⇄ tree, as a two-button segmented control. */
+function ViewSwitch({ view, onChange }: { view: View; onChange: (v: View) => void }) {
+  const { t } = useTranslation()
+  const options: { value: View; icon: React.ElementType; label: string }[] = [
+    { value: 'cards', icon: LayoutGrid, label: t('departments.view.cards') },
+    { value: 'tree', icon: ListTree, label: t('departments.view.tree') },
+  ]
+  return (
+    <div role="group" aria-label={t('departments.view.label')} className="inline-flex rounded-lg border bg-muted/50 p-0.5">
+      {options.map(({ value, icon: Icon, label }) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={view === value}
+          onClick={() => onChange(value)}
+          className={cn(
+            'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            view === value ? 'bg-background text-foreground shadow-sm' : 'hover:text-foreground',
+          )}
+        >
+          <Icon className="size-4" aria-hidden />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 type DialogState =
   | { kind: 'edit'; department?: Department; parentId?: number | null }
@@ -179,6 +220,15 @@ export function DepartmentsPage() {
   const canManage = can(PERMISSIONS.DEPARTMENTS_MANAGE)
   const [showInactive, setShowInactive] = useState(false)
   const [dialog, setDialog] = useState<DialogState>(null)
+  const [view, setView] = useState<View>(readView)
+  const changeView = (next: View) => {
+    setView(next)
+    try {
+      localStorage.setItem(VIEW_KEY, next)
+    } catch {
+      // Storage unavailable (private window): the choice just isn't remembered.
+    }
+  }
   const { data, isPending, isError, error, refetch } = useDepartments(showInactive)
   const { data: all } = useDepartments(true)
 
@@ -248,6 +298,8 @@ export function DepartmentsPage() {
         className="rounded-xl border bg-card"
       />
     )
+  } else if (view === 'tree') {
+    body = <DepartmentTree tree={tree} canManage={canManage} actions={actions} />
   } else {
     body = (
       <div className="space-y-8">
@@ -265,6 +317,7 @@ export function DepartmentsPage() {
         description={t('departments.description')}
         actions={
           <>
+            <ViewSwitch view={view} onChange={changeView} />
             <div className="flex items-center gap-2">
               <Switch id="dept-inactive" checked={showInactive} onCheckedChange={setShowInactive} />
               <Label htmlFor="dept-inactive" className="text-sm font-normal">

@@ -453,6 +453,17 @@ export const en = {
     },
   },
   departments: {
+    view: { label: 'View', cards: 'Cards', tree: 'Tree' },
+    tree: {
+      label: 'Department tree',
+      search: 'Find a department or sub-department',
+      total: '{{count}} departments in all',
+      expandAll: 'Expand all',
+      collapseAll: 'Collapse all',
+      expand: 'Show what {{name}} oversees',
+      collapse: 'Hide what {{name}} oversees',
+      noMatch: 'No department matches that name.',
+    },
     title: 'Departments',
     description: 'The Sunday school structure. ፅህፈት ቤት administers the departments under it.',
     newDepartment: 'New department',

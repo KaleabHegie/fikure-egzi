@@ -23,6 +23,7 @@ type NavKey =
   | 'attendance'
   | 'attendanceSessions'
   | 'attendanceReports'
+  | 'attendancePermissions'
   | 'courses'
   | 'exams'
   | 'serviceGroups'
@@ -97,6 +98,7 @@ export const NAVIGATION: NavSection[] = [
           { key: 'attendanceSessions', to: '/attendance', permission: PERMISSIONS.ATTENDANCE_READ },
           // The reports list members, so attendance takers don't get them.
           { key: 'attendanceReports', to: '/attendance/reports', permission: PERMISSIONS.MEMBERS_READ },
+          { key: 'attendancePermissions', to: '/attendance/permissions', permission: PERMISSIONS.ATTENDANCE_PERMISSIONS },
         ],
       },
       { key: 'courses', icon: GraduationCap, to: '/courses', permission: PERMISSIONS.COURSES_READ },

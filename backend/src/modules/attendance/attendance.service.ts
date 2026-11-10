@@ -34,6 +34,7 @@ import {
   normalizeMemberCode,
   type StatusCounts,
   statusForCheckIn,
+  closesAt,
 } from './attendance-math.js';
 import type {
   CreateSessionDto,
@@ -43,6 +44,7 @@ import type {
   TopAttendanceQueryDto,
   UpdateSessionDto,
 } from './dto/attendance.dto.js';
+import { LatePermissionsService } from './late-permissions/late-permissions.service.js';
 
 const MEMBER_SUMMARY = {
   id: true,
@@ -83,6 +85,7 @@ const SESSION_INCLUDE = {
 type SessionRow = Prisma.AttendanceSessionGetPayload<{ include: typeof SESSION_INCLUDE }>;
 
 type Audience = Pick<SessionRow, 'classGradeId' | 'departmentId' | 'serviceGroupId'>;
+type SessionTimes = Pick<SessionRow, 'startsAt' | 'endsAt' | 'absentAfterMinutes'>;
 
 /**
  * The department that runs a session — whose admins and attendance takers
@@ -139,6 +142,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly permissions: LatePermissionsService,
   ) {}
 
   /** Sessions close themselves when they end; checked every minute (and on every read). */
@@ -158,16 +162,45 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
    * close automatically. Regular sessions get Absent for unmarked roster members.
    */
   async closeOverdue(): Promise<number> {
-    const due = await this.prisma.attendanceSession.findMany({
+    const now = new Date();
+    const candidates = await this.prisma.attendanceSession.findMany({
       where: {
         status: AttendanceSessionStatus.OPEN,
         autoClose: true,
-        endsAt: { lte: new Date() },
+        OR: [
+          { absentAfterMinutes: null, endsAt: { lte: now } },
+          // With an absent cut-off the closing time depends on late permissions.
+          { absentAfterMinutes: { not: null }, startsAt: { lte: now } },
+        ],
       },
       include: SESSION_INCLUDE,
     });
-    for (const session of due) await this.closeRow(session, null, true);
-    return due.length;
+    let closed = 0;
+    for (const session of candidates) {
+      if ((await this.closingTime(session)) > now) continue;
+      await this.closeRow(session, null, true);
+      closed++;
+    }
+    return closed;
+  }
+
+  /** Grace minutes per roster member with a late permission covering this session. */
+  private async graceMap(session: SessionRow, memberIds?: number[]): Promise<Map<number, number>> {
+    const owner = ownerDepartmentId(session);
+    if (!isRegular(session.kind) || owner === null) return new Map();
+    return this.permissions.graceOn(
+      owner,
+      addisDateIso(session.startsAt),
+      rosterWhere(session),
+      memberIds,
+    );
+  }
+
+  /** When an open session closes itself (see closesAt in attendance-math). */
+  private async closingTime(session: SessionRow): Promise<Date> {
+    if (session.absentAfterMinutes === null) return session.endsAt;
+    const grace = await this.graceMap(session);
+    return closesAt(session, Math.max(0, ...grace.values()));
   }
 
   // ── Sessions ─────────────────────────────────────────────────────────────
@@ -212,7 +245,12 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     const data = await this.toSessionData(dto, dto.kind, scope);
     const session = await this.prisma.attendanceSession.create({
       // A session entered after it ended (catching up on the past) is closed by hand.
-      data: { ...data, kind: dto.kind, createdById: userId, autoClose: data.endsAt > new Date() },
+      data: {
+        ...data,
+        kind: dto.kind,
+        createdById: userId,
+        autoClose: closesAt(data as SessionTimes) > new Date(),
+      },
       include: SESSION_INCLUDE,
     });
     await this.audit.record({
@@ -240,6 +278,8 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       startTime: dto.startTime ?? addisTime(current.startsAt),
       endTime: dto.endTime ?? addisTime(current.endsAt),
       lateAfterMinutes: dto.lateAfterMinutes ?? current.lateAfterMinutes,
+      absentAfterMinutes:
+        dto.absentAfterMinutes !== undefined ? dto.absentAfterMinutes : current.absentAfterMinutes,
       classGradeId: dto.classGradeId !== undefined ? dto.classGradeId : current.classGradeId,
       departmentId: dto.departmentId !== undefined ? dto.departmentId : current.departmentId,
       serviceGroupId:
@@ -251,7 +291,10 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     const data = await this.toSessionData(merged, current.kind, scope, id);
     const session = await this.prisma.attendanceSession.update({
       where: { id },
-      data: { ...data, autoClose: current.autoClose && data.endsAt > new Date() },
+      data: {
+        ...data,
+        autoClose: current.autoClose && closesAt(data as SessionTimes) > new Date(),
+      },
       include: SESSION_INCLUDE,
     });
     await this.audit.record({
@@ -379,14 +422,25 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
         ? this.prisma.member.findMany({ where: rosterWhere(session), select: MEMBER_SUMMARY })
         : Promise.resolve([] as MemberRow[]),
     ]);
+    const grace = await this.graceMap(session);
     const byMember = new Map(records.map((r) => [r.member.id, r]));
     const rows = rosterMembers.map((m) => {
       const r = byMember.get(m.id);
       byMember.delete(m.id);
-      return { member: toSummary(m), inRoster: true, record: r ? recordView(r) : null };
+      return {
+        member: toSummary(m),
+        inRoster: true,
+        record: r ? recordView(r) : null,
+        graceMinutes: grace.get(m.id) ?? null,
+      };
     });
     for (const r of byMember.values()) {
-      rows.push({ member: toSummary(r.member), inRoster: r.inRoster, record: recordView(r) });
+      rows.push({
+        member: toSummary(r.member),
+        inRoster: r.inRoster,
+        record: recordView(r),
+        graceMinutes: grace.get(r.member.id) ?? null,
+      });
     }
     return rows.sort(
       (a, b) =>
@@ -434,9 +488,14 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       };
     }
     const now = new Date();
-    // Present, or Late after the grace period; OTHER sessions only record Present.
+    // Present, Late after the grace period, Absent past the cut-off — each moved later by
+    // the member's late permission, if any. OTHER sessions only record Present.
+    const graceMinutes = (await this.graceMap(session, [member.id])).get(member.id) ?? 0;
     const status = isRegular(session.kind)
-      ? statusForCheckIn(session.startsAt, session.lateAfterMinutes, now)
+      ? statusForCheckIn(session.startsAt, session.lateAfterMinutes, now, {
+          absentAfterMinutes: session.absentAfterMinutes,
+          graceMinutes,
+        })
       : AttendanceStatus.PRESENT;
     const inRoster = true;
     const record = await this.prisma.attendanceRecord.upsert({
@@ -556,7 +615,12 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     let minutes = 0;
     const byDept = new Map<
       number,
-      { department: Dept; counts: ReturnType<typeof emptyCounts>; minutes: number; sessions: number }
+      {
+        department: Dept;
+        counts: ReturnType<typeof emptyCounts>;
+        minutes: number;
+        sessions: number;
+      }
     >();
     for (const r of records) {
       addCount(counts, r.status);
@@ -807,6 +871,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     return {
       ...session,
       ownerDepartmentId: ownerDepartmentId(session),
+      closesAt: open && session.autoClose ? await this.closingTime(session) : null,
       rosterSize,
       counts,
       unmarked,
@@ -858,6 +923,10 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     const endsAt = addisDateTime(dto.date, dto.endTime);
     if (endsAt <= startsAt)
       errors.push({ field: 'endTime', messages: ['endTime must be after startTime'] });
+    const absentAfterMinutes = isRegular(kind) ? (dto.absentAfterMinutes ?? null) : null;
+    if (absentAfterMinutes !== null && absentAfterMinutes <= (dto.lateAfterMinutes ?? 15)) {
+      errors.push({ field: 'absentAfterMinutes', messages: ['attendance.absentAfterLate'] });
+    }
     if (kind === AttendanceSessionKind.CLASS && !dto.classGradeId) {
       errors.push({ field: 'classGradeId', messages: ['A class session needs a class grade'] });
     }
@@ -936,6 +1005,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       startsAt,
       endsAt,
       lateAfterMinutes: dto.lateAfterMinutes ?? 15,
+      absentAfterMinutes,
       // Only the audience that fits the kind is kept: CLASS → grade,
       // SERVICE_GROUP → the group alone, OTHER → any optional filters.
       classGradeId: isGroup ? null : (dto.classGradeId ?? null),

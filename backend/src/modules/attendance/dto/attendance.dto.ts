@@ -63,6 +63,17 @@ export class CreateSessionDto {
   lateAfterMinutes?: number;
 
   @ApiPropertyOptional({
+    description:
+      'Class and service-group sessions: check-ins after start + this are Absent and the ' +
+      'session closes then (later for members with a late permission). Null = none.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(600)
+  absentAfterMinutes?: number | null;
+
+  @ApiPropertyOptional({
     description: 'Roster = members in this class grade (required for CLASS, optional for OTHER)',
   })
   @IsOptional()

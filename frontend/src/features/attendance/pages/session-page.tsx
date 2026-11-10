@@ -107,11 +107,16 @@ export function SessionPage() {
     try {
       const result = await attendanceApi.scan(id, code)
       // Someone outside the class is only reported; nothing is recorded.
-      beep(result.inRoster && !result.alreadyRecorded)
+      beep(result.inRoster && !result.alreadyRecorded && result.record?.status !== 'ABSENT')
       setFeed((f) => [{ key: Date.now(), result }, ...f].slice(0, 12))
       const record = result.record
       if (result.inRoster && record) {
-        patchRoster(result.member.id, (row) => ({ member: result.member, inRoster: row?.inRoster ?? true, record }))
+        patchRoster(result.member.id, (row) => ({
+          member: result.member,
+          inRoster: row?.inRoster ?? true,
+          record,
+          graceMinutes: row?.graceMinutes ?? null,
+        }))
       }
     } catch (e) {
       beep(false)
@@ -257,7 +262,11 @@ export function SessionPage() {
               {s.location}
             </span>
           )}
-          {open && s.autoClose && <span>· {t('attendance.autoCloses', { time: addisEthTime(s.endsAt) })}</span>}
+          {s.kind !== 'OTHER' && <span>· {t('attendance.thresholds.late', { minutes: s.lateAfterMinutes })}</span>}
+          {s.kind !== 'OTHER' && s.absentAfterMinutes !== null && (
+            <span>· {t('attendance.thresholds.absent', { minutes: s.absentAfterMinutes })}</span>
+          )}
+          {open && s.closesAt && <span>· {t('attendance.autoCloses', { time: addisEthTime(s.closesAt) })}</span>}
         </p>
       </header>
 
@@ -504,6 +513,11 @@ function RosterItem({
                 ` · ${t('attendance.roster.checkedIn', { time: addisEthTime(row.record.checkedInAt) })}`}
               {!row.inRoster && (
                 <span className="ml-1 rounded bg-accent px-1 text-accent-foreground">{t('attendance.roster.visitor')}</span>
+              )}
+              {row.graceMinutes !== null && (
+                <span className="ml-1 rounded bg-gold/20 px-1 text-foreground">
+                  {t('attendance.roster.latePermission', { minutes: row.graceMinutes })}
+                </span>
               )}
             </span>
           </span>

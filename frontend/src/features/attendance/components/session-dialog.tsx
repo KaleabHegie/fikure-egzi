@@ -29,6 +29,7 @@ const schema = z
     startTime: z.string().regex(TIME, msg('validation.required')),
     endTime: z.string().regex(TIME, msg('validation.required')),
     lateAfterMinutes: z.string().regex(/^\d{1,3}$/, msg('validation.required')),
+    absentAfterMinutes: z.string().regex(/^\d{0,3}$/, msg('validation.required')),
     classTypeId: z.string(),
     classGradeId: z.string(),
     departmentId: z.string(),
@@ -45,14 +46,18 @@ const schema = z
   })
   .refine((v) => v.kind !== 'SERVICE_GROUP' || v.serviceGroupId !== '', { path: ['serviceGroupId'], message: msg('validation.required') })
   .refine((v) => v.endTime > v.startTime, { path: ['endTime'], message: msg('validation.date') })
+  .refine((v) => v.kind === 'OTHER' || v.absentAfterMinutes === '' || Number(v.absentAfterMinutes) > Number(v.lateAfterMinutes), {
+    path: ['absentAfterMinutes'],
+    message: msg('attendance.absentAfterLate'),
+  })
 type Values = z.infer<typeof schema>
 
-const FIELDS = ['kind', 'title', 'date', 'startTime', 'endTime', 'lateAfterMinutes', 'classGradeId', 'departmentId', 'serviceGroupId', 'organiserId', 'location', 'notes']
+const FIELDS = ['kind', 'title', 'date', 'startTime', 'endTime', 'lateAfterMinutes', 'absentAfterMinutes', 'classGradeId', 'departmentId', 'serviceGroupId', 'organiserId', 'location', 'notes']
 
 function initialValues(session?: AttendanceSession): Values {
   if (!session) {
     return {
-      kind: 'CLASS', title: '', date: todayIso(), startTime: '08:00', endTime: '11:00', lateAfterMinutes: '15',
+      kind: 'CLASS', title: '', date: todayIso(), startTime: '08:00', endTime: '11:00', lateAfterMinutes: '15', absentAfterMinutes: '',
       classTypeId: '', classGradeId: '', departmentId: '', serviceGroupId: '', organiserId: '', location: '', notes: '',
     }
   }
@@ -63,6 +68,7 @@ function initialValues(session?: AttendanceSession): Values {
     startTime: addisTime(session.startsAt),
     endTime: addisTime(session.endsAt),
     lateAfterMinutes: String(session.lateAfterMinutes),
+    absentAfterMinutes: session.absentAfterMinutes === null ? '' : String(session.absentAfterMinutes),
     classTypeId: session.classGrade ? String(session.classGrade.classType.id) : '',
     classGradeId: session.classGradeId ? String(session.classGradeId) : '',
     departmentId: session.departmentId ? String(session.departmentId) : '',
@@ -169,6 +175,7 @@ export function SessionDialog({
         startTime: v.startTime,
         endTime: v.endTime,
         lateAfterMinutes: Number(v.lateAfterMinutes),
+        absentAfterMinutes: v.kind !== 'OTHER' && v.absentAfterMinutes !== '' ? Number(v.absentAfterMinutes) : null,
         classGradeId: !isGroup && v.classGradeId ? Number(v.classGradeId) : null,
         departmentId: v.kind === 'OTHER' && v.departmentId ? Number(v.departmentId) : null,
         serviceGroupId: isGroup && v.serviceGroupId ? Number(v.serviceGroupId) : null,
@@ -274,8 +281,20 @@ export function SessionDialog({
                 max={240}
               />
             )}
+            {kind !== 'OTHER' && (
+              <TextField
+                control={control}
+                name="absentAfterMinutes"
+                label={t('attendance.fields.absentAfter')}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={600}
+                placeholder={t('attendance.fields.absentAfterPlaceholder')}
+              />
+            )}
           </div>
-          {kind !== 'OTHER' && <p className="-mt-2 text-xs text-muted-foreground">{t('attendance.fields.lateAfterHint')}</p>}
+          {kind !== 'OTHER' && <p className="-mt-2 text-xs text-muted-foreground">{t('attendance.fields.lateAfterHint')} {t('attendance.fields.absentAfterHint')}</p>}
           <TextField control={control} name="location" label={t('attendance.fields.location')} />
           <TextareaField control={control} name="notes" label={t('attendance.fields.notes')} rows={2} />
           {form.formState.errors.root?.server && (

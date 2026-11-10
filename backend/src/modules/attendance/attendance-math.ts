@@ -8,16 +8,50 @@ export function addisDateTime(date: string, time: string): Date {
   return new Date(`${date}T${time}:00${ADDIS_OFFSET}`);
 }
 
-/** A check-in at `at` is Late once it is past startsAt + lateAfterMinutes. */
+/**
+ * The mark a check-in at `at` earns. Present until startsAt + lateAfterMinutes,
+ * Late after that, Absent past startsAt + absentAfterMinutes (when the session
+ * has a cut-off). A late permission's grace minutes keep the member Present
+ * until startsAt + graceMinutes and push their Absent cut-off later by as much.
+ */
 export function statusForCheckIn(
   startsAt: Date,
   lateAfterMinutes: number,
   at: Date,
+  { absentAfterMinutes = null, graceMinutes = 0 }: CheckInRules = {},
 ): AttendanceStatus {
-  return at.getTime() > startsAt.getTime() + lateAfterMinutes * 60_000
+  const after = (at.getTime() - startsAt.getTime()) / 60_000;
+  if (absentAfterMinutes !== null && after > absentAfterMinutes + graceMinutes) {
+    return AttendanceStatus.ABSENT;
+  }
+  return after > Math.max(lateAfterMinutes, graceMinutes)
     ? AttendanceStatus.LATE
     : AttendanceStatus.PRESENT;
 }
+
+export interface CheckInRules {
+  absentAfterMinutes?: number | null;
+  /** The member's late-permission grace for this session (0 = none). */
+  graceMinutes?: number;
+}
+
+/**
+ * When an open session closes itself: at its end time, or — with an absent
+ * cut-off — at that cut-off, held open for the longest grace among members
+ * with a late permission for it.
+ */
+export function closesAt(
+  session: { startsAt: Date; endsAt: Date; absentAfterMinutes: number | null },
+  longestGraceMinutes = 0,
+): Date {
+  if (session.absentAfterMinutes === null) return session.endsAt;
+  return new Date(
+    session.startsAt.getTime() + (session.absentAfterMinutes + longestGraceMinutes) * 60_000,
+  );
+}
+
+/** Day of the week (0 = Sunday) of a 'YYYY-MM-DD' date. */
+export const weekdayOf = (isoDate: string) => new Date(`${isoDate}T00:00:00Z`).getUTCDay();
 
 /**
  * Minutes a member spent at a session:

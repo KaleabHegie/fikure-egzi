@@ -19,6 +19,8 @@ export interface AttendanceSession {
   startsAt: string
   endsAt: string
   lateAfterMinutes: number
+  /** Class and service-group sessions: check-ins after this are Absent and the session closes. */
+  absentAfterMinutes: number | null
   classGradeId: number | null
   departmentId: number | null
   serviceGroupId: number | null
@@ -46,6 +48,8 @@ export interface AttendanceSession {
   organiser: { id: number; nameEn: string; nameAm: string } | null
   /** Department whose admins and attendance takers handle this session (null = office only). */
   ownerDepartmentId: number | null
+  /** When an open session will close itself (held open for late permissions); null if it won't. */
+  closesAt: string | null
   rosterSize: number
   counts: StatusCounts
   unmarked: number
@@ -59,6 +63,7 @@ export interface SessionInput {
   startTime: string
   endTime: string
   lateAfterMinutes: number
+  absentAfterMinutes: number | null
   classGradeId: number | null
   departmentId: number | null
   serviceGroupId: number | null
@@ -92,6 +97,8 @@ export interface RosterRow {
   member: AttendanceMemberSummary
   inRoster: boolean
   record: AttendanceRecord | null
+  /** Minutes of the member's late permission for this session, if any. */
+  graceMinutes: number | null
 }
 
 export interface ScanResult {

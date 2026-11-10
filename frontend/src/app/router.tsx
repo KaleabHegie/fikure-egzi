@@ -232,6 +232,14 @@ export const router = createBrowserRouter([
                 ),
               },
               {
+                path: 'permissions',
+                ...page(
+                  () => import('@/features/attendance/pages/late-permissions-page'),
+                  (m) => m.LatePermissionsPage,
+                  PERMISSIONS.ATTENDANCE_PERMISSIONS,
+                ),
+              },
+              {
                 path: ':id',
                 ...page(
                   () => import('@/features/attendance/pages/session-page'),

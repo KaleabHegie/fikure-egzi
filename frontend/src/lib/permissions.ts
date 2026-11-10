@@ -18,6 +18,7 @@ export const PERMISSIONS = {
   ATTENDANCE_MANAGE: 'attendance.manage',
   ATTENDANCE_DELETE: 'attendance.delete',
   ATTENDANCE_ANY_DAY: 'attendance.any_day',
+  ATTENDANCE_PERMISSIONS: 'attendance.permissions',
   ASSETS_READ: 'assets.read',
   ASSETS_MANAGE: 'assets.manage',
   COURSES_READ: 'courses.read',

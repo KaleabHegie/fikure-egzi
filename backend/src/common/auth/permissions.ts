@@ -25,6 +25,7 @@ export const PERMISSIONS = {
   ATTENDANCE_MANAGE: 'attendance.manage',
   ATTENDANCE_DELETE: 'attendance.delete',
   ATTENDANCE_ANY_DAY: 'attendance.any_day',
+  ATTENDANCE_PERMISSIONS: 'attendance.permissions',
   ASSETS_READ: 'assets.read',
   ASSETS_MANAGE: 'assets.manage',
   COURSES_READ: 'courses.read',
@@ -123,6 +124,12 @@ export const PERMISSION_DEFINITIONS: readonly PermissionDefinition[] = [
     module: 'attendance',
     description:
       "Create and change attendance for days other than today (without it: today's only)",
+  },
+  {
+    code: PERMISSIONS.ATTENDANCE_PERMISSIONS,
+    module: 'attendance',
+    description:
+      "Give members late permissions for the department's class and service-group sessions",
   },
   {
     code: PERMISSIONS.ASSETS_READ,
@@ -228,6 +235,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       PERMISSIONS.ATTENDANCE_MANAGE,
       PERMISSIONS.ATTENDANCE_DELETE,
       PERMISSIONS.ATTENDANCE_ANY_DAY,
+      PERMISSIONS.ATTENDANCE_PERMISSIONS,
       PERMISSIONS.ASSETS_READ,
       PERMISSIONS.ASSETS_MANAGE,
       PERMISSIONS.COURSES_READ,

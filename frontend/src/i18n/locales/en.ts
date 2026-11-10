@@ -889,6 +889,14 @@ export const en = {
     memberRequired: 'Choose the member who teaches',
     memberHasLogin: 'This member already has a login',
     selfRoleHint: 'You cannot change your own role or deactivate yourself.',
+    delete: {
+      action: 'Delete permanently',
+      title: 'Delete this account and its log?',
+      body: '{{name}} ({{email}}) will be removed for good, together with every audit-log entry this account made. Their sign-ins end straight away. Records they created stay. This cannot be undone; to stop someone signing in but keep their history, deactivate them instead.',
+      confirm: 'Delete account and log',
+      done_one: '{{name}} deleted, with {{count}} log entry',
+      done_other: '{{name}} deleted, with {{count}} log entries',
+    },
     fields: {
       fullName: 'Full name',
       email: 'Email (used to sign in)',

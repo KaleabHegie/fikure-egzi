@@ -1,7 +1,8 @@
-import { KeyRound, Loader2, MoreHorizontal, Pencil, Plus, Search, UserCog, UserRoundCheck, UserRoundX } from 'lucide-react'
+import { KeyRound, Loader2, MoreHorizontal, Pencil, Plus, Search, Trash2, UserCog, UserRoundCheck, UserRoundX } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState, ErrorState } from '@/components/common/states'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useAuth } from '@/features/auth/use-auth'
 import { useLocalizedName } from '@/features/classes/use-localized'
 import { getErrorMessage } from '@/lib/api/errors'
+import { PERMISSIONS } from '@/lib/permissions'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { usersApi, useUserMutation, useUsers } from '../api'
@@ -101,12 +103,14 @@ function PasswordDialog({ user, onClose }: { user: SystemUser; onClose: () => vo
 export function UsersPage() {
   const { t } = useTranslation()
   const name = useLocalizedName()
-  const { user: me } = useAuth()
+  const { user: me, can } = useAuth()
   const [search, setSearch] = useState('')
   const query = useDebounced(search.trim())
   const users = useUsers(query)
   const [editing, setEditing] = useState<SystemUser | 'new' | null>(null)
   const [passwordFor, setPasswordFor] = useState<SystemUser | null>(null)
+  const [deleting, setDeleting] = useState<SystemUser | null>(null)
+  const canDelete = can(PERMISSIONS.USERS_DELETE)
   const scoped = me?.departmentIds != null
 
   const save = useUserMutation((a: { id?: number; input: UserInput }) =>
@@ -115,6 +119,7 @@ export function UsersPage() {
   const setActive = useUserMutation((a: { id: number; isActive: boolean }) =>
     usersApi.update(a.id, { isActive: a.isActive }),
   )
+  const remove = useUserMutation((id: number) => usersApi.remove(id))
 
   const list = users.data ?? []
 
@@ -244,6 +249,12 @@ export function UsersPage() {
                               {u.isActive ? <UserRoundX /> : <UserRoundCheck />}
                               {u.isActive ? t('users.deactivate') : t('users.activate')}
                             </DropdownMenuItem>
+                            {canDelete && (
+                              <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(u)}>
+                                <Trash2 />
+                                {t('users.delete.action')}
+                              </DropdownMenuItem>
+                            )}
                           </>
                         )}
                       </DropdownMenuContent>
@@ -268,6 +279,25 @@ export function UsersPage() {
         />
       )}
       {passwordFor && <PasswordDialog user={passwordFor} onClose={() => setPasswordFor(null)} />}
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title={t('users.delete.title')}
+        description={deleting ? t('users.delete.body', { name: deleting.fullName, email: deleting.email }) : ''}
+        confirmLabel={t('users.delete.confirm')}
+        destructive
+        pending={remove.isPending}
+        onConfirm={() => {
+          if (!deleting) return
+          remove.mutate(deleting.id, {
+            onSuccess: (r) => {
+              toast.success(t('users.delete.done', { name: deleting.fullName, count: r.auditLogsDeleted }))
+              setDeleting(null)
+            },
+            onError: (e) => toast.error(getErrorMessage(e)),
+          })
+        }}
+      />
     </div>
   )
 }

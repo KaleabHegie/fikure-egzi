@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -54,6 +55,13 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.users.update(id, dto, user);
+  }
+
+  @Delete(':id')
+  @RequirePermissions(PERMISSIONS.USERS_DELETE)
+  @ApiConflictResponse({ description: 'The last office administrator' })
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.users.remove(id, user);
   }
 
   @Put(':id/password')

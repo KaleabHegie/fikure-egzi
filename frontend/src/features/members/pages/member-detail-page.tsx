@@ -222,7 +222,13 @@ export function MemberDetailPage() {
           <ChevronLeft className="size-4" />
           {t('nav.members')}
         </Link>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to={`/members/id-cards?id=${m.id}`} target="_blank" rel="noopener">
+              <IdCard />
+              {t('members.idCards.printOne')}
+            </Link>
+          </Button>
           <Can permission={PERMISSIONS.MEMBERS_DELETE}>
             <Button variant="outline" onClick={() => setConfirmOpen(true)}>
               <Trash2 />

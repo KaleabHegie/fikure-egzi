@@ -15,6 +15,8 @@ export const usersApi = {
   memberCandidates: (search: string) => api.get<MemberCandidate[]>('/users/member-candidates', { params: { search } }),
   create: (input: UserInput) => api.post<SystemUser>('/users', input),
   update: (id: number, input: Partial<UserInput>) => api.patch<SystemUser>(`/users/${id}`, input),
+  remove: (id: number) =>
+    http.delete<{ data: { auditLogsDeleted: number } }>(`/users/${id}`).then((r) => r.data.data),
   setPassword: (id: number, password: string) =>
     http.put(`/users/${id}/password`, { password }).then(() => undefined),
 }

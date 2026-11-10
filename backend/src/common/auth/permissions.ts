@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   EXAMS_READ: 'exams.read',
   EXAMS_MANAGE: 'exams.manage',
   USERS_MANAGE: 'users.manage',
+  USERS_DELETE: 'users.delete',
   ROLES_MANAGE: 'roles.manage',
   AUDIT_READ: 'audit.read',
   SETTINGS_MANAGE: 'settings.manage',
@@ -162,6 +163,11 @@ export const PERMISSION_DEFINITIONS: readonly PermissionDefinition[] = [
     code: PERMISSIONS.USERS_MANAGE,
     module: 'users',
     description: 'Manage system user accounts',
+  },
+  {
+    code: PERMISSIONS.USERS_DELETE,
+    module: 'users',
+    description: 'Delete staff accounts together with their audit-log entries',
   },
   {
     code: PERMISSIONS.ROLES_MANAGE,

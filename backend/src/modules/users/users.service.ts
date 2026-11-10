@@ -267,6 +267,33 @@ export class UsersService {
     });
   }
 
+  /**
+   * Removes a staff account for good, together with every audit entry it
+   * made. Its roles, departments, sessions and teaching assignments go with
+   * it; records it created keep their data and just lose the author. The
+   * deletion itself is recorded under the acting administrator.
+   */
+  async remove(id: number, actor: AuthenticatedUser): Promise<{ auditLogsDeleted: number }> {
+    const target = await this.findManageable(id, actor);
+    if (id === actor.id) throw new ForbiddenException('You cannot delete your own account.');
+    const role = target.roles[0]?.role.code;
+    if (role === OFFICE_ADMIN && target.isActive) await this.assertAnotherOfficeAdmin(id);
+
+    const { count } = await this.prisma.$transaction(async (tx) => {
+      const logs = await tx.auditLog.deleteMany({ where: { userId: id } });
+      await tx.user.delete({ where: { id } });
+      return logs;
+    });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'DELETE',
+      entity: 'User',
+      entityId: id,
+      changes: { email: target.email, fullName: target.fullName, role, auditLogsDeleted: count },
+    });
+    return { auditLogsDeleted: count };
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   private manageableWhere(scope: DepartmentScope): Prisma.UserWhereInput {

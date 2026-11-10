@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   EXAMS_READ: 'exams.read',
   EXAMS_MANAGE: 'exams.manage',
   USERS_MANAGE: 'users.manage',
+  USERS_DELETE: 'users.delete',
   ROLES_MANAGE: 'roles.manage',
   AUDIT_READ: 'audit.read',
   SETTINGS_MANAGE: 'settings.manage',

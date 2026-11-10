@@ -33,7 +33,7 @@ const PERSONAL = [
   'spiritualFatherName',
 ] as const;
 
-/** Everything after classes and departments: the rest of the form, then health and photo. */
+/** Everything after classes and departments: the rest of the form, then the photo. */
 const REST = [
   'alternatePhone',
   'email',
@@ -47,8 +47,6 @@ const REST = [
   'emergencyContactName',
   'emergencyContactRelation',
   'emergencyContactPhone',
-  'health',
-  'healthNote',
   'photo',
 ] as const;
 
@@ -83,8 +81,6 @@ const SECTION: Record<Question, Section> = {
   emergencyContactName: 'emergency',
   emergencyContactRelation: 'emergency',
   emergencyContactPhone: 'emergency',
-  health: 'health',
-  healthNote: 'health',
   photo: 'photo',
 };
 
@@ -152,8 +148,6 @@ type Answers = { [K in TextKey]?: string | null } & {
   classGrades?: Record<string, number | null>;
   /** Service departments the person says they serve in. */
   departmentIds?: number[];
-  hasHealthCondition?: boolean;
-  healthConditionNote?: string | null;
   photoFileId?: string | null;
   /** Class agreements accepted (agreement ids). */
   agreementIds?: number[];
@@ -194,7 +188,6 @@ const flowFor = (catalog: Catalog): Step[] => [
 
 /** Follow-up questions are asked only when their lead question was answered. */
 const applies = (step: Step, a: Answers) => {
-  if (step === 'healthNote') return a.hasHealthCondition === true;
   if (step === 'emergencyContactRelation' || step === 'emergencyContactPhone') {
     return Boolean(a.emergencyContactName);
   }
@@ -206,14 +199,9 @@ const nextStep = (flow: Step[], step: Step, a: Answers): Step =>
   flow.slice(flow.indexOf(step) + 1).find((s) => applies(s, a)) ?? 'confirm';
 const previousStep = (flow: Step[], step: Step, a: Answers): Step | null =>
   flow.slice(0, Math.max(flow.indexOf(step), 0)).findLast((s) => applies(s, a)) ?? null;
-/**
- * Numbered questions; the health note shares the health question's number, and
- * an agreement counts once the person is in its class.
- */
+/** Numbered questions; an agreement counts once the person is in its class. */
 const numbered = (flow: Step[], a: Answers) =>
-  flow.filter(
-    (s) => s !== 'healthNote' && s !== 'confirm' && (!isAgreementStep(s) || applies(s, a)),
-  );
+  flow.filter((s) => s !== 'confirm' && (!isAgreementStep(s) || applies(s, a)));
 
 type Registration = {
   id: number;
@@ -349,6 +337,8 @@ export class TelegramRegistrationService {
     // A class, the departments or an agreement no longer offered mid-conversation: move on.
     if ((isClassStep(step) || step === 'departments') && !flow.includes(step)) step = REST[0];
     if (isAgreementStep(step) && !flow.includes(step)) step = 'confirm';
+    // Rows saved before the health questions were dropped may still point at them.
+    if (reg.step === 'health' || reg.step === 'healthNote') step = 'photo';
     const input = (message.text ?? message.caption ?? '').trim();
     const photo = photoFrom(message);
     const ask = (s: Step, a: Answers) => this.ask(reg.chatId, s, a, lang, reg.phone, catalog);
@@ -553,16 +543,6 @@ export class TelegramRegistrationService {
           ? { answers: { ...a, educationLevel: key as EducationLevel } }
           : { error: t.invalid.choose };
       }
-      case 'health':
-        if (input === t.yes) return { answers: { ...a, hasHealthCondition: true } };
-        if (input === t.no) {
-          return { answers: { ...a, hasHealthCondition: false, healthConditionNote: null } };
-        }
-        return { error: t.invalid.choose };
-      case 'healthNote':
-        if (input.length < 2 || !/\p{L}/u.test(input)) return { error: t.invalid.note };
-        if (input.length > 1000) return { error: t.invalid.tooLong(1000) };
-        return { answers: { ...a, healthConditionNote: input } };
       case 'photo':
         if (skipped) return { answers: { ...a, photoFileId: null } };
         if (photo === 'tooLarge') return { error: t.invalid.photoTooLarge };
@@ -605,7 +585,7 @@ export class TelegramRegistrationService {
       );
     }
 
-    const n = counted.indexOf(step === 'healthNote' ? 'health' : step) + 1;
+    const n = counted.indexOf(step) + 1;
     const section = isClassStep(step)
       ? 'classes'
       : step === 'departments'
@@ -678,7 +658,6 @@ export class TelegramRegistrationService {
     } else {
       question = (t.ask as Record<string, Ask>)[step]!;
       if (step === 'gender') options = [[t.male, t.female]];
-      if (step === 'health') options = [[t.yes, t.no]];
       if (step === 'maritalStatus') options = rows(Object.values(t.maritalStatus), 2);
       if (step === 'educationLevel') options = rows(Object.values(t.education), 2);
       if (step === 'city') options = [[t.addisAbaba]];
@@ -720,7 +699,6 @@ export class TelegramRegistrationService {
         s.address,
         s.work,
         s.emergency,
-        s.health,
         s.photo,
         ...(catalog.classes.some((c) => c.agreement) ? [s.agreement] : []),
       ].join('\n')}</blockquote>`,
@@ -767,11 +745,6 @@ export class TelegramRegistrationService {
       case 'educationLevel':
         if (!('educationLevel' in a)) return '';
         return a.educationLevel ? t.education[a.educationLevel]! : t.fields.skipped;
-      case 'health':
-        if (a.hasHealthCondition === undefined) return '';
-        return a.hasHealthCondition ? t.yes : t.no;
-      case 'healthNote':
-        return a.healthConditionNote ?? '';
       case 'photo':
         if (!('photoFileId' in a)) return '';
         return a.photoFileId ? t.fields.photoSent : t.fields.skipped;
@@ -845,16 +818,10 @@ export class TelegramRegistrationService {
             ]
           : []),
       ]),
-      block(
-        accepted.length > 0
-          ? `${s.health} · ${s.photo} · ${s.agreement}`
-          : `${s.health} · ${s.photo}`,
-        [
-          row(f.health, a.hasHealthCondition ? a.healthConditionNote : f.noCondition),
-          row(f.photo, a.photoFileId ? f.photoSent : null),
-          ...accepted.map((c) => row(t.agreementFor(localName(c, lang)), f.accepted)),
-        ],
-      ),
+      block(accepted.length > 0 ? `${s.photo} · ${s.agreement}` : s.photo, [
+        row(f.photo, a.photoFileId ? f.photoSent : null),
+        ...accepted.map((c) => row(t.agreementFor(localName(c, lang)), f.accepted)),
+      ]),
       '',
       t.summaryHint,
     ].join('\n');
@@ -916,8 +883,6 @@ export class TelegramRegistrationService {
             emergencyContactPhone: a.emergencyContactName
               ? (a.emergencyContactPhone ?? null)
               : null,
-            hasHealthCondition: a.hasHealthCondition ?? null,
-            healthConditionNote: a.healthConditionNote ?? null,
             agreementIds,
             classGradeIds,
           },

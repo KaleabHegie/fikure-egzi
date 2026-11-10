@@ -190,13 +190,11 @@ const FULL: (string | Partial<TgMessage>)[] = [
   'Almaz Bekele',
   'Mother',
   '0911556677',
-  t.yes,
-  'Asthma, carries an inhaler',
   PHOTO,
   t.agree,
 ];
 /** Index in FULL of the answer to each question used below. */
-const AT = { occupation: 23, photo: 29, agreement: 30 };
+const AT = { occupation: 23, photo: 27, agreement: 28 };
 
 describe('TelegramRegistrationService', () => {
   let db: FakeDb;
@@ -258,10 +256,10 @@ describe('TelegramRegistrationService', () => {
 
   it('asks every member-form question, classes included, and registers the member', async () => {
     await start();
-    expect(last()).toContain('<b>26</b> short questions');
+    expect(last()).toContain('<b>25</b> short questions');
     await sayAll(FULL);
     expect(step()).toBe('confirm');
-    expect(sent.some((m) => m.includes('27 / 27'))).toBe(true);
+    expect(sent.some((m) => m.includes('26 / 26'))).toBe(true);
     expect(last()).toContain('Abebe Kebede Tesfaye');
     expect(last()).toContain('Mezmur class: <b>Geez</b>');
     expect(last()).toContain('Course class: <b>Not placed</b>');
@@ -294,8 +292,6 @@ describe('TelegramRegistrationService', () => {
       emergencyContactName: 'Almaz Bekele',
       emergencyContactRelation: 'Mother',
       emergencyContactPhone: '0911556677',
-      hasHealthCondition: true,
-      healthConditionNote: 'Asthma, carries an inhaler',
       agreementIds: [5],
       classGradeIds: [11],
     });
@@ -322,7 +318,7 @@ describe('TelegramRegistrationService', () => {
     await say(t.start);
     expect(last()).toContain(t.sections.personal);
     expect(last()).toContain('▰▱▱▱▱▱▱▱▱▱');
-    expect(last()).toContain('1 / 26');
+    expect(last()).toContain('1 / 25');
     expect(last()).toContain(`<b>${t.ask.firstName.q}</b>`);
 
     await sayAll(FULL.slice(1, 10));
@@ -384,15 +380,20 @@ describe('TelegramRegistrationService', () => {
   it('skips follow-up questions whose lead answer was "none"', async () => {
     await start();
     await sayAll([...FULL.slice(0, AT.occupation + 1), t.skip]);
-    expect(step()).toBe('health');
-    await say(t.no);
     expect(step()).toBe('photo');
+  });
+
+  it('asks nothing about health', async () => {
+    await start();
+    await sayAll(FULL.slice(0, AT.photo));
+    expect(step()).toBe('photo');
+    expect(sent.join('\n')).not.toContain(t.ask.health.q);
   });
 
   it('goes back to the previous question that was asked, showing the earlier answer', async () => {
     await start();
     await sayAll([...FULL.slice(0, AT.occupation + 1), t.skip]);
-    expect(step()).toBe('health');
+    expect(step()).toBe('photo');
     await say(t.back);
     expect(step()).toBe('emergencyContactName');
     await say(t.back);
@@ -450,7 +451,7 @@ describe('TelegramRegistrationService', () => {
     expect(step()).toBe('agreement:1');
     expect(last()).toContain(t.agreementFor('Mezmur class'));
     expect(last()).toContain('1. Respect the order of the class.\n2. Dress appropriately');
-    expect(last()).toContain('27 / 27');
+    expect(last()).toContain('26 / 26');
   });
 
   it('carries on without the class when its agreement is not accepted', async () => {

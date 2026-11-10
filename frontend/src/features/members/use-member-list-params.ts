@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 import {
+  EDUCATION_LEVELS,
+  type EducationLevel,
   GENDERS,
   type Gender,
   MEMBERSHIP_STATUSES,
@@ -33,6 +35,7 @@ export function useMemberListParams() {
       search: searchParams.get('search') || undefined,
       gender: pick<Gender>(searchParams.get('gender'), GENDERS),
       status: pick<MembershipStatus>(searchParams.get('status'), MEMBERSHIP_STATUSES),
+      educationLevel: pick<EducationLevel>(searchParams.get('educationLevel'), EDUCATION_LEVELS),
       classGradeId: searchParams.get('classGradeId') ? positiveInt(searchParams.get('classGradeId'), 0) || undefined : undefined,
       departmentId: searchParams.get('departmentId') ? positiveInt(searchParams.get('departmentId'), 0) || undefined : undefined,
       selfRegistered: searchParams.get('selfRegistered') === 'true' || undefined,
@@ -60,7 +63,7 @@ export function useMemberListParams() {
   )
 
   const hasFilters = Boolean(
-    params.search || params.gender || params.status || params.classGradeId || params.departmentId || params.selfRegistered,
+    params.search || params.gender || params.status || params.educationLevel || params.classGradeId || params.departmentId || params.selfRegistered,
   )
   const reset = useCallback(() => setSearchParams({}, { replace: true }), [setSearchParams])
 

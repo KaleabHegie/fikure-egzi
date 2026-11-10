@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto.js';
 import { Trim } from '../../../common/transforms/string.transforms.js';
-import { Gender, MembershipStatus } from '../../../generated/prisma/enums.js';
+import { EducationLevel, Gender, MembershipStatus } from '../../../generated/prisma/enums.js';
 
 export const MEMBER_SORT_FIELDS = ['createdAt', 'firstName', 'memberCode', 'joinedAt'] as const;
 export type MemberSortField = (typeof MEMBER_SORT_FIELDS)[number];
@@ -20,7 +20,7 @@ export type MemberSortField = (typeof MEMBER_SORT_FIELDS)[number];
 export class QueryMembersDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description:
-      'Matches name parts, Christian name, member code or phone. Multiple words must all match.',
+      'Matches any text on the record, choices by name (gender, status, marital status, education), and department or class names. Multiple words must all match.',
     example: 'Abebe Kebede',
   })
   @Trim()
@@ -28,6 +28,11 @@ export class QueryMembersDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(100)
   search?: string;
+
+  @ApiPropertyOptional({ enum: EducationLevel })
+  @IsOptional()
+  @IsEnum(EducationLevel)
+  educationLevel?: EducationLevel;
 
   @ApiPropertyOptional({ enum: Gender })
   @IsOptional()

@@ -20,6 +20,9 @@ import { getErrorMessage } from '@/lib/api/errors'
 import { todayIso } from '@/lib/ethiopian-calendar'
 import { departmentsApi, useDepartmentMembers, useDepartmentMutation, useDepartments } from '../api'
 import { DEPARTMENT_ROLES, type DepartmentRole, type MemberSummary } from '../types'
+import { TreeMark } from '@/components/common/tree-mark'
+import { departmentTreeOrder } from '../types'
+import { cn } from '@/lib/utils'
 
 const NONE = '__none__'
 
@@ -106,11 +109,16 @@ export function AddToDepartmentDialog({
                 <SelectItem value={NONE} disabled>
                   {t('departments.roster.chooseDepartment')}
                 </SelectItem>
-                {departments?.map((d) => {
+                {departmentTreeOrder(departments ?? []).map(({ department: d, depth, hasChildren }) => {
                   const already = currentDepartmentIds.includes(d.id)
                   return (
-                    <SelectItem key={d.id} value={String(d.id)} disabled={already}>
-                      {d.parentId !== null && '— '}
+                    <SelectItem
+                      key={d.id}
+                      value={String(d.id)}
+                      disabled={already}
+                      leading={<TreeMark depth={depth} />}
+                      className={cn(hasChildren && 'font-medium')}
+                    >
                       {name(d)}
                       {already && (
                         <span className="text-muted-foreground"> · {t('departments.roster.alreadyIn')}</span>

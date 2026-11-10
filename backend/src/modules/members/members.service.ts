@@ -18,6 +18,7 @@ import { CreateMemberDto } from './dto/create-member.dto.js';
 import { QueryMembersDto } from './dto/query-members.dto.js';
 import { UpdateMemberDto } from './dto/update-member.dto.js';
 import { formatMemberCode } from './member-code.js';
+import { memberSearchWhere } from './member-search.js';
 
 const ENTITY = 'Member';
 
@@ -152,15 +153,6 @@ export const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 
 /** Fields that are NOT NULL in the database; PATCH may omit them but never null them. */
 const NON_NULLABLE_FIELDS = ['firstName', 'fatherName', 'gender', 'status', 'joinedAt'] as const;
-
-const SEARCHABLE_FIELDS = [
-  'firstName',
-  'fatherName',
-  'grandfatherName',
-  'christianName',
-  'memberCode',
-  'phone',
-] as const satisfies readonly (keyof Prisma.MemberWhereInput)[];
 
 /** 'YYYY-MM-DD' → Date at UTC midnight (stored in a DATE column). */
 const toDate = dateOnly;
@@ -721,6 +713,7 @@ export class MembersService {
       deletedAt: null,
       ...(query.gender && { gender: query.gender }),
       ...(query.status && { status: query.status }),
+      ...(query.educationLevel && { educationLevel: query.educationLevel }),
       ...(query.selfRegistered && { selfRegistered: true }),
       ...(query.classGradeId && {
         classEnrollments: { some: { classGradeId: query.classGradeId } },
@@ -729,11 +722,7 @@ export class MembersService {
         departmentRoles: { some: { departmentId: query.departmentId } },
       }),
       ...(terms.length > 0 && {
-        AND: terms.map((term) => ({
-          OR: SEARCHABLE_FIELDS.map((field) => ({
-            [field]: { contains: term },
-          })),
-        })),
+        AND: terms.map((term) => memberSearchWhere(term)),
       }),
     };
   }

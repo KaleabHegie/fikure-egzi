@@ -16,7 +16,7 @@ import {
 import { msg } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
 import { useDepartments } from '@/features/departments/api'
-import { mainDepartments } from '@/features/departments/types'
+import { departmentOptions, mainDepartments } from '@/features/departments/types'
 import type {
   ClassAgreement,
   ClassAgreementInput,
@@ -188,7 +188,7 @@ export function ClassTypeDialog({
           label={t('classes.fields.department')}
           description={t('classes.fields.departmentHint')}
           required
-          options={departments.map((d) => ({ value: String(d.id), label: localized(d) }))}
+          options={departmentOptions(departments, localized)}
         />
         <SwitchField
           control={control}

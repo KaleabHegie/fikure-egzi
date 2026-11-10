@@ -156,11 +156,12 @@ export const en = {
     count: '{{count}} registered members',
     description: 'Registered Sunday school members',
     register: 'Register member',
-    searchPlaceholder: 'Search name, code or phone',
+    searchPlaceholder: 'Search anything: name, phone, address, job, department…',
     searchLabel: 'Search members',
     filters: {
       allStatuses: 'All statuses',
       allGenders: 'All genders',
+      allEducation: 'All education levels',
       allClasses: 'All classes',
       allDepartments: 'All departments',
       source: 'Registered via',

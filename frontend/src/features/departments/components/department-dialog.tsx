@@ -15,7 +15,7 @@ import {
 import { useLocalizedName } from '@/features/classes/use-localized'
 import { msg } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
-import type { Department, DepartmentInput, DepartmentMembership } from '../types'
+import { type Department, type DepartmentInput, type DepartmentMembership, departmentOptions } from '../types'
 
 const schema = z.object({
   code: z
@@ -73,9 +73,10 @@ export function DepartmentDialog({
   const { t } = useTranslation()
   const name = useLocalizedName()
   const excluded = department ? selfAndDescendants(department.id, allDepartments) : new Set<number>()
-  const parentOptions = allDepartments
-    .filter((d) => !excluded.has(d.id))
-    .map((d) => ({ value: String(d.id), label: name(d) }))
+  const parentOptions = departmentOptions(
+    allDepartments.filter((d) => !excluded.has(d.id)),
+    name,
+  )
 
   const form = useForm<Values, unknown, z.output<typeof schema>>({
     resolver: zodResolver(schema),

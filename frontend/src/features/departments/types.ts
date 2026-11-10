@@ -1,3 +1,5 @@
+import type { Option } from '@/components/form/form-fields'
+
 export const DEPARTMENT_ROLES = ['HEAD', 'DEPUTY', 'SECRETARY', 'MEMBER'] as const
 export type DepartmentRole = (typeof DEPARTMENT_ROLES)[number]
 
@@ -81,6 +83,57 @@ export function buildDepartmentTree(departments: Department[]): DepartmentTreeNo
     else roots.push(node)
   }
   return roots
+}
+
+/** A department placed in tree order, with how deep it sits and whether it has sub-departments here. */
+export interface DepartmentTreeEntry<T> {
+  department: T
+  depth: number
+  hasChildren: boolean
+}
+
+/**
+ * Departments in tree order — each one followed by its own sub-departments —
+ * for dropdowns. Works on any subset: a department whose parent is not in the
+ * list starts its own branch at depth 0. Siblings keep the list's order.
+ */
+export function departmentTreeOrder<T extends Pick<Department, 'id' | 'parentId'>>(
+  departments: T[],
+): DepartmentTreeEntry<T>[] {
+  const ids = new Set(departments.map((d) => d.id))
+  const children = new Map<number, T[]>()
+  const roots: T[] = []
+  for (const d of departments) {
+    if (d.parentId !== null && d.parentId !== d.id && ids.has(d.parentId)) {
+      children.set(d.parentId, [...(children.get(d.parentId) ?? []), d])
+    } else {
+      roots.push(d)
+    }
+  }
+  const out: DepartmentTreeEntry<T>[] = []
+  const seen = new Set<number>()
+  const visit = (d: T, depth: number) => {
+    if (seen.has(d.id)) return
+    seen.add(d.id)
+    const kids = children.get(d.id) ?? []
+    out.push({ department: d, depth, hasChildren: kids.length > 0 })
+    for (const child of kids) visit(child, depth + 1)
+  }
+  for (const root of roots) visit(root, 0)
+  return out
+}
+
+/** Select options for departments, nested under their parents. */
+export function departmentOptions<T extends Pick<Department, 'id' | 'parentId'>>(
+  departments: T[],
+  label: (d: T) => string,
+): Option[] {
+  return departmentTreeOrder(departments).map(({ department, depth, hasChildren }) => ({
+    value: String(department.id),
+    label: label(department),
+    depth,
+    strong: hasChildren,
+  }))
 }
 
 /**

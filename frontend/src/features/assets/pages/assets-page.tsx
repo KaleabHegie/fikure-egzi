@@ -32,6 +32,9 @@ import { AssetDialog } from '../components/asset-dialog'
 import { AssetPhoto } from '../components/asset-photo'
 import { CategoryManageDialog } from '../components/category-manage-dialog'
 import { ASSET_STATUSES, type AssetListParams, type AssetStatus } from '../types'
+import { TreeMark } from '@/components/common/tree-mark'
+import { departmentTreeOrder } from '@/features/departments/types'
+import { cn } from '@/lib/utils'
 
 const ALL = '__all__'
 
@@ -207,8 +210,9 @@ export function AssetsPage() {
                     onValueChange={(v) => set({ departmentId: v === ALL ? undefined : Number(v) })}
                   >
                     <DropdownMenuRadioItem value={ALL}>{t('assets.filters.allDepartments')}</DropdownMenuRadioItem>
-                    {departments!.map((d) => (
-                      <DropdownMenuRadioItem key={d.id} value={String(d.id)}>
+                    {departmentTreeOrder(departments!).map(({ department: d, depth, hasChildren }) => (
+                      <DropdownMenuRadioItem key={d.id} value={String(d.id)} className={cn(hasChildren && 'font-medium')}>
+                        <TreeMark depth={depth} />
                         {name(d)}
                       </DropdownMenuRadioItem>
                     ))}

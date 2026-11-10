@@ -34,6 +34,8 @@ import { coursesApi, useCourseMutation, useCourses, useRuns } from '../api'
 import { PhaseBadge } from '../components/course-badges'
 import { CourseDialog } from '../components/course-dialog'
 import type { CourseListParams, CourseRun, RunPhase } from '../types'
+import { TreeMark } from '@/components/common/tree-mark'
+import { departmentTreeOrder } from '@/features/departments/types'
 
 function useDebounced(value: string, ms = 300) {
   const [debounced, setDebounced] = useState(value)
@@ -197,8 +199,9 @@ function CourseList() {
                     onValueChange={(v) => set({ departmentId: v === 'all' ? undefined : Number(v) })}
                   >
                     <DropdownMenuRadioItem value="all">{t('courses.filters.allDepartments')}</DropdownMenuRadioItem>
-                    {departments!.map((d) => (
-                      <DropdownMenuRadioItem key={d.id} value={String(d.id)}>
+                    {departmentTreeOrder(departments!).map(({ department: d, depth, hasChildren }) => (
+                      <DropdownMenuRadioItem key={d.id} value={String(d.id)} className={cn(hasChildren && 'font-medium')}>
+                        <TreeMark depth={depth} />
                         {name(d)}
                       </DropdownMenuRadioItem>
                     ))}

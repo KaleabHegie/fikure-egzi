@@ -11,7 +11,7 @@ import { useClassTypes } from '@/features/classes/api'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { useAuth } from '@/features/auth/use-auth'
 import { useDepartments } from '@/features/departments/api'
-import { mainDepartments } from '@/features/departments/types'
+import { departmentOptions as departmentOptions_, mainDepartments } from '@/features/departments/types'
 import { useServiceGroups, useServiceTerms } from '@/features/service-groups/api'
 import { msg } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
@@ -116,11 +116,12 @@ export function SessionDialog({
     .map((g) => ({ value: String(g.id), label: gradeLabel(g) }))
   // Main departments only; a session's current department stays listed.
   const mainList = mainDepartments(departments ?? [], [session?.departmentId, session?.organiserId])
-  const departmentOptions = mainList.map((d) => ({ value: String(d.id), label: name(d) }))
+  const departmentOptions = departmentOptions_(mainList, name)
   const typeDepartment = new Map((classTypes ?? []).map((type) => [type.id, type.departmentId]))
-  const organiserOptions = mainList
-    .filter((d) => inDepartment(d.id))
-    .map((d) => ({ value: String(d.id), label: name(d) }))
+  const organiserOptions = departmentOptions_(
+    mainList.filter((d) => inDepartment(d.id)),
+    name,
+  )
   const groupOptions = (serviceGroups ?? [])
     .filter((g) => inDepartment(g.classGrade ? typeDepartment.get(g.classGrade.classType.id) : null))
     .map((g) => ({

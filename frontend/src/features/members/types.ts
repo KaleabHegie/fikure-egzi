@@ -92,6 +92,7 @@ export interface MemberListParams {
   search?: string
   gender?: Gender
   status?: MembershipStatus
+  educationLevel?: EducationLevel
   classGradeId?: number
   departmentId?: number
   /** Only members who registered themselves through the bot. */

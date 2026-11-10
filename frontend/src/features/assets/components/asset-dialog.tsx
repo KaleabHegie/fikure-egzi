@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useLocalizedName } from '@/features/classes/use-localized'
 import { useDepartments } from '@/features/departments/api'
-import { mainDepartments } from '@/features/departments/types'
+import { departmentOptions, mainDepartments } from '@/features/departments/types'
 import type { PhotoChange } from '@/features/members/api'
 import { PhotoPicker } from '@/features/members/components/photo-picker'
 import { msg } from '@/i18n'
@@ -139,7 +139,7 @@ export function AssetDialog({
               label={t('assets.fields.department')}
               description={t('assets.fields.departmentHint')}
               required
-              options={departments.map((d) => ({ value: String(d.id), label: name(d) }))}
+              options={departmentOptions(departments, name)}
             />
             <TextField control={control} name="quantity" label={t('assets.fields.quantity')} type="number" inputMode="numeric" min={1} required />
             <TextField control={control} name="location" label={t('assets.fields.location')} />

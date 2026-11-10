@@ -20,6 +20,9 @@ import { useDepartments } from '@/features/departments/api'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { useMemberLabels } from '../labels'
 import type { MemberListParams } from '../types'
+import { TreeMark } from '@/components/common/tree-mark'
+import { departmentTreeOrder } from '@/features/departments/types'
+import { cn } from '@/lib/utils'
 
 const ALL = '__all__'
 const SEARCH_DEBOUNCE_MS = 300
@@ -74,6 +77,9 @@ export function MemberFilters({
   const chips: Chip[] = []
   if (params.status) chips.push({ param: 'status', category: t('members.table.status'), value: labels.status(params.status) })
   if (params.gender) chips.push({ param: 'gender', category: t('members.table.gender'), value: labels.gender(params.gender) })
+  if (params.educationLevel) {
+    chips.push({ param: 'educationLevel', category: t('members.fields.educationLevel'), value: labels.education(params.educationLevel) })
+  }
   if (grade) chips.push({ param: 'classGradeId', category: t('members.table.classes'), value: gradeLabel(grade) })
   if (department) chips.push({ param: 'departmentId', category: t('nav.departments'), value: localName(department) })
   if (params.selfRegistered) {
@@ -163,6 +169,19 @@ export function MemberFilters({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>{t('members.fields.educationLevel')}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup {...radio('educationLevel')}>
+                <DropdownMenuRadioItem value={ALL}>{t('members.filters.allEducation')}</DropdownMenuRadioItem>
+                {labels.educationOptions.map((o) => (
+                  <DropdownMenuRadioItem key={o.value} value={o.value}>
+                    {o.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           {classTypes && classTypes.length > 0 && (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>{t('members.table.classes')}</DropdownMenuSubTrigger>
@@ -189,9 +208,9 @@ export function MemberFilters({
               <DropdownMenuSubContent className="max-h-80 overflow-y-auto">
                 <DropdownMenuRadioGroup {...radio('departmentId')}>
                   <DropdownMenuRadioItem value={ALL}>{t('members.filters.allDepartments')}</DropdownMenuRadioItem>
-                  {departments.map((d) => (
-                    <DropdownMenuRadioItem key={d.id} value={String(d.id)}>
-                      {d.parentId !== null && '— '}
+                  {departmentTreeOrder(departments).map(({ department: d, depth, hasChildren }) => (
+                    <DropdownMenuRadioItem key={d.id} value={String(d.id)} className={cn(hasChildren && 'font-medium')}>
+                      <TreeMark depth={depth} />
                       {localName(d)}
                     </DropdownMenuRadioItem>
                   ))}

@@ -16,6 +16,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { translateMessage } from '@/i18n'
 import { cn } from '@/lib/utils'
+import { TreeMark } from '@/components/common/tree-mark'
 
 /**
  * react-hook-form bindings for the shadcn Field primitives. Every form in the
@@ -136,6 +137,10 @@ export function TextareaField<T extends FieldValues>({
 export interface Option<V extends string = string> {
   value: V
   label: string
+  /** Nesting level in a tree-shaped list (sub-departments); 0 or unset is top level. */
+  depth?: number
+  /** Shown in bold, e.g. a department that has sub-departments. */
+  strong?: boolean
 }
 
 // Radix Select forbids empty-string item values, so "no selection" gets a sentinel.
@@ -190,7 +195,12 @@ export function SelectField<T extends FieldValues>({
         <SelectContent>
           {allowEmpty && <SelectItem value={EMPTY}>{emptyLabel ?? t('common.notSpecified')}</SelectItem>}
           {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
+            <SelectItem
+              key={o.value}
+              value={o.value}
+              leading={o.depth ? <TreeMark depth={o.depth} /> : undefined}
+              className={cn(o.strong && 'font-medium')}
+            >
               {o.label}
             </SelectItem>
           ))}

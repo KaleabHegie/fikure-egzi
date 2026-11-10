@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { useAuth } from '@/features/auth/use-auth'
 import { useLocalizedName } from '@/features/classes/use-localized'
 import { useDepartments } from '@/features/departments/api'
-import { mainDepartments } from '@/features/departments/types'
+import { departmentTreeOrder, mainDepartments } from '@/features/departments/types'
 import { msg, translateMessage } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
 import { cn } from '@/lib/utils'
@@ -272,8 +272,8 @@ export function UserDialog({
                 {t('users.fields.departments')} <span className="text-destructive">*</span>
               </legend>
               <div className="grid max-h-56 gap-1.5 overflow-y-auto rounded-md border p-3 sm:grid-cols-2">
-                {ownDepartments.map((d) => (
-                  <label key={d.id} className="flex items-center gap-2 text-sm">
+                {departmentTreeOrder(ownDepartments).map(({ department: d, depth }) => (
+                  <label key={d.id} className="flex items-center gap-2 text-sm" style={depth ? { paddingLeft: `${depth}rem` } : undefined}>
                     <input
                       type="checkbox"
                       className="size-4 accent-primary"

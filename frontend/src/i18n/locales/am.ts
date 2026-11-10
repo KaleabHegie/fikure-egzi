@@ -155,11 +155,12 @@ export const am: Translations = {
     count: '{{count}} የተመዘገቡ አባላት',
     description: 'የሰንበት ትምህርት ቤቱ የተመዘገቡ አባላት',
     register: 'አባል መዝግብ',
-    searchPlaceholder: 'በስም፣ በመለያ ቁጥር ወይም በስልክ ይፈልጉ',
+    searchPlaceholder: 'በማንኛውም ይፈልጉ፦ ስም፣ ስልክ፣ አድራሻ፣ ሥራ፣ የአገልግሎት ክፍል…',
     searchLabel: 'አባላትን ፈልግ',
     filters: {
       allStatuses: 'ሁሉም ሁኔታዎች',
       allGenders: 'ሁሉም ጾታዎች',
+      allEducation: 'ሁሉም የትምህርት ደረጃዎች',
       allClasses: 'ሁሉም ክፍሎች',
       allDepartments: 'ሁሉም የአገልግሎት ክፍሎች',
       source: 'የተመዘገቡበት',

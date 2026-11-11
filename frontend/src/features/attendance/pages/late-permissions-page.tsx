@@ -21,7 +21,7 @@ import { useLocalizedName } from '@/features/classes/use-localized'
 import { MemberAvatar } from '@/features/members/components/member-avatar'
 import { memberFullName } from '@/features/members/utils'
 import { getErrorMessage } from '@/lib/api/errors'
-import { formatDate } from '@/lib/format'
+import { formatDate, formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { LatePermissionDialog } from '../components/late-permission-dialog'
 import {
@@ -39,8 +39,11 @@ const ALL = 'all'
 const STATE_STYLES: Record<PermissionState, string> = {
   active: 'bg-success/12 text-success',
   upcoming: 'bg-gold/20 text-foreground',
+  pending: 'bg-warning/15 text-foreground',
+  rejected: 'bg-destructive/10 text-destructive',
   ended: 'bg-muted text-muted-foreground',
 }
+const TABS = ['active', 'pending', 'upcoming', 'ended', 'rejected', ALL] as const
 
 function useDebounced(value: string, ms = 300) {
   const [debounced, setDebounced] = useState(value)
@@ -62,8 +65,9 @@ async function openEvidence(id: number) {
 }
 
 /**
- * Late permissions: members a department lets arrive late to its classes and
- * service groups on given days. Each department sees and manages only its own.
+ * Permissions (ፈቃድ) recorded from the paper request form: arriving late,
+ * being away, or leaving early from a department's classes and service
+ * groups. Each department sees and manages only its own.
  */
 export function LatePermissionsPage() {
   const { t } = useTranslation()
@@ -109,11 +113,12 @@ export function LatePermissionsPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Tabs value={state} onValueChange={(v) => setState(v as PermissionState | typeof ALL)}>
-          <TabsList>
-            <TabsTrigger value="active">{t('attendance.permissions.states.active')}</TabsTrigger>
-            <TabsTrigger value="upcoming">{t('attendance.permissions.states.upcoming')}</TabsTrigger>
-            <TabsTrigger value="ended">{t('attendance.permissions.states.ended')}</TabsTrigger>
-            <TabsTrigger value={ALL}>{t('attendance.permissions.states.all')}</TabsTrigger>
+          <TabsList className="flex-wrap">
+            {TABS.map((tab) => (
+              <TabsTrigger key={tab} value={tab}>
+                {t(`attendance.permissions.states.${tab}`)}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
         {(departments?.length ?? 0) > 1 && (
@@ -158,28 +163,46 @@ export function LatePermissionsPage() {
       ) : (
         <ul className="divide-y rounded-xl border bg-card">
           {rows.map((p) => (
-            <li key={p.id} className={cn('flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3', p.state === 'ended' && 'opacity-70')}>
+            <li
+              key={p.id}
+              className={cn(
+                'flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3',
+                (p.state === 'ended' || p.state === 'rejected') && 'opacity-70',
+              )}
+            >
               <div className="flex min-w-56 flex-1 items-center gap-3">
                 <MemberAvatar member={p.member} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{memberFullName(p.member)}</span>
                   <span className="block text-xs text-muted-foreground">
-                    <span className="font-mono">{p.member.memberCode}</span> · {name(p.department)}
+                    <span className="font-mono">{p.code}</span> · {name(p.department)}
                   </span>
                 </span>
               </div>
               <div className="grid min-w-44 gap-0.5 text-sm">
-                <span className="font-semibold text-brand">{t('attendance.permissions.graceShort', { minutes: p.graceMinutes })}</span>
-                <span className="text-xs text-muted-foreground">{days(p)}</span>
+                <span className="font-semibold text-brand">
+                  {p.type === 'OTHER' && p.typeOther ? p.typeOther : t(`attendance.permissions.types.${p.type}`)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {p.type === 'LATE_ARRIVAL'
+                    ? `${t('attendance.permissions.graceShort', { minutes: p.graceMinutes ?? 0 })} · ${days(p)}`
+                    : p.fromTime && p.toTime
+                      ? `${formatTime(p.fromTime)} – ${formatTime(p.toTime)}`
+                      : t('attendance.permissions.allDay')}
+                </span>
               </div>
               <div className="grid min-w-40 gap-0.5 text-xs text-muted-foreground">
                 <span>
-                  {formatDate(p.startsOn)} – {formatDate(p.endsOn)}
+                  {p.startsOn === p.endsOn ? formatDate(p.startsOn) : `${formatDate(p.startsOn)} – ${formatDate(p.endsOn)}`}
                 </span>
                 <span
                   className={cn('inline-flex h-5 w-fit items-center rounded-full px-2 text-xs font-medium', STATE_STYLES[p.state])}
                 >
-                  {p.revokedAt ? t('attendance.permissions.endedEarly') : t(`attendance.permissions.states.${p.state}`)}
+                  {p.revokedAt
+                    ? t('attendance.permissions.endedEarly')
+                    : p.state === 'pending'
+                      ? t(`attendance.permissions.decisions.${p.decision}`)
+                      : t(`attendance.permissions.states.${p.state}`)}
                 </span>
               </div>
               <p className="min-w-48 flex-[2] text-sm text-muted-foreground">
@@ -206,7 +229,7 @@ export function LatePermissionsPage() {
                     <Pencil />
                     {t('common.edit')}
                   </DropdownMenuItem>
-                  {p.state !== 'ended' && (
+                  {(p.state === 'active' || p.state === 'upcoming') && (
                     <DropdownMenuItem onSelect={() => setEnding(p)}>
                       <CalendarX2 />
                       {t('attendance.permissions.end')}

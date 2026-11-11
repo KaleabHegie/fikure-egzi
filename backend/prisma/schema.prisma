@@ -1001,29 +1001,74 @@ model ExamMark {
   @@map("exam_marks")
 }
 
-/// A standing permission for a member to arrive late to the class and
-/// service-group sessions of ONE department, on given weekdays, for a period.
+/// What a permission (ፈቃድ) is for — the boxes on the paper form (ቅጽ 2).
+enum PermissionType {
+  /// የሰዓት ማርፈድ: may arrive up to graceMinutes late.
+  LATE_ARRIVAL
+  /// ድንገተኛ የሕመም ፈቃድ
+  SICK_LEAVE
+  /// ከመደበኛ ጥናት መቅረት
+  MISS_STUDY
+  /// ቀድሞ ከአገልግሎት መውጣት: recorded and shown on the roster only.
+  LEAVE_EARLY
+  /// በተከታታይ ቀናት ፈቃድ
+  CONSECUTIVE_DAYS
+  /// ሌላ (typeOther says what)
+  OTHER
+}
+
+/// The department head's decision; only APPROVED permissions change attendance.
+enum PermissionDecision {
+  PENDING
+  APPROVED
+  REJECTED
+  /// ተጨማሪ ማብራሪያ ያስፈልጋል
+  NEEDS_INFO
+}
+
+/// A member's permission (ፈቃድ) for the class and service-group sessions of
+/// ONE department, as on the paper request form. Late arrival gives grace
+/// minutes; absence types excuse the member; leaving early is only recorded.
 /// Issued by that department; it never applies to another department's sessions.
 model LatePermission {
-  id           Int       @id @default(autoincrement())
-  memberId     Int       @map("member_id")
+  id                 Int                @id @default(autoincrement())
+  /// PRM-00001, derived from the id: the form's መለያ ቁጥር.
+  code               String             @unique @db.VarChar(20)
+  memberId           Int                @map("member_id")
   /// The issuing department: the one that runs the classes it applies to.
-  departmentId Int       @map("department_id")
-  /// Minutes after the start the member may still arrive and count as Present.
-  graceMinutes Int       @map("grace_minutes")
-  /// Weekdays it applies on: 0 = Sunday … 6 = Saturday.
-  weekdays     Json
-  startsOn     DateTime  @map("starts_on") @db.Date
-  endsOn       DateTime  @map("ends_on") @db.Date
-  reason       String    @db.VarChar(500)
-  evidencePath String?   @map("evidence_path") @db.VarChar(255)
-  evidenceName String?   @map("evidence_name") @db.VarChar(150)
-  evidenceType String?   @map("evidence_type") @db.VarChar(50)
+  departmentId       Int                @map("department_id")
+  type               PermissionType     @default(LATE_ARRIVAL)
+  typeOther          String?            @map("type_other") @db.VarChar(150)
+  /// LATE_ARRIVAL only: minutes after the start the member may arrive and count as Present.
+  graceMinutes       Int?               @map("grace_minutes")
+  /// Weekdays it applies on: 0 = Sunday … 6 = Saturday (every day for the absence types).
+  weekdays           Json
+  startsOn           DateTime           @map("starts_on") @db.Date
+  endsOn             DateTime           @map("ends_on") @db.Date
+  /// Optional time window, 'HH:mm' Addis time: sessions outside it are not covered.
+  fromTime           String?            @map("from_time") @db.VarChar(5)
+  toTime             String?            @map("to_time") @db.VarChar(5)
+  reason             String             @db.VarChar(500)
+  requestedOn        DateTime           @map("requested_on") @db.Date
+  /// The phone number written on the form.
+  contactPhone       String?            @map("contact_phone") @db.VarChar(20)
+  /// The member signed the confirmation (section 2 of the form).
+  memberConfirmed    Boolean            @default(false) @map("member_confirmed")
+  memberConfirmedOn  DateTime?          @map("member_confirmed_on") @db.Date
+  decision           PermissionDecision @default(PENDING)
+  decidedOn          DateTime?          @map("decided_on") @db.Date
+  /// የንዑስ ክፍል ተጠሪ — who signed for the sub-department.
+  representativeName String?            @map("representative_name") @db.VarChar(150)
+  /// The department head who signed the decision.
+  headName           String?            @map("head_name") @db.VarChar(150)
+  evidencePath       String?            @map("evidence_path") @db.VarChar(255)
+  evidenceName       String?            @map("evidence_name") @db.VarChar(150)
+  evidenceType       String?            @map("evidence_type") @db.VarChar(50)
   /// Ended early by the department.
-  revokedAt    DateTime? @map("revoked_at")
-  createdById  Int?      @map("created_by_id")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  revokedAt          DateTime?          @map("revoked_at")
+  createdById        Int?               @map("created_by_id")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
   member     Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
   department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)

@@ -4,6 +4,7 @@ import { ValidationFailedException } from '../../../common/filters/all-exception
 import type { PrismaService } from '../../../prisma/prisma.service.js';
 import type { AuditService } from '../../audit/audit.service.js';
 import type { FileStorageService } from '../../storage/file-storage.service.js';
+import type { CreateLatePermissionDto } from './late-permission.dto.js';
 import { LatePermissionsService, permissionState } from './late-permissions.service.js';
 
 type Fn = (...args: unknown[]) => Promise<unknown>;
@@ -23,32 +24,73 @@ describe('LatePermissionsService', () => {
     { record: jest.fn<Fn>() } as unknown as AuditService,
     {} as FileStorageService,
   );
-  const dto = {
+  const dto: CreateLatePermissionDto = {
     memberId: 7,
     departmentId: 4,
+    type: 'LATE_ARRIVAL',
     graceMinutes: 30,
     weekdays: [0],
     startsOn: '2026-09-11',
     endsOn: '2027-01-31',
     reason: 'Works until 8:30 on Sundays',
+    requestedOn: '2026-09-10',
+    decision: 'APPROVED',
   };
+  // A Sunday-morning class, 8:00–11:00.
+  const sunday = { date: '2026-11-08', start: '08:00', end: '11:00' };
+  const row = (r: Record<string, unknown>) => ({
+    code: `PRM-0000${String(r.memberId)}`,
+    graceMinutes: null,
+    weekdays: [0, 1, 2, 3, 4, 5, 6],
+    fromTime: null,
+    toTime: null,
+    ...r,
+  });
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('gives each member the longest grace among permissions covering that weekday', async () => {
+  it('gives each member the longest late-arrival grace covering that weekday', async () => {
     findMany.mockResolvedValue([
-      { memberId: 7, graceMinutes: 20, weekdays: [0, 6] },
-      { memberId: 7, graceMinutes: 30, weekdays: [0] },
-      { memberId: 8, graceMinutes: 40, weekdays: [6] }, // Saturdays only
+      row({ memberId: 7, type: 'LATE_ARRIVAL', graceMinutes: 20, weekdays: [0, 6] }),
+      row({ memberId: 7, type: 'LATE_ARRIVAL', graceMinutes: 30, weekdays: [0] }),
+      row({ memberId: 8, type: 'LATE_ARRIVAL', graceMinutes: 40, weekdays: [6] }), // Saturdays only
     ]);
-    const grace = await service.graceOn(4, '2026-11-08', {}); // a Sunday
-    expect([...grace]).toEqual([[7, 30]]);
-    // Only the department's own, unrevoked permissions in force that day are asked for.
+    const covers = await service.coverOn(4, sunday, {});
+    expect(covers.get(7)?.graceMinutes).toBe(30);
+    expect(covers.has(8)).toBe(false);
+    // Only the department's own, approved, unrevoked permissions in force that day are asked for.
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ departmentId: 4, revokedAt: null }),
+        where: expect.objectContaining({ departmentId: 4, decision: 'APPROVED', revokedAt: null }),
       }),
     );
+  });
+
+  it('excuses absence types and records leaving early', async () => {
+    findMany.mockResolvedValue([
+      row({ memberId: 7, code: 'PRM-00007', type: 'SICK_LEAVE' }),
+      row({
+        memberId: 8,
+        code: 'PRM-00008',
+        type: 'LEAVE_EARLY',
+        fromTime: '10:00',
+        toTime: '11:00',
+      }),
+    ]);
+    const covers = await service.coverOn(4, sunday, {});
+    expect(covers.get(7)?.excuse).toEqual({ code: 'PRM-00007', type: 'SICK_LEAVE' });
+    expect(covers.get(8)?.leaveEarly).toEqual({ code: 'PRM-00008', fromTime: '10:00' });
+    expect(covers.get(8)?.excuse).toBeNull();
+  });
+
+  it('skips a permission whose time window does not overlap the session', async () => {
+    findMany.mockResolvedValue([
+      row({ memberId: 7, type: 'MISS_STUDY', fromTime: '14:00', toTime: '16:00' }),
+      row({ memberId: 8, type: 'MISS_STUDY', fromTime: '09:00', toTime: '10:00' }),
+    ]);
+    const covers = await service.coverOn(4, sunday, {});
+    expect(covers.has(7)).toBe(false);
+    expect(covers.get(8)?.excuse?.type).toBe('MISS_STUDY');
   });
 
   it('refuses a department the user does not run', async () => {
@@ -63,23 +105,43 @@ describe('LatePermissionsService', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('refuses an end date before the start', async () => {
+  it('checks the form: dates, late-arrival minutes, "other" text and the time window', async () => {
     classTypeCount.mockResolvedValue(1);
     memberCount.mockResolvedValue(1);
-    await expect(
-      service.create({ ...dto, startsOn: '2027-02-01' }, 1, null),
-    ).rejects.toBeInstanceOf(ValidationFailedException);
+    const invalid: Partial<CreateLatePermissionDto>[] = [
+      { startsOn: '2027-02-01' },
+      { graceMinutes: null },
+      { type: 'OTHER', typeOther: null },
+      { fromTime: '09:00', toTime: null },
+      { fromTime: '10:00', toTime: '09:00' },
+    ];
+    for (const change of invalid) {
+      await expect(service.create({ ...dto, ...change }, 1, null)).rejects.toBeInstanceOf(
+        ValidationFailedException,
+      );
+    }
   });
 
-  it('tells upcoming, active and ended permissions apart', () => {
-    const p = (startsOn: string, endsOn: string, revokedAt: Date | null = null) => ({
+  it('tells pending, rejected, upcoming, active and ended permissions apart', () => {
+    const p = (
+      startsOn: string,
+      endsOn: string,
+      decision: 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_INFO' = 'APPROVED',
+      revokedAt: Date | null = null,
+    ) => ({
       startsOn: new Date(`${startsOn}T00:00:00Z`),
       endsOn: new Date(`${endsOn}T00:00:00Z`),
       revokedAt,
+      decision,
     });
-    expect(permissionState(p('2026-12-01', '2027-01-01'), '2026-11-10')).toBe('upcoming');
-    expect(permissionState(p('2026-11-01', '2026-11-10'), '2026-11-10')).toBe('active');
-    expect(permissionState(p('2026-10-01', '2026-11-09'), '2026-11-10')).toBe('ended');
-    expect(permissionState(p('2026-11-01', '2027-01-01', new Date()), '2026-11-10')).toBe('ended');
+    const today = '2026-11-10';
+    expect(permissionState(p('2026-12-01', '2027-01-01'), today)).toBe('upcoming');
+    expect(permissionState(p('2026-11-01', '2026-11-10'), today)).toBe('active');
+    expect(permissionState(p('2026-10-01', '2026-11-09'), today)).toBe('ended');
+    expect(permissionState(p('2026-11-01', '2027-01-01', 'APPROVED', new Date()), today)).toBe(
+      'ended',
+    );
+    expect(permissionState(p('2026-11-01', '2027-01-01', 'NEEDS_INFO'), today)).toBe('pending');
+    expect(permissionState(p('2026-11-01', '2027-01-01', 'REJECTED'), today)).toBe('rejected');
   });
 });

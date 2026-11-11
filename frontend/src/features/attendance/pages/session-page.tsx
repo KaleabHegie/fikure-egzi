@@ -44,6 +44,7 @@ import { beep } from '../feedback'
 import { SessionDialog } from '../components/session-dialog'
 import { AttendanceStatusBadge } from '../components/status-badge'
 import { STATUS_STYLES } from '../status-styles'
+import { formatTime } from '@/lib/format'
 import { addisDate, addisEthTime, sessionDate, sessionTimes } from '../time'
 import { ATTENDANCE_STATUSES, type AttendanceStatus, type RosterRow, type ScanResult } from '../types'
 
@@ -115,7 +116,7 @@ export function SessionPage() {
           member: result.member,
           inRoster: row?.inRoster ?? true,
           record,
-          graceMinutes: row?.graceMinutes ?? null,
+          permission: row?.permission ?? null,
         }))
       }
     } catch (e) {
@@ -514,9 +515,21 @@ function RosterItem({
               {!row.inRoster && (
                 <span className="ml-1 rounded bg-accent px-1 text-accent-foreground">{t('attendance.roster.visitor')}</span>
               )}
-              {row.graceMinutes !== null && (
+              {row.permission?.excuse && (
+                <span className="ml-1 rounded bg-primary/12 px-1 text-foreground">
+                  {t('attendance.roster.excusedPermission', { code: row.permission.excuse.code })}
+                </span>
+              )}
+              {row.permission?.graceMinutes != null && (
                 <span className="ml-1 rounded bg-gold/20 px-1 text-foreground">
-                  {t('attendance.roster.latePermission', { minutes: row.graceMinutes })}
+                  {t('attendance.roster.latePermission', { minutes: row.permission.graceMinutes })}
+                </span>
+              )}
+              {row.permission?.leaveEarly && (
+                <span className="ml-1 rounded bg-muted px-1 text-foreground">
+                  {row.permission.leaveEarly.fromTime
+                    ? t('attendance.roster.leaveEarlyAt', { time: formatTime(row.permission.leaveEarly.fromTime) })
+                    : t('attendance.roster.leaveEarly')}
                 </span>
               )}
             </span>

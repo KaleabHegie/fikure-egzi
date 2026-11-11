@@ -5,6 +5,7 @@ import { ValidationFailedException } from '../../../common/filters/all-exception
 import { dateOnly, todayIso } from '../../../common/utils/dates.js';
 import { detectImageType } from '../../../common/utils/image-type.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
+import { PermissionDecision, PermissionType } from '../../../generated/prisma/enums.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { FileStorageService } from '../../storage/file-storage.service.js';
@@ -17,44 +18,75 @@ import type {
 
 export const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
 const ENTITY = 'LatePermission';
+const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+
+/** Permission types that excuse the member from a session instead of marking them Absent. */
+export const EXCUSING_TYPES: readonly PermissionType[] = [
+  PermissionType.SICK_LEAVE,
+  PermissionType.MISS_STUDY,
+  PermissionType.CONSECUTIVE_DAYS,
+  PermissionType.OTHER,
+];
+
+const MEMBER_SELECT = {
+  id: true,
+  memberCode: true,
+  firstName: true,
+  fatherName: true,
+  grandfatherName: true,
+  christianName: true,
+  phone: true,
+  photoPath: true,
+  updatedAt: true,
+} satisfies Prisma.MemberSelect;
 
 const PERMISSION_SELECT = {
   id: true,
+  code: true,
   memberId: true,
   departmentId: true,
+  type: true,
+  typeOther: true,
   graceMinutes: true,
   weekdays: true,
   startsOn: true,
   endsOn: true,
+  fromTime: true,
+  toTime: true,
   reason: true,
+  requestedOn: true,
+  contactPhone: true,
+  memberConfirmed: true,
+  memberConfirmedOn: true,
+  decision: true,
+  decidedOn: true,
+  representativeName: true,
+  headName: true,
   evidenceName: true,
   evidenceType: true,
   revokedAt: true,
   createdAt: true,
-  member: {
-    select: {
-      id: true,
-      memberCode: true,
-      firstName: true,
-      fatherName: true,
-      grandfatherName: true,
-      christianName: true,
-      photoPath: true,
-      updatedAt: true,
-    },
-  },
+  member: { select: MEMBER_SELECT },
   department: { select: { id: true, nameAm: true, nameEn: true } },
 } satisfies Prisma.LatePermissionSelect;
 type PermissionRow = Prisma.LatePermissionGetPayload<{ select: typeof PERMISSION_SELECT }>;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+const isoOrNull = (d: Date | null) => (d ? iso(d) : null);
 
-/** Where a permission stands today: before its start, running, or over (expired or ended early). */
+export type PermissionState = 'pending' | 'rejected' | 'upcoming' | 'active' | 'ended';
+
+/**
+ * Where a permission stands today: awaiting a decision, refused, or — once
+ * approved — before its start, running, or over (expired or ended early).
+ */
 export function permissionState(
-  p: { startsOn: Date; endsOn: Date; revokedAt: Date | null },
+  p: { startsOn: Date; endsOn: Date; revokedAt: Date | null; decision: PermissionDecision },
   today = todayIso(),
-): 'upcoming' | 'active' | 'ended' {
+): PermissionState {
+  if (p.decision === PermissionDecision.REJECTED) return 'rejected';
   if (p.revokedAt || iso(p.endsOn) < today) return 'ended';
+  if (p.decision !== PermissionDecision.APPROVED) return 'pending';
   return iso(p.startsOn) > today ? 'upcoming' : 'active';
 }
 
@@ -68,6 +100,9 @@ function toView(p: PermissionRow) {
     weekdays: (p.weekdays as number[]).slice().sort((a, b) => a - b),
     startsOn: iso(p.startsOn),
     endsOn: iso(p.endsOn),
+    requestedOn: iso(p.requestedOn),
+    memberConfirmedOn: isoOrNull(p.memberConfirmedOn),
+    decidedOn: isoOrNull(p.decidedOn),
     hasEvidence: p.evidenceType !== null,
     state: permissionState(p),
     member: { ...member, hasPhoto: photoPath !== null },
@@ -96,10 +131,21 @@ function evidenceType(buf: Buffer): { ext: string; mime: string } | null {
   return null;
 }
 
+/** What a member's approved permissions mean for one session. */
+export interface SessionCover {
+  /** Late-arrival grace (0 = none). */
+  graceMinutes: number;
+  /** An absence permission: closing marks them Excused instead of Absent. */
+  excuse: { code: string; type: PermissionType } | null;
+  /** May leave early (recorded only). */
+  leaveEarly: { code: string; fromTime: string | null } | null;
+}
+
 /**
- * Late permissions: a department lets a member arrive up to N minutes late
- * to the class and service-group sessions it runs, on given weekdays, for a
- * period. A permission from one department never covers another's sessions.
+ * Permissions (ፈቃድ) from the paper request form: a department lets a member
+ * arrive late, be away, or leave early from the class and service-group
+ * sessions it runs. Only approved ones change attendance, and one
+ * department's permission never covers another department's sessions.
  */
 @Injectable()
 export class LatePermissionsService {
@@ -110,35 +156,56 @@ export class LatePermissionsService {
   ) {}
 
   /**
-   * Grace minutes per member for a session the department runs on `date`
-   * ('YYYY-MM-DD', Addis): the longest of their permissions that cover that
-   * day. `member` narrows to who may hold one (the session's roster).
+   * What approved permissions mean for a session the department runs on
+   * `date` ('YYYY-MM-DD', Addis) from `start` to `end` ('HH:mm'), per member.
+   * `member` narrows to who may hold one (the session's roster). A
+   * permission with a time window covers only sessions that overlap it.
    */
-  async graceOn(
+  async coverOn(
     departmentId: number,
-    date: string,
+    session: { date: string; start: string; end: string },
     member: Prisma.MemberWhereInput,
     memberIds?: number[],
-  ): Promise<Map<number, number>> {
-    const day = dateOnly(date);
+  ): Promise<Map<number, SessionCover>> {
+    const day = dateOnly(session.date);
     const rows = await this.prisma.latePermission.findMany({
       where: {
         departmentId,
+        decision: PermissionDecision.APPROVED,
         revokedAt: null,
         startsOn: { lte: day },
         endsOn: { gte: day },
         member,
         ...(memberIds && { memberId: { in: memberIds } }),
       },
-      select: { memberId: true, graceMinutes: true, weekdays: true },
+      select: {
+        memberId: true,
+        code: true,
+        type: true,
+        graceMinutes: true,
+        weekdays: true,
+        fromTime: true,
+        toTime: true,
+      },
+      orderBy: { id: 'asc' },
     });
-    const weekday = weekdayOf(date);
-    const grace = new Map<number, number>();
+    const weekday = weekdayOf(session.date);
+    const covers = new Map<number, SessionCover>();
     for (const r of rows) {
       if (!(r.weekdays as number[]).includes(weekday)) continue;
-      grace.set(r.memberId, Math.max(grace.get(r.memberId) ?? 0, r.graceMinutes));
+      const window = r.fromTime && r.toTime;
+      if (window && !(r.fromTime! < session.end && r.toTime! > session.start)) continue;
+      const cover = covers.get(r.memberId) ?? { graceMinutes: 0, excuse: null, leaveEarly: null };
+      if (r.type === PermissionType.LATE_ARRIVAL) {
+        cover.graceMinutes = Math.max(cover.graceMinutes, r.graceMinutes ?? 0);
+      } else if (r.type === PermissionType.LEAVE_EARLY) {
+        cover.leaveEarly ??= { code: r.code, fromTime: r.fromTime };
+      } else {
+        cover.excuse ??= { code: r.code, type: r.type };
+      }
+      covers.set(r.memberId, cover);
     }
-    return grace;
+    return covers;
   }
 
   /** Departments the actor may issue permissions for: their own that run a class. */
@@ -171,7 +238,7 @@ export class LatePermissionsService {
           })),
         ],
       },
-      select: PERMISSION_SELECT.member.select,
+      select: MEMBER_SELECT,
       orderBy: [{ firstName: 'asc' }, { fatherName: 'asc' }],
       take: 20,
     });
@@ -180,36 +247,54 @@ export class LatePermissionsService {
 
   async list(q: QueryLatePermissionsDto, scope: DepartmentScope) {
     const today = dateOnly(todayIso());
+    const approved = { decision: PermissionDecision.APPROVED, revokedAt: null };
     const state: Prisma.LatePermissionWhereInput =
       q.state === 'active'
-        ? { revokedAt: null, startsOn: { lte: today }, endsOn: { gte: today } }
+        ? { ...approved, startsOn: { lte: today }, endsOn: { gte: today } }
         : q.state === 'upcoming'
-          ? { revokedAt: null, startsOn: { gt: today } }
-          : q.state === 'ended'
-            ? { OR: [{ revokedAt: { not: null } }, { endsOn: { lt: today } }] }
-            : {};
+          ? { ...approved, startsOn: { gt: today } }
+          : q.state === 'pending'
+            ? {
+                decision: { in: [PermissionDecision.PENDING, PermissionDecision.NEEDS_INFO] },
+                revokedAt: null,
+                endsOn: { gte: today },
+              }
+            : q.state === 'rejected'
+              ? { decision: PermissionDecision.REJECTED }
+              : q.state === 'ended'
+                ? {
+                    decision: { not: PermissionDecision.REJECTED },
+                    OR: [{ revokedAt: { not: null } }, { endsOn: { lt: today } }],
+                  }
+                : {};
     const terms = (q.search ?? '').split(' ').filter(Boolean).slice(0, 4);
     const rows = await this.prisma.latePermission.findMany({
       where: {
         ...(scope !== null && { departmentId: { in: scope } }),
         ...(q.departmentId && { departmentId: q.departmentId }),
         ...(q.memberId && { memberId: q.memberId }),
+        ...(q.type && { type: q.type }),
         AND: [
           state,
           ...terms.map((term) => ({
-            member: {
-              OR: [
-                { firstName: { contains: term } },
-                { fatherName: { contains: term } },
-                { grandfatherName: { contains: term } },
-                { memberCode: { contains: term } },
-              ],
-            },
+            OR: [
+              { code: { contains: term } },
+              {
+                member: {
+                  OR: [
+                    { firstName: { contains: term } },
+                    { fatherName: { contains: term } },
+                    { grandfatherName: { contains: term } },
+                    { memberCode: { contains: term } },
+                  ],
+                },
+              },
+            ],
           })),
         ],
       },
       select: PERMISSION_SELECT,
-      orderBy: [{ endsOn: 'desc' }, { id: 'desc' }],
+      orderBy: [{ requestedOn: 'desc' }, { id: 'desc' }],
       take: 500,
     });
     return rows.map(toView);
@@ -217,18 +302,23 @@ export class LatePermissionsService {
 
   async create(dto: CreateLatePermissionDto, userId: number, scope: DepartmentScope) {
     await this.validate(dto, scope);
-    const row = await this.prisma.latePermission.create({
-      data: {
-        memberId: dto.memberId,
-        departmentId: dto.departmentId,
-        graceMinutes: dto.graceMinutes,
-        weekdays: [...new Set(dto.weekdays)].sort((a, b) => a - b),
-        startsOn: dateOnly(dto.startsOn),
-        endsOn: dateOnly(dto.endsOn),
-        reason: dto.reason,
-        createdById: userId,
-      },
-      select: PERMISSION_SELECT,
+    const row = await this.prisma.$transaction(async (tx) => {
+      // The form number comes from the id: insert with a unique placeholder, then stamp it.
+      const created = await tx.latePermission.create({
+        data: {
+          ...this.toData(dto),
+          memberId: dto.memberId,
+          departmentId: dto.departmentId,
+          code: `TMP-${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+          createdById: userId,
+        },
+        select: { id: true },
+      });
+      return tx.latePermission.update({
+        where: { id: created.id },
+        data: { code: `PRM-${String(created.id).padStart(5, '0')}` },
+        select: PERMISSION_SELECT,
+      });
     });
     await this.audit.record({ userId, action: 'CREATE', entity: ENTITY, entityId: row.id });
     return toView(row);
@@ -236,26 +326,39 @@ export class LatePermissionsService {
 
   async update(id: number, dto: UpdateLatePermissionDto, userId: number, scope: DepartmentScope) {
     const current = await this.findRow(id, scope);
+    const has = (k: keyof UpdateLatePermissionDto) => dto[k] !== undefined;
     const merged: CreateLatePermissionDto = {
       memberId: dto.memberId ?? current.memberId,
       departmentId: dto.departmentId ?? current.departmentId,
-      graceMinutes: dto.graceMinutes ?? current.graceMinutes,
+      type: dto.type ?? current.type,
+      typeOther: has('typeOther') ? dto.typeOther : current.typeOther,
+      graceMinutes: has('graceMinutes') ? dto.graceMinutes : current.graceMinutes,
       weekdays: dto.weekdays ?? (current.weekdays as number[]),
       startsOn: dto.startsOn ?? iso(current.startsOn),
       endsOn: dto.endsOn ?? iso(current.endsOn),
+      fromTime: has('fromTime') ? dto.fromTime : current.fromTime,
+      toTime: has('toTime') ? dto.toTime : current.toTime,
       reason: dto.reason ?? current.reason,
+      requestedOn: dto.requestedOn ?? iso(current.requestedOn),
+      contactPhone: has('contactPhone') ? dto.contactPhone : current.contactPhone,
+      memberConfirmed: dto.memberConfirmed ?? current.memberConfirmed,
+      memberConfirmedOn: has('memberConfirmedOn')
+        ? dto.memberConfirmedOn
+        : isoOrNull(current.memberConfirmedOn),
+      decision: dto.decision ?? current.decision,
+      decidedOn: has('decidedOn') ? dto.decidedOn : isoOrNull(current.decidedOn),
+      representativeName: has('representativeName')
+        ? dto.representativeName
+        : current.representativeName,
+      headName: has('headName') ? dto.headName : current.headName,
     };
     await this.validate(merged, scope);
     const row = await this.prisma.latePermission.update({
       where: { id },
       data: {
+        ...this.toData(merged),
         memberId: merged.memberId,
         departmentId: merged.departmentId,
-        graceMinutes: merged.graceMinutes,
-        weekdays: [...new Set(merged.weekdays)].sort((a, b) => a - b),
-        startsOn: dateOnly(merged.startsOn),
-        endsOn: dateOnly(merged.endsOn),
-        reason: merged.reason,
       },
       select: PERMISSION_SELECT,
     });
@@ -369,6 +472,31 @@ export class LatePermissionsService {
     return row;
   }
 
+  /** The columns for a validated form; fields that don't fit the type are cleared. */
+  private toData(dto: CreateLatePermissionDto) {
+    const late = dto.type === PermissionType.LATE_ARRIVAL;
+    return {
+      type: dto.type,
+      typeOther: dto.type === PermissionType.OTHER ? (dto.typeOther ?? null) : null,
+      graceMinutes: late ? (dto.graceMinutes ?? null) : null,
+      weekdays: late ? [...new Set(dto.weekdays ?? [])].sort((a, b) => a - b) : EVERY_DAY,
+      startsOn: dateOnly(dto.startsOn),
+      endsOn: dateOnly(dto.endsOn),
+      fromTime: dto.fromTime ?? null,
+      toTime: dto.toTime ?? null,
+      reason: dto.reason,
+      requestedOn: dateOnly(dto.requestedOn),
+      contactPhone: dto.contactPhone ?? null,
+      memberConfirmed: dto.memberConfirmed ?? false,
+      memberConfirmedOn:
+        dto.memberConfirmed && dto.memberConfirmedOn ? dateOnly(dto.memberConfirmedOn) : null,
+      decision: dto.decision,
+      decidedOn: dto.decidedOn ? dateOnly(dto.decidedOn) : null,
+      representativeName: dto.representativeName ?? null,
+      headName: dto.headName ?? null,
+    };
+  }
+
   private async validate(dto: CreateLatePermissionDto, scope: DepartmentScope) {
     assertInScope(
       scope,
@@ -378,6 +506,22 @@ export class LatePermissionsService {
     const errors: { field: string; messages: string[] }[] = [];
     if (dto.endsOn < dto.startsOn) {
       errors.push({ field: 'endsOn', messages: ['attendance.permissions.endBeforeStart'] });
+    }
+    if (dto.type === PermissionType.LATE_ARRIVAL) {
+      if (!dto.graceMinutes) {
+        errors.push({ field: 'graceMinutes', messages: ['attendance.permissions.graceRange'] });
+      }
+      if (!dto.weekdays?.length) {
+        errors.push({ field: 'weekdays', messages: ['attendance.permissions.chooseDays'] });
+      }
+    }
+    if (dto.type === PermissionType.OTHER && !dto.typeOther) {
+      errors.push({ field: 'typeOther', messages: ['attendance.permissions.sayWhat'] });
+    }
+    if (Boolean(dto.fromTime) !== Boolean(dto.toTime)) {
+      errors.push({ field: 'toTime', messages: ['attendance.permissions.bothTimes'] });
+    } else if (dto.fromTime && dto.toTime && dto.toTime <= dto.fromTime) {
+      errors.push({ field: 'toTime', messages: ['attendance.permissions.timeOrder'] });
     }
     const runsClasses = await this.prisma.classType.count({
       where: { departmentId: dto.departmentId },

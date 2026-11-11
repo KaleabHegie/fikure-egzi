@@ -2,7 +2,13 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { api, http } from '@/lib/api/client'
 import { attendanceKeys } from './api'
 
-export type PermissionState = 'active' | 'upcoming' | 'ended'
+export type PermissionState = 'pending' | 'rejected' | 'upcoming' | 'active' | 'ended'
+
+/** The boxes on the paper request form (ቅጽ 2). */
+export const PERMISSION_TYPES = ['LATE_ARRIVAL', 'SICK_LEAVE', 'MISS_STUDY', 'LEAVE_EARLY', 'CONSECUTIVE_DAYS', 'OTHER'] as const
+export type PermissionType = (typeof PERMISSION_TYPES)[number]
+export const PERMISSION_DECISIONS = ['APPROVED', 'REJECTED', 'NEEDS_INFO', 'PENDING'] as const
+export type PermissionDecision = (typeof PERMISSION_DECISIONS)[number]
 
 /** Translation key of each weekday, 0 = Sunday … 6 = Saturday. */
 export const WEEKDAY_KEYS = [
@@ -22,21 +28,37 @@ export interface PermissionMember {
   fatherName: string
   grandfatherName: string | null
   christianName: string | null
+  phone: string | null
   hasPhoto: boolean
   updatedAt: string
 }
 
-/** A member's standing permission to arrive late to one department's classes. */
+/** A member's permission (ፈቃድ) for one department's classes, as on the paper form. */
 export interface LatePermission {
   id: number
+  /** The form number, e.g. PRM-00012. */
+  code: string
   memberId: number
   departmentId: number
-  graceMinutes: number
+  type: PermissionType
+  typeOther: string | null
+  /** Late arrival only. */
+  graceMinutes: number | null
   /** 0 = Sunday … 6 = Saturday */
   weekdays: number[]
   startsOn: string
   endsOn: string
+  fromTime: string | null
+  toTime: string | null
   reason: string
+  requestedOn: string
+  contactPhone: string | null
+  memberConfirmed: boolean
+  memberConfirmedOn: string | null
+  decision: PermissionDecision
+  decidedOn: string | null
+  representativeName: string | null
+  headName: string | null
   hasEvidence: boolean
   evidenceName: string | null
   evidenceType: string | null
@@ -50,15 +72,28 @@ export interface LatePermission {
 export interface LatePermissionInput {
   memberId: number
   departmentId: number
-  graceMinutes: number
+  type: PermissionType
+  typeOther: string | null
+  graceMinutes: number | null
   weekdays: number[]
   startsOn: string
   endsOn: string
+  fromTime: string | null
+  toTime: string | null
   reason: string
+  requestedOn: string
+  contactPhone: string | null
+  memberConfirmed: boolean
+  memberConfirmedOn: string | null
+  decision: PermissionDecision
+  decidedOn: string | null
+  representativeName: string | null
+  headName: string | null
 }
 
 export interface PermissionListParams {
   state?: PermissionState | 'all'
+  type?: PermissionType
   departmentId?: number
   search?: string
   memberId?: number

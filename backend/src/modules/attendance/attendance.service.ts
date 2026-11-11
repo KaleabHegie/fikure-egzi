@@ -44,7 +44,10 @@ import type {
   TopAttendanceQueryDto,
   UpdateSessionDto,
 } from './dto/attendance.dto.js';
-import { LatePermissionsService } from './late-permissions/late-permissions.service.js';
+import {
+  LatePermissionsService,
+  type SessionCover,
+} from './late-permissions/late-permissions.service.js';
 
 const MEMBER_SUMMARY = {
   id: true,
@@ -184,13 +187,20 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     return closed;
   }
 
-  /** Grace minutes per roster member with a late permission covering this session. */
-  private async graceMap(session: SessionRow, memberIds?: number[]): Promise<Map<number, number>> {
+  /** What approved permissions from the session's department mean for its roster members. */
+  private async coverMap(
+    session: SessionRow,
+    memberIds?: number[],
+  ): Promise<Map<number, SessionCover>> {
     const owner = ownerDepartmentId(session);
     if (!isRegular(session.kind) || owner === null) return new Map();
-    return this.permissions.graceOn(
+    return this.permissions.coverOn(
       owner,
-      addisDateIso(session.startsAt),
+      {
+        date: addisDateIso(session.startsAt),
+        start: addisTime(session.startsAt),
+        end: addisTime(session.endsAt),
+      },
       rosterWhere(session),
       memberIds,
     );
@@ -199,8 +209,8 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
   /** When an open session closes itself (see closesAt in attendance-math). */
   private async closingTime(session: SessionRow): Promise<Date> {
     if (session.absentAfterMinutes === null) return session.endsAt;
-    const grace = await this.graceMap(session);
-    return closesAt(session, Math.max(0, ...grace.values()));
+    const covers = await this.coverMap(session);
+    return closesAt(session, Math.max(0, ...[...covers.values()].map((c) => c.graceMinutes)));
   }
 
   // ── Sessions ─────────────────────────────────────────────────────────────
@@ -332,7 +342,12 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
    * `userId` null = closed automatically at the end time.
    */
   private async closeRow(session: SessionRow, userId: number | null, automatic: boolean) {
-    await this.prisma.$transaction((tx) => this.closeInTx(tx, session, userId, automatic));
+    // Members away on an approved permission are Excused, not Absent.
+    const excused = new Map<number, string>();
+    for (const [memberId, cover] of await this.coverMap(session)) {
+      if (cover.excuse) excused.set(memberId, cover.excuse.code);
+    }
+    await this.prisma.$transaction((tx) => this.closeInTx(tx, session, userId, automatic, excused));
   }
 
   /** closeRow inside a caller's transaction (the Excel import closes what it imports). */
@@ -341,6 +356,8 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     session: Audience & { id: number; kind: AttendanceSessionKind },
     userId: number | null,
     automatic: boolean,
+    /** Members to mark Excused instead of Absent, with the permission's form number. */
+    excused: Map<number, string> = new Map(),
   ): Promise<void> {
     // Claim the session first so two closers (a user and the timer) never both fill absences.
     const claimed = await tx.attendanceSession.updateMany({
@@ -349,18 +366,21 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     });
     if (claimed.count === 0) return;
     let absent = 0;
+    let excusedCount = 0;
     if (isRegular(session.kind)) {
       const unmarked = await tx.member.findMany({
         where: { ...rosterWhere(session), attendance: { none: { sessionId: session.id } } },
         select: { id: true },
       });
-      absent = unmarked.length;
-      if (absent > 0) {
+      excusedCount = unmarked.filter((m) => excused.has(m.id)).length;
+      absent = unmarked.length - excusedCount;
+      if (unmarked.length > 0) {
         await tx.attendanceRecord.createMany({
           data: unmarked.map((m) => ({
             sessionId: session.id,
             memberId: m.id,
-            status: AttendanceStatus.ABSENT,
+            status: excused.has(m.id) ? AttendanceStatus.EXCUSED : AttendanceStatus.ABSENT,
+            note: excused.get(m.id) ?? null,
             method: AttendanceMethod.MANUAL,
             recordedById: userId,
           })),
@@ -374,7 +394,12 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
         action: 'UPDATE',
         entity: 'AttendanceSession',
         entityId: session.id,
-        changes: { closed: true, absent, ...(automatic && { automatic: true }) },
+        changes: {
+          closed: true,
+          absent,
+          ...(excusedCount > 0 && { excused: excusedCount }),
+          ...(automatic && { automatic: true }),
+        },
       },
       tx,
     );
@@ -422,7 +447,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
         ? this.prisma.member.findMany({ where: rosterWhere(session), select: MEMBER_SUMMARY })
         : Promise.resolve([] as MemberRow[]),
     ]);
-    const grace = await this.graceMap(session);
+    const covers = await this.coverMap(session);
     const byMember = new Map(records.map((r) => [r.member.id, r]));
     const rows = rosterMembers.map((m) => {
       const r = byMember.get(m.id);
@@ -431,7 +456,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
         member: toSummary(m),
         inRoster: true,
         record: r ? recordView(r) : null,
-        graceMinutes: grace.get(m.id) ?? null,
+        permission: coverView(covers.get(m.id)),
       };
     });
     for (const r of byMember.values()) {
@@ -439,7 +464,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
         member: toSummary(r.member),
         inRoster: r.inRoster,
         record: recordView(r),
-        graceMinutes: grace.get(r.member.id) ?? null,
+        permission: coverView(covers.get(r.member.id)),
       });
     }
     return rows.sort(
@@ -490,7 +515,8 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     const now = new Date();
     // Present, Late after the grace period, Absent past the cut-off — each moved later by
     // the member's late permission, if any. OTHER sessions only record Present.
-    const graceMinutes = (await this.graceMap(session, [member.id])).get(member.id) ?? 0;
+    const graceMinutes =
+      (await this.coverMap(session, [member.id])).get(member.id)?.graceMinutes ?? 0;
     const status = isRegular(session.kind)
       ? statusForCheckIn(session.startsAt, session.lateAfterMinutes, now, {
           absentAfterMinutes: session.absentAfterMinutes,
@@ -1016,6 +1042,16 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       notes: dto.notes ?? null,
     };
   }
+}
+
+/** A roster member's permission for the session, for the badge on their row. */
+function coverView(c: SessionCover | undefined) {
+  if (!c) return null;
+  return {
+    graceMinutes: c.graceMinutes > 0 ? c.graceMinutes : null,
+    excuse: c.excuse,
+    leaveEarly: c.leaveEarly,
+  };
 }
 
 function recordView(r: {

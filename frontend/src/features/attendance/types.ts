@@ -97,8 +97,16 @@ export interface RosterRow {
   member: AttendanceMemberSummary
   inRoster: boolean
   record: AttendanceRecord | null
-  /** Minutes of the member's late permission for this session, if any. */
+  /** The member's approved permission covering this session, if any. */
+  permission: RosterPermission | null
+}
+
+export interface RosterPermission {
+  /** Late-arrival grace minutes. */
   graceMinutes: number | null
+  /** Away on permission: closing marks them Excused. */
+  excuse: { code: string; type: string } | null
+  leaveEarly: { code: string; fromTime: string | null } | null
 }
 
 export interface ScanResult {

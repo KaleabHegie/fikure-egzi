@@ -161,6 +161,12 @@ export class QuerySessionsDto extends PaginationQueryDto {
   @IsEnum(AttendanceSessionStatus)
   status?: AttendanceSessionStatus;
 
+  @ApiPropertyOptional({ description: 'Class sessions of any level of this class' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  classTypeId?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)

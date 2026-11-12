@@ -7,8 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useAuth } from '@/features/auth/use-auth'
+import { useClassTypes } from '@/features/classes/api'
+import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { MemberAvatar } from '@/features/members/components/member-avatar'
 import { memberFullName } from '@/features/members/utils'
+import { useServiceGroups, useServiceTerms } from '@/features/service-groups/api'
 import { cn } from '@/lib/utils'
 import { attendanceApi, attendanceKeys, useSessions } from '../api'
 import { PeriodFilter, type PeriodPreset, presetRange } from './period-filter'
@@ -35,7 +39,33 @@ export function TopAttendanceReport() {
   const [preset, setPreset] = useState<PeriodPreset>('month')
   const [range, setRange] = useState(() => presetRange('month'))
   const [kind, setKind] = useState<SessionKind | undefined>()
+  // Narrow by class (and level) or by service group, depending on the kind.
+  const [classTypeId, setClassTypeId] = useState<number | undefined>()
+  const [classGradeId, setClassGradeId] = useState<number | undefined>()
+  const [serviceGroupId, setServiceGroupId] = useState<number | undefined>()
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const name = useLocalizedName()
+  const gradeLabel = useGradeLabel()
+  const { inDepartment } = useAuth()
+  const { data: classTypes } = useClassTypes()
+  const { data: terms } = useServiceTerms()
+  const { data: groups } = useServiceGroups(terms?.find((x) => x.isCurrent)?.id)
+  const ownTypes = (classTypes ?? []).filter((type) => inDepartment(type.departmentId))
+  const typeDepartment = new Map((classTypes ?? []).map((type) => [type.id, type.departmentId]))
+  const ownGroups = (groups ?? []).filter((g) =>
+    inDepartment(g.classGrade ? typeDepartment.get(g.classGrade.classType.id) : null),
+  )
+  // With only one class (or one group) to choose from, it is chosen already.
+  const onlyType = ownTypes.length === 1 ? ownTypes[0]!.id : undefined
+  const onlyGroup = ownGroups.length === 1 ? ownGroups[0]!.id : undefined
+  const typeFilter = classTypeId ?? onlyType
+  const groupFilter = serviceGroupId ?? onlyGroup
+  const grades = ownTypes.find((type) => type.id === typeFilter)?.grades ?? []
+  // A different filter is a different list: start the selection again.
+  const narrow = (apply: () => void) => {
+    apply()
+    setSelected(new Set())
+  }
   const [shown, setShown] = useState<number[] | null>(null)
 
   const sessions = useSessions({
@@ -44,6 +74,9 @@ export function TopAttendanceReport() {
     from: range.from || undefined,
     to: range.to || undefined,
     kind,
+    classTypeId: kind === 'CLASS' && !classGradeId ? typeFilter : undefined,
+    classGradeId: kind === 'CLASS' ? classGradeId : undefined,
+    serviceGroupId: kind === 'SERVICE_GROUP' ? groupFilter : undefined,
   })
   const list = sessions.data?.data ?? []
   const allSelected = list.length > 0 && list.every((s) => selected.has(s.id))
@@ -75,7 +108,17 @@ export function TopAttendanceReport() {
         </header>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <PeriodFilter preset={preset} range={range} onPreset={setPreset} onRange={setRange} />
-          <Select value={kind ?? ALL} onValueChange={(v) => setKind(v === ALL ? undefined : (v as SessionKind))}>
+          <Select
+            value={kind ?? ALL}
+            onValueChange={(v) =>
+              narrow(() => {
+                setKind(v === ALL ? undefined : (v as SessionKind))
+                setClassTypeId(undefined)
+                setClassGradeId(undefined)
+                setServiceGroupId(undefined)
+              })
+            }
+          >
             <SelectTrigger className="w-44" aria-label={t('attendance.fields.kind')}>
               <SelectValue />
             </SelectTrigger>
@@ -88,6 +131,66 @@ export function TopAttendanceReport() {
               ))}
             </SelectContent>
           </Select>
+          {kind === 'CLASS' && (
+            <Select
+              value={typeFilter ? String(typeFilter) : ALL}
+              onValueChange={(v) =>
+                narrow(() => {
+                  setClassTypeId(v === ALL ? undefined : Number(v))
+                  setClassGradeId(undefined)
+                })
+              }
+            >
+              <SelectTrigger className="w-44" aria-label={t('attendance.fields.classType')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {onlyType === undefined && <SelectItem value={ALL}>{t('attendance.filters.allClasses')}</SelectItem>}
+                {ownTypes.map((type) => (
+                  <SelectItem key={type.id} value={String(type.id)}>
+                    {name(type)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {kind === 'CLASS' && typeFilter && (
+            <Select
+              value={classGradeId ? String(classGradeId) : ALL}
+              onValueChange={(v) => narrow(() => setClassGradeId(v === ALL ? undefined : Number(v)))}
+            >
+              <SelectTrigger className="w-40" aria-label={t('attendance.fields.classGrade')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('attendance.filters.allLevels')}</SelectItem>
+                {grades.map((g) => (
+                  <SelectItem key={g.id} value={String(g.id)}>
+                    {gradeLabel(g)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {kind === 'SERVICE_GROUP' && (
+            <Select
+              value={groupFilter ? String(groupFilter) : ALL}
+              onValueChange={(v) => narrow(() => setServiceGroupId(v === ALL ? undefined : Number(v)))}
+            >
+              <SelectTrigger className="w-56" aria-label={t('attendance.fields.serviceGroup')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {onlyGroup === undefined && <SelectItem value={ALL}>{t('attendance.filters.allGroups')}</SelectItem>}
+                {ownGroups.map((g) => (
+                  <SelectItem key={g.id} value={String(g.id)}>
+                    {name(g)}
+                    {g.classGrade && ` · ${gradeLabel(g.classGrade)}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {sessions.isPending ? (

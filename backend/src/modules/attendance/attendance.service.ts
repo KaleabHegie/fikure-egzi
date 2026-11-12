@@ -237,8 +237,19 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       ...(q.kind && { kind: q.kind }),
       ...(q.status && { status: q.status }),
       ...(q.classGradeId && { classGradeId: q.classGradeId }),
+      ...(q.classTypeId && { classGrade: { classTypeId: q.classTypeId } }),
       ...(q.departmentId && { departmentId: q.departmentId }),
-      ...(q.serviceGroupId && { serviceGroupId: q.serviceGroupId }),
+      // A group's sessions include those it took together with other groups.
+      ...(q.serviceGroupId && {
+        AND: [
+          {
+            OR: [
+              { serviceGroupId: q.serviceGroupId },
+              { extraServiceGroupIds: { array_contains: q.serviceGroupId } },
+            ],
+          },
+        ],
+      }),
       ...((q.from || q.to) && {
         startsAt: {
           ...(q.from && { gte: addisDateTime(q.from, '00:00') }),

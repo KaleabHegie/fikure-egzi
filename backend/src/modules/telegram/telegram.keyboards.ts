@@ -14,7 +14,8 @@ export function menu(lang: BotLang, memberCount: number): ReplyMarkup {
   return {
     keyboard: [
       [{ text: m.profile }, { text: m.attendance }],
-      [{ text: m.courses }, { text: m.qr }],
+      [{ text: m.courses }, { text: m.exams }],
+      [{ text: m.qr }],
       ...(memberCount > 1 ? [[{ text: m.switch }]] : []),
       [{ text: m.language }, { text: m.logout }],
     ],

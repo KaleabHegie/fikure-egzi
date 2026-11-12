@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AttendanceModule } from '../attendance/attendance.module.js';
 import { CoursesModule } from '../courses/courses.module.js';
+import { ExamsModule } from '../exams/exams.module.js';
 import { MembersModule } from '../members/members.module.js';
 import { SettingsModule } from '../settings/settings.module.js';
 import { TelegramApi } from './telegram-api.js';
@@ -14,7 +15,7 @@ import { TelegramController } from './telegram.controller.js';
  * Off unless TELEGRAM_BOT_TOKEN is set.
  */
 @Module({
-  imports: [MembersModule, AttendanceModule, CoursesModule, SettingsModule],
+  imports: [MembersModule, AttendanceModule, CoursesModule, ExamsModule, SettingsModule],
   controllers: [TelegramController],
   providers: [TelegramApi, TelegramBotService, TelegramRegistrationService],
 })

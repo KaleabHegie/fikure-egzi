@@ -594,7 +594,7 @@ export const en = {
     },
     statuses: { PRESENT: 'Present', LATE: 'Late', ABSENT: 'Absent', EXCUSED: 'Excused' },
     sessionStatus: { OPEN: 'Open', CLOSED: 'Closed' },
-    filters: { allKinds: 'All types', allStatuses: 'Open and closed', from: 'From', to: 'To' },
+    filters: { allClasses: 'All classes', allLevels: 'All levels', allGroups: 'All service groups', allKinds: 'All types', allStatuses: 'Open and closed', from: 'From', to: 'To' },
     noSessions: 'No sessions yet',
     noSessionsBody: 'Create a session for a class, a service group, or another gathering.',
     noMatch: 'No sessions match these filters',

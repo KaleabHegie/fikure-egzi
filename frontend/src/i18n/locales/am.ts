@@ -593,7 +593,7 @@ export const am: Translations = {
     },
     statuses: { PRESENT: 'ተገኝቷል', LATE: 'አርፍዷል', ABSENT: 'ቀርቷል', EXCUSED: 'ፈቃድ' },
     sessionStatus: { OPEN: 'ክፍት', CLOSED: 'ተዘግቷል' },
-    filters: { allKinds: 'ሁሉም ዓይነቶች', allStatuses: 'ክፍትና የተዘጉ', from: 'ከ', to: 'እስከ' },
+    filters: { allClasses: 'ሁሉም ክፍሎች', allLevels: 'ሁሉም ደረጃዎች', allGroups: 'ሁሉም የአገልግሎት ምድቦች', allKinds: 'ሁሉም ዓይነቶች', allStatuses: 'ክፍትና የተዘጉ', from: 'ከ', to: 'እስከ' },
     noSessions: 'እስካሁን ክፍለ ጊዜ የለም',
     noSessionsBody: 'ለክፍል፣ ለአገልግሎት ምድብ ወይም ለሌላ ጉባኤ ክፍለ ጊዜ ይፍጠሩ።',
     noMatch: 'ከማጣሪያዎቹ ጋር የሚዛመድ ክፍለ ጊዜ የለም',

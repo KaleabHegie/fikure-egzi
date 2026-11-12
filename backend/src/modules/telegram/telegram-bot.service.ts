@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { AttendanceService } from '../attendance/attendance.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { CoursesService } from '../courses/courses.service.js';
+import { ExamsService } from '../exams/exams.service.js';
 import { MembersService } from '../members/members.service.js';
 import { type ReplyMarkup, TelegramApi, type TgMessage, type TgUpdate } from './telegram-api.js';
 import { TelegramRegistrationService } from './telegram-registration.service.js';
@@ -29,7 +30,15 @@ type PhoneMember = {
   grandfatherName: string | null;
 };
 type Action =
-  'profile' | 'attendance' | 'courses' | 'qr' | 'switch' | 'language' | 'logout' | 'start';
+  | 'profile'
+  | 'attendance'
+  | 'courses'
+  | 'exams'
+  | 'qr'
+  | 'switch'
+  | 'language'
+  | 'logout'
+  | 'start';
 
 const fullName = (m: Pick<PhoneMember, 'firstName' | 'fatherName' | 'grandfatherName'>) =>
   [m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' ');
@@ -40,6 +49,7 @@ const ACTIONS = new Map<string, Action>([
   ['/profile', 'profile'],
   ['/attendance', 'attendance'],
   ['/courses', 'courses'],
+  ['/exams', 'exams'],
   ['/qr', 'qr'],
   ['/language', 'language'],
   ['/logout', 'logout'],
@@ -70,6 +80,7 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     private readonly members: MembersService,
     private readonly attendance: AttendanceService,
     private readonly courses: CoursesService,
+    private readonly exams: ExamsService,
     private readonly audit: AuditService,
     private readonly registration: TelegramRegistrationService,
   ) {}
@@ -128,6 +139,8 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
         return this.attendanceReport(link, member, people.length, lang);
       case 'courses':
         return this.courseReport(link, member, people.length, lang);
+      case 'exams':
+        return this.examReport(link, member, people.length, lang);
       case 'qr':
         return this.qr(link, member, people.length, lang);
       case 'switch':
@@ -521,6 +534,40 @@ export class TelegramBotService implements OnModuleInit, OnApplicationShutdown {
     }
     if (teaching.length === 0 && taking.length === 0) blocks.push(t.empty);
     return this.api.sendMessage(link.chatId, blocks.join('\n\n'), menu(lang, count));
+  }
+
+  /** The exams the member sits: date, each part's mark, total and result. */
+  private async examReport(link: Link, who: PhoneMember, count: number, lang: BotLang) {
+    const t = TEXT[lang].exams;
+    const exams = await this.exams.memberExams(who.id, null);
+    const name = (x: { nameAm: string; nameEn: string | null }) =>
+      lang === 'am' ? x.nameAm : (x.nameEn ?? x.nameAm);
+    const today = new Date().toISOString().slice(0, 10);
+    const blocks = exams.map((e) => {
+      const heldOn = e.heldOn ? new Date(e.heldOn).toISOString().slice(0, 10) : null;
+      const where = [name(e.classType), e.classGrade && name(e.classGrade)].filter(Boolean);
+      const marks = e.parts
+        .map((p) => `${esc(p.name)} ${p.score ?? '—'}/${Number(p.weight)}`)
+        .join(' · ');
+      const result =
+        e.total === null
+          ? t.noMarks
+          : `${t.total}: <b>${e.total}/100</b> ${
+              e.result === 'PASS' ? t.pass : e.result === 'FAIL' ? t.fail : `(${t.pending})`
+            }`;
+      return [
+        `• <b>${esc(name(e))}</b>${heldOn && heldOn >= today && e.total === null ? ` ${t.upcoming}` : ''}`,
+        `   ${esc(where.join(' · '))}`,
+        `   ${t.held}: ${heldOn ? ecDate(heldOn, lang) : t.noDate}`,
+        ...(marks ? [`   ${marks}`] : []),
+        `   ${result} · <i>${t.passMark(e.passMark)}</i>`,
+      ].join('\n');
+    });
+    const text = [
+      `${t.title}\n<b>${esc(fullName(who))}</b>`,
+      blocks.length > 0 ? blocks.join('\n\n') : t.empty,
+    ].join('\n\n');
+    return this.api.sendMessage(link.chatId, text, menu(lang, count));
   }
 
   private async qr(link: Link, who: PhoneMember, count: number, lang: BotLang) {

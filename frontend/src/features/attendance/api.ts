@@ -23,6 +23,9 @@ export interface SessionListParams {
   status?: SessionStatus
   from?: string
   to?: string
+  classTypeId?: number
+  classGradeId?: number
+  serviceGroupId?: number
 }
 
 export interface LowAttendanceParams {

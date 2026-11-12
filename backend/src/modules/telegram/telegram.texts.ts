@@ -92,12 +92,13 @@ export const TEXT = {
       profile: '👤 መረጃዬ',
       attendance: '📅 አቴንዳንስ',
       courses: '🎓 ኮርሶች',
+      exams: '📝 ፈተናዎች',
       qr: '🔳 የQR ኮዴ',
       switch: '👥 አባል ቀይር',
       language: '🌐 English',
       logout: '🚪 ውጣ',
     },
-    help: 'ከታች ካሉት ቁልፎች ይምረጡ፦ መረጃዬ፣ አቴንዳንስ፣ ኮርሶች ወይም የQR ኮዴ።',
+    help: 'ከታች ካሉት ቁልፎች ይምረጡ፦ መረጃዬ፣ አቴንዳንስ፣ ኮርሶች፣ ፈተናዎች ወይም የQR ኮዴ።',
     loggedOut: '👋 ወጥተዋል። እንደገና ለመጠቀም ስልክ ቁጥርዎን ያጋሩ።',
     languageSet: '🌐 ቋንቋ፦ አማርኛ',
     profile: {
@@ -162,6 +163,19 @@ export const TEXT = {
         string
       >,
     },
+    exams: {
+      title: '📝 ፈተናዎች',
+      held: 'የሚሰጥበት ቀን',
+      noDate: 'ቀኑ ገና አልተወሰነም',
+      upcoming: '🔜 የሚመጣ',
+      total: 'ድምር',
+      passMark: (n: number) => `ማለፊያ ${n}`,
+      pass: '✅ አልፏል',
+      fail: '❌ ወድቋል',
+      pending: 'ውጤቱ ገና አልተጠናቀቀም',
+      noMarks: 'ገና ውጤት የለም',
+      empty: 'ለየትኛውም ፈተና አልተመዘገቡም።',
+    },
     qrCaption: (name: string, code: string) =>
       `🔳 <b>${name}</b>\n${code}\n\nይህን ኮድ በአቴንዳንስ ጊዜ ያሳዩ።`,
   },
@@ -185,12 +199,13 @@ export const TEXT = {
       profile: '👤 My details',
       attendance: '📅 Attendance',
       courses: '🎓 Courses',
+      exams: '📝 Exams',
       qr: '🔳 My QR code',
       switch: '👥 Switch member',
       language: '🌐 አማርኛ',
       logout: '🚪 Sign out',
     },
-    help: 'Choose from the buttons below: My details, Attendance, Courses or My QR code.',
+    help: 'Choose from the buttons below: My details, Attendance, Courses, Exams or My QR code.',
     loggedOut: '👋 You are signed out. Share your phone number to use the bot again.',
     languageSet: '🌐 Language: English',
     profile: {
@@ -257,6 +272,19 @@ export const TEXT = {
         string
       >,
     },
+    exams: {
+      title: '📝 Exams',
+      held: 'Date',
+      noDate: 'Date not set yet',
+      upcoming: '🔜 Coming up',
+      total: 'Total',
+      passMark: (n: number) => `pass mark ${n}`,
+      pass: '✅ Passed',
+      fail: '❌ Failed',
+      pending: 'Results not complete yet',
+      noMarks: 'No results yet',
+      empty: 'You are not registered for any exam.',
+    },
     qrCaption: (name: string, code: string) =>
       `🔳 <b>${name}</b>\n${code}\n\nShow this code at attendance.`,
   },
@@ -269,6 +297,7 @@ export const COMMANDS: Record<BotLang, { command: string; description: string }[
     { command: 'profile', description: 'የአባልነት መረጃዬ' },
     { command: 'attendance', description: 'አቴንዳንስ' },
     { command: 'courses', description: 'ኮርሶች' },
+    { command: 'exams', description: 'ፈተናዎች' },
     { command: 'qr', description: 'የQR ኮዴ' },
     { command: 'language', description: 'ቋንቋ ቀይር / Change language' },
     { command: 'logout', description: 'ውጣ' },
@@ -278,6 +307,7 @@ export const COMMANDS: Record<BotLang, { command: string; description: string }[
     { command: 'profile', description: 'My membership details' },
     { command: 'attendance', description: 'Attendance' },
     { command: 'courses', description: 'Courses' },
+    { command: 'exams', description: 'Exams' },
     { command: 'qr', description: 'My QR code' },
     { command: 'language', description: 'Change language / ቋንቋ ቀይር' },
     { command: 'logout', description: 'Sign out' },
@@ -289,13 +319,13 @@ export const BOT_PROFILE: Record<BotLang, { name: string; description: string; s
   am: {
     name: 'ፍቁረ እግዚእ ሰንበት ትምህርት ቤት',
     description:
-      'የፍቁረ እግዚእ ሰንበት ትምህርት ቤት አባላት ቦት።\n\nበአባልነት መዝገብዎ ላይ ያለውን ስልክ ቁጥር ያጋሩ፤ ከዚያ መረጃዎን፣ አቴንዳንስዎን፣ ኮርሶችዎንና የQR ኮድዎን ይመልከቱ።',
+      'የፍቁረ እግዚእ ሰንበት ትምህርት ቤት አባላት ቦት።\n\nበአባልነት መዝገብዎ ላይ ያለውን ስልክ ቁጥር ያጋሩ፤ ከዚያ መረጃዎን፣ አቴንዳንስዎን፣ ኮርሶችዎን፣ ፈተናዎችዎንና የQR ኮድዎን ይመልከቱ።',
     short: 'የአባልነት መረጃ፣ አቴንዳንስ፣ ኮርሶችና QR ኮድ — ለፍቁረ እግዚእ ሰንበት ትምህርት ቤት አባላት።',
   },
   en: {
     name: 'Fikure Egzi Sunday School',
     description:
-      'The Fikure Egzi Sunday School members’ bot.\n\nShare the phone number on your member record, then see your details, attendance, courses and QR code.',
+      'The Fikure Egzi Sunday School members’ bot.\n\nShare the phone number on your member record, then see your details, attendance, courses, exams and QR code.',
     short:
       'Membership details, attendance, courses and QR code for Fikure Egzi Sunday School members.',
   },

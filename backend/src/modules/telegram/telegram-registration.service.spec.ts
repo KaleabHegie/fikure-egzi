@@ -183,7 +183,6 @@ const FULL: (string | Partial<TgMessage>)[] = [
   t.addisAbaba,
   'Bole',
   '03',
-  t.skip, // kebele
   '1234',
   t.education.BACHELORS!,
   'Teacher',
@@ -194,7 +193,7 @@ const FULL: (string | Partial<TgMessage>)[] = [
   t.agree,
 ];
 /** Index in FULL of the answer to each question used below. */
-const AT = { occupation: 23, photo: 27, agreement: 28 };
+const AT = { occupation: 22, photo: 26, agreement: 27 };
 
 describe('TelegramRegistrationService', () => {
   let db: FakeDb;
@@ -256,10 +255,10 @@ describe('TelegramRegistrationService', () => {
 
   it('asks every member-form question, classes included, and registers the member', async () => {
     await start();
-    expect(last()).toContain('<b>25</b> short questions');
+    expect(last()).toContain('<b>24</b> short questions');
     await sayAll(FULL);
     expect(step()).toBe('confirm');
-    expect(sent.some((m) => m.includes('26 / 26'))).toBe(true);
+    expect(sent.some((m) => m.includes('25 / 25'))).toBe(true);
     expect(last()).toContain('Abebe Kebede Tesfaye');
     expect(last()).toContain('Mezmur class: <b>Geez</b>');
     expect(last()).toContain('Course class: <b>Not placed</b>');
@@ -285,7 +284,6 @@ describe('TelegramRegistrationService', () => {
       city: 'Addis Ababa',
       subCity: 'Bole',
       woreda: '03',
-      kebele: null,
       houseNumber: '1234',
       educationLevel: 'BACHELORS',
       occupation: 'Teacher',
@@ -318,7 +316,7 @@ describe('TelegramRegistrationService', () => {
     await say(t.start);
     expect(last()).toContain(t.sections.personal);
     expect(last()).toContain('▰▱▱▱▱▱▱▱▱▱');
-    expect(last()).toContain('1 / 25');
+    expect(last()).toContain('1 / 24');
     expect(last()).toContain(`<b>${t.ask.firstName.q}</b>`);
 
     await sayAll(FULL.slice(1, 10));
@@ -451,7 +449,7 @@ describe('TelegramRegistrationService', () => {
     expect(step()).toBe('agreement:1');
     expect(last()).toContain(t.agreementFor('Mezmur class'));
     expect(last()).toContain('1. Respect the order of the class.\n2. Dress appropriately');
-    expect(last()).toContain('26 / 26');
+    expect(last()).toContain('25 / 25');
   });
 
   it('carries on without the class when its agreement is not accepted', async () => {

@@ -40,7 +40,6 @@ const REST = [
   'city',
   'subCity',
   'woreda',
-  'kebele',
   'houseNumber',
   'educationLevel',
   'occupation',
@@ -74,7 +73,6 @@ const SECTION: Record<Question, Section> = {
   city: 'address',
   subCity: 'address',
   woreda: 'address',
-  kebele: 'address',
   houseNumber: 'address',
   educationLevel: 'work',
   occupation: 'work',
@@ -96,7 +94,6 @@ type TextKey =
   | 'city'
   | 'subCity'
   | 'woreda'
-  | 'kebele'
   | 'houseNumber'
   | 'occupation'
   | 'emergencyContactName'
@@ -119,7 +116,6 @@ const TEXT_RULES: Record<
   city: { kind: 'text', max: 100, optional: true },
   subCity: { kind: 'text', max: 100, optional: true },
   woreda: { kind: 'text', max: 50, optional: true },
-  kebele: { kind: 'text', max: 50, optional: true },
   houseNumber: { kind: 'text', max: 30, optional: true },
   occupation: { kind: 'text', max: 100, optional: true },
   emergencyContactName: { kind: 'text', max: 150, optional: true },
@@ -339,6 +335,8 @@ export class TelegramRegistrationService {
     if (isAgreementStep(step) && !flow.includes(step)) step = 'confirm';
     // Rows saved before the health questions were dropped may still point at them.
     if (reg.step === 'health' || reg.step === 'healthNote') step = 'photo';
+    // …and at the kebele question, which is no longer asked.
+    if (reg.step === 'kebele') step = 'houseNumber';
     const input = (message.text ?? message.caption ?? '').trim();
     const photo = photoFrom(message);
     const ask = (s: Step, a: Answers) => this.ask(reg.chatId, s, a, lang, reg.phone, catalog);
@@ -799,7 +797,6 @@ export class TelegramRegistrationService {
         row(f.city, city),
         row(f.subCity, a.subCity),
         row(f.woreda, a.woreda),
-        row(f.kebele, a.kebele),
         row(f.houseNumber, a.houseNumber),
       ]),
       block(s.work, [
@@ -869,7 +866,6 @@ export class TelegramRegistrationService {
             city: a.city ?? null,
             subCity: a.subCity ?? null,
             woreda: a.woreda ?? null,
-            kebele: a.kebele ?? null,
             houseNumber: a.houseNumber ?? null,
             educationLevel: a.educationLevel ?? null,
             occupation: a.occupation ?? null,

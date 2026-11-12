@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="am">
+<head>
+<meta charset="utf-8">
+<title>የአባልነት ምዝገባ ቅጽ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;500;600;700&family=Noto+Serif+Ethiopic:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1b1f1c;
+    --muted: #5d665f;
+    --line: #8d978f;
+    --green: #1f6b3a;
+    --green-soft: #e9f3ec;
+    --gold: #b8892a;
+  }
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #fff; color: var(--ink); }
+  body { font-family: 'Noto Sans Ethiopic', sans-serif; font-size: 10.5pt; line-height: 1.35; }
+
+  .page {
+    width: 210mm; height: 297mm; padding: 12mm 14mm 11mm;
+    position: relative; overflow: hidden; page-break-after: always;
+    display: flex; flex-direction: column;
+  }
+  .page:last-child { page-break-after: auto; }
+  .page::before { /* thin green frame */
+    content: ''; position: absolute; inset: 6mm; border: 0.6pt solid var(--green); border-radius: 2mm; pointer-events: none;
+  }
+
+  /* Header */
+  .head { display: grid; grid-template-columns: 22mm 1fr 30mm; gap: 5mm; align-items: center; }
+  .head img { width: 22mm; height: 22mm; object-fit: contain; }
+  .school { text-align: center; }
+  .band {
+    background: var(--green); color: #fff; font-family: 'Noto Serif Ethiopic', serif; font-weight: 700;
+    font-size: 12.5pt; padding: 1.6mm 4mm; border-radius: 1.5mm; letter-spacing: .2pt;
+  }
+  .title { font-family: 'Noto Serif Ethiopic', serif; font-size: 17pt; font-weight: 700; margin-top: 2.2mm; }
+  .subtitle { color: var(--muted); font-size: 9pt; margin-top: .5mm; }
+  .photo {
+    width: 30mm; height: 38mm; border: 0.8pt dashed var(--line); border-radius: 1.5mm;
+    display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 8.5pt; padding: 2mm;
+  }
+  .meta { display: flex; justify-content: space-between; margin-top: 3mm; font-size: 9pt; color: var(--muted); }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .note {
+    margin-top: 2.5mm; background: var(--green-soft); border-left: 2pt solid var(--green);
+    padding: 1.8mm 3mm; font-size: 8.8pt; color: #2c3a30; border-radius: 0 1.2mm 1.2mm 0;
+  }
+
+  /* Sections */
+  section { margin-top: 4mm; }
+  h2 {
+    display: flex; align-items: center; gap: 2.2mm; margin: 0 0 2mm;
+    font-family: 'Noto Serif Ethiopic', serif; font-size: 11.5pt; font-weight: 700; color: var(--green);
+  }
+  h2 .n {
+    display: inline-grid; place-items: center; width: 5.6mm; height: 5.6mm; border-radius: 50%;
+    background: var(--green); color: #fff; font-family: 'Noto Sans Ethiopic', sans-serif; font-size: 8.5pt;
+  }
+  h2::after { content: ''; flex: 1; border-bottom: 0.5pt solid #c9d3cb; }
+
+  .grid { display: grid; gap: 2.6mm 5mm; }
+  .c2 { grid-template-columns: 1fr 1fr; }
+  .c3 { grid-template-columns: 1fr 1fr 1fr; }
+  .c4 { grid-template-columns: repeat(4, 1fr); }
+  .span2 { grid-column: span 2; }
+  .span3 { grid-column: span 3; }
+  .full { grid-column: 1 / -1; }
+
+  .f { display: flex; flex-direction: column; }
+  .f label { font-size: 8.8pt; font-weight: 600; }
+  .f label .req { color: #b3261e; margin-left: .6mm; }
+  .f label small { font-weight: 400; color: var(--muted); font-size: 7.8pt; margin-left: 1mm; }
+  .line { height: 7.5mm; border-bottom: 0.6pt solid var(--line); }
+
+  .opts { display: flex; flex-wrap: wrap; gap: 1.4mm 4.5mm; padding-top: 1.6mm; }
+  .opt { display: inline-flex; align-items: center; gap: 1.6mm; font-size: 9.4pt; white-space: nowrap; }
+  .box { width: 3.6mm; height: 3.6mm; border: 0.7pt solid var(--ink); border-radius: .5mm; flex: none; }
+
+  .date { display: flex; align-items: flex-end; gap: 1.5mm; padding-top: 1mm; }
+  .date .cell { display: flex; flex-direction: column; align-items: center; font-size: 7.4pt; color: var(--muted); }
+  .date .cell span { display: block; height: 6.5mm; border-bottom: 0.6pt solid var(--line); }
+  .date .slash { font-size: 13pt; color: var(--muted); padding-bottom: 3.5mm; }
+  .date .ec { font-size: 8.5pt; color: var(--muted); padding-bottom: 4mm; margin-left: 1mm; }
+
+  .classes { display: grid; gap: 3mm; }
+  .cls { border: 0.6pt solid #c9d3cb; border-radius: 1.5mm; padding: 2.4mm 3mm; }
+  .cls .name { font-weight: 700; font-size: 9.8pt; }
+  .cls .q { color: var(--muted); font-size: 8.6pt; }
+  .grades { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.8mm 3mm; margin-top: 2mm; }
+
+  .depts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2.2mm 5mm; }
+  .dept { display: flex; flex-direction: column; gap: .6mm; }
+  .dept .opt { white-space: normal; align-items: flex-start; font-size: 8.8pt; line-height: 1.25; }
+  .dept .opt .box { margin-top: .4mm; }
+  .dept .subs { padding-left: 5.2mm; font-size: 7.4pt; line-height: 1.3; color: var(--muted); }
+  .bot { margin-top: 2.5mm; display: flex; align-items: center; gap: 4mm; border: 0.8pt solid var(--green); border-radius: 1.8mm; padding: 2.2mm 3.5mm; background: var(--green-soft); }
+  .bot .t { font-weight: 700; font-size: 10pt; color: var(--green); }
+  .bot .d { font-size: 8.8pt; color: #2c3a30; }
+  .bot .h { font-weight: 700; font-size: 11pt; color: var(--ink); }
+
+  .agreement { border: 0.8pt solid var(--gold); border-radius: 1.8mm; padding: 3mm 3.5mm; background: #fffcf4; }
+  .agreement .t { font-family: 'Noto Serif Ethiopic', serif; font-weight: 700; font-size: 10.5pt; }
+  .agreement .who { color: var(--muted); font-size: 8.6pt; }
+  .agreement ol { margin: 1.8mm 0 1.8mm; padding-left: 6mm; font-size: 9.2pt; }
+  .agreement li { margin: .5mm 0; }
+  .agreement .pledge { font-style: italic; font-size: 9pt; border-top: 0.5pt dashed #d9c79a; padding-top: 1.8mm; }
+
+  .sign { display: grid; grid-template-columns: 1.4fr 1fr; gap: 6mm; margin-top: 2.5mm; }
+
+  .office {
+    margin-top: auto; border: 0.8pt solid var(--ink); border-radius: 1.5mm; padding: 2.4mm 3mm;
+  }
+  .office .t { font-weight: 700; font-size: 9pt; letter-spacing: .3pt; margin-bottom: 1.2mm; }
+  .office .grid { gap: 2mm 5mm; }
+
+  .p1 .line { height: 7.8mm; }
+  .p1 section { margin-top: 3.8mm; }
+  .p1 .foot { margin-top: auto; }
+  .p2 section { margin-top: 3mm; }
+  .p2 .cls { padding: 1.8mm 3mm; }
+  .p2 .grades { margin-top: 1.4mm; gap: 1.2mm 3mm; }
+  .p2 .classes { gap: 2.2mm; }
+  .p2 .agreement { padding: 2.4mm 3.5mm; }
+  .p2 .agreement ol { columns: 2; column-gap: 8mm; margin: 1.4mm 0; }
+  .p2 .line { height: 6.6mm; }
+  .p2 .sign { margin-top: 1.6mm; }
+  .p2 .office { padding: 2mm 3mm; }
+  .foot { display: flex; justify-content: space-between; font-size: 7.6pt; color: var(--muted); margin-top: 2.2mm; }
+</style>
+</head>
+<body>
+
+<!-- ============ PAGE 1 ============ -->
+<div class="page p1">
+  <div class="head">
+    <img src="logo.png" alt="">
+    <div class="school">
+      <div class="band">በደ/ነ/ቅ/ዮሐንስ የፍቁረ እግዚእ ሰንበት ት/ቤት</div>
+      <div class="title">የአባልነት ምዝገባ ቅጽ</div>
+      <div class="subtitle">በቴሌግራም ቦቱ የሚጠየቁት ጥያቄዎች፣ በእጅ ለመሙላት</div>
+    </div>
+    <div class="photo">ፊት በግልጽ የሚታይበት<br>3×4 ፎቶ<br>ይለጥፉ</div>
+  </div>
+
+  <div class="meta">
+    <span>የተሞላበት ቀን፦ <b>______ / ______ / __________</b> ዓ.ም</span>
+    <span>ቅጽ ቁጥር፦ <b>____________</b></span>
+  </div>
+
+  <div class="note">
+    እባክዎ በግልጽ በእጅ ጽሑፍ ይሙሉ። <b style="color:#b3261e">*</b> ምልክት ያለባቸው ግዴታ ናቸው፤ ሌሎቹን ካላወቁ ወይም ከሌለዎት ባዶ ይተዉት። ከአንድ በላይ ምርጫ ባለበት ☐ ውስጥ ✓ ያድርጉ።
+  </div>
+
+  <section>
+    <h2><span class="n">1</span>የግል መረጃ</h2>
+    <div class="grid c3">
+      <div class="f"><label>ስም<span class="req">*</span></label><div class="line"></div></div>
+      <div class="f"><label>የአባት ስም<span class="req">*</span></label><div class="line"></div></div>
+      <div class="f"><label>የአያት ስም<span class="req">*</span></label><div class="line"></div></div>
+
+      <div class="f"><label>የክርስትና ስም <small>በጥምቀት የተሰጠ ስም</small></label><div class="line"></div></div>
+      <div class="f">
+        <label>ጾታ<span class="req">*</span></label>
+        <div class="opts"><span class="opt"><span class="box"></span>ወንድ</span><span class="opt"><span class="box"></span>ሴት</span></div>
+      </div>
+      <div class="f">
+        <label>የትውልድ ቀን<span class="req">*</span> <small>በኢትዮጵያ አቆጣጠር</small></label>
+        <div class="date">
+          <div class="cell"><span style="width:9mm"></span>ቀን</div><div class="slash">/</div>
+          <div class="cell"><span style="width:9mm"></span>ወር</div><div class="slash">/</div>
+          <div class="cell"><span style="width:15mm"></span>ዓመት</div><div class="ec">ዓ.ም</div>
+        </div>
+      </div>
+
+      <div class="f"><label>የትውልድ ቦታ <small>ከተማ ወይም አካባቢ</small></label><div class="line"></div></div>
+      <div class="f span2"><label>የንስሐ አባት ስም <small>ለምሳሌ፦ አባ ገብረ ማርያም</small></label><div class="line"></div></div>
+
+      <div class="f full">
+        <label>የጋብቻ ሁኔታ</label>
+        <div class="opts">
+          <span class="opt"><span class="box"></span>ያላገባ</span>
+          <span class="opt"><span class="box"></span>ያገባ</span>
+          <span class="opt"><span class="box"></span>የተፋታ</span>
+          <span class="opt"><span class="box"></span>የትዳር አጋሩን ያጣ</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span>የመገናኛ መረጃ</h2>
+    <div class="grid c3">
+      <div class="f"><label>ስልክ ቁጥር<span class="req">*</span> <small>ቴሌግራም ያለበት</small></label><div class="line"></div></div>
+      <div class="f"><label>ተጨማሪ ስልክ ቁጥር</label><div class="line"></div></div>
+      <div class="f"><label>ኢሜይል</label><div class="line"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">3</span>አድራሻ</h2>
+    <div class="grid c4">
+      <div class="f"><label>ከተማ</label><div class="line"></div></div>
+      <div class="f"><label>ክፍለ ከተማ</label><div class="line"></div></div>
+      <div class="f"><label>ወረዳ</label><div class="line"></div></div>
+      <div class="f"><label>የቤት ቁጥር</label><div class="line"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">4</span>ትምህርትና ሥራ</h2>
+    <div class="grid c3">
+      <div class="f full">
+        <label>የትምህርት ደረጃ</label>
+        <div class="opts">
+          <span class="opt"><span class="box"></span>መደበኛ ትምህርት የለም</span>
+          <span class="opt"><span class="box"></span>የመጀመሪያ ደረጃ</span>
+          <span class="opt"><span class="box"></span>ሁለተኛ ደረጃ</span>
+          <span class="opt"><span class="box"></span>ሰርተፍኬት</span>
+          <span class="opt"><span class="box"></span>ዲፕሎማ</span>
+          <span class="opt"><span class="box"></span>የመጀመሪያ ዲግሪ</span>
+          <span class="opt"><span class="box"></span>ሁለተኛ ዲግሪ</span>
+          <span class="opt"><span class="box"></span>ዶክትሬት</span>
+          <span class="opt"><span class="box"></span>ሌላ፦ ______________</span>
+        </div>
+      </div>
+      <div class="f span2"><label>ሥራ <small>ለምሳሌ፦ ተማሪ፣ መምህር፣ ነጋዴ</small></label><div class="line"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">5</span>የአደጋ ጊዜ ተጠሪ</h2>
+    <div class="grid c3">
+      <div class="f"><label>ሙሉ ስም <small>ለሕፃናት፦ ወላጅ ወይም አሳዳጊ</small></label><div class="line"></div></div>
+      <div class="f"><label>ዝምድና <small>እናት፣ አባት፣ ወንድም…</small></label><div class="line"></div></div>
+      <div class="f"><label>ስልክ ቁጥር</label><div class="line"></div></div>
+    </div>
+  </section>
+
+  <div class="bot">
+    <div>
+      <div class="t">ወይም በስልክዎ በቴሌግራም ቦት ይመዝገቡ፦ <span class="h">@fikureegzibot</span></div>
+      <div class="d">በቴሌግራም @fikureegzibot ብለው ይፈልጉ፤ ቦቱ እነዚሁኑ ጥያቄዎች አንድ በአንድ ይጠይቃል።</div>
+    </div>
+  </div>
+  <div class="foot"><span>ገጽ 1 ከ 2</span><span>ቅጹ ከተሞላ በኋላ ለአባላት አስተዳደር ንዑስ ክፍል ያስረክቡ።</span></div>
+</div>
+
+<!-- ============ PAGE 2 ============ -->
+<div class="page p2">
+  <section style="margin-top:0">
+    <h2><span class="n">6</span>ክፍሎች</h2>
+    <div class="classes">
+      <div class="cls">
+        <div class="name">የመዝሙር ክፍል</div>
+        <div class="q">በ«የመዝሙር ክፍል» ውስጥ ያሉበት ደረጃ የትኛው ነው? ገና ካልተመደቡ «ገና አልተመደብኩም» ይምረጡ።</div>
+        <div class="grades" style="grid-template-columns: repeat(4, 1fr)">
+          <span class="opt"><span class="box"></span>ግዕዝ</span>
+          <span class="opt"><span class="box"></span>ዕዝል</span>
+          <span class="opt"><span class="box"></span>አራራይ</span>
+          <span class="opt"><span class="box"></span>ገና አልተመደብኩም</span>
+        </div>
+      </div>
+      <div class="cls">
+        <div class="name">የኮርስ ክፍል</div>
+        <div class="q">በ«የኮርስ ክፍል» ውስጥ ያሉበት ደረጃ የትኛው ነው? ገና ካልተመደቡ «ገና አልተመደብኩም» ይምረጡ።</div>
+        <div class="grades">
+          <span class="opt"><span class="box"></span>ቅድመ ሕፃናት ሀ</span>
+          <span class="opt"><span class="box"></span>ቅድመ ሕፃናት ለ</span>
+          <span class="opt"><span class="box"></span>1ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>2ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>3ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>4ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>5ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>6ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>7ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>8ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>9ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>10ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>11ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>12ኛ ክፍል</span>
+          <span class="opt"><span class="box"></span>ገና አልተመደብኩም</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">7</span>የአገልግሎት ክፍሎች</h2>
+    <div class="note" style="margin:0 0 2.4mm">በየትኞቹ የአገልግሎት ክፍሎች ያገለግላሉ? የሚያገለግሉበትን <b>ዋና ክፍል</b> ሁሉ ይምረጡ፤ ከአንድ በላይ መምረጥ ይቻላል። ንዑስ ክፍልዎን ብቻ ካወቁ ዋናውን ክፍል ከሥሩ ባሉት ንዑስ ክፍሎች ይፈልጉ። እስካሁን የማያገለግሉ ከሆነ ባዶ ይተዉት።</div>
+    <div class="depts">
+      <div class="dept"><span class="opt"><span class="box"></span><b>1. ዕቅድ ትግበራ እና ክትትል ዋና ክፍል</b></span><span class="subs">ዕቅድ ትግበራ፣ ክትትል</span></div>
+      <div class="dept"><span class="opt"><span class="box"></span><b>2. ትምህርት እና ሥልጠና ክፍል</b></span><span class="subs">የተከታታይ ትምህርት እና ቁጥጥር፣ ትምህርታዊ ጽሑፍ ዝግጅት፣ ጥናት እና ሥልጠና፣ ቤተ መጻሕፍት፣ ሥርዓተ ትምህርት ክትትል እና መምህራን ጉዳይ፣ የአብነት ትምህርት ማስተባበሪያ፣ የርቀት ትምህርት ማስተባበሪያ</span></div>
+      <div class="dept"><span class="opt"><span class="box"></span><b>3. የመርሐ ግብርና ጉባኤያት ክፍል</b></span><span class="subs">መርሐ ግብር ዝግጅት፣ የጸሎት አገልግሎት፣ ግንኙነት</span></div>
+      <div class="dept"><span class="opt"><span class="box"></span><b>4. የሰው ሀብት አስተዳደር ክፍል</b></span><span class="subs">የአባላት አስተዳደር፣ የምክር አገልግሎት፣ አባላት መረጃ እና ክትትል</span></div>
+      <div class="dept"><span class="opt"><span class="box"></span><b>5. የመረጃ እና የውስጥ ግንኙነት ክፍል</b></span><span class="subs">የመዛግብት፣ የውስጥ ግንኙነት፣ የመገናኛ ብዙኃን (ቀረጻና ቅንብር፣ መካነ ድር፣ ዝግጅትና ትንተና)</span></div>
+      <div class="dept"><span class="opt"><span class="box"></span><b>6. የመዝሙር እና በዓላት ዝግጅት ክፍል</b></span><span class="subs">የዜማ መሣሪያዎች ጥናት፣ ጥናት እና ሥልጠና፣ የመዘምራን ክትትል፣ ንብረትና መዛግብት፣ በዓላት ዝግጅት</span></div>
+      <div class="dept"><span class="opt"><span class="box"></span><b>7. የሥነ ጥበብ ክፍል</b></span><span class="subs">የሥነ ጽሑፍ፣ የሥነ ሥዕል፣ የዝግጅት፣ ንብረት እና መድረክ ግንባታ</span></div>
+      <div class="dept"><span class="opt"><span class="box"></span><b>8. የልማትና በጎ አድራጎት ክፍል</b></span><span class="subs">ምርት እና ሽያጭ፣ የሙያ ድጋፍ ሰጪ፣ የአባላት እና የማኅበራዊ በጎ አድራጎት ማስተባበሪያ፣ የገዳማት እና አድባራት ዕርዳታ ማስተባበሪያ</span></div>
+      <div class="dept"><span class="opt"><span class="box"></span><b>9. የበጀትና ንብረት አስተዳደር ክፍል</b></span><span class="subs">የበጀት፣ ንብረት</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">8</span>ስምምነት</h2>
+    <div class="agreement">
+      <div class="t">የዲሲፕሊን እና የሥነ-ምግባር ስምምነት</div>
+      <div class="who">ለ«የመዝሙር ክፍል» አባላት ብቻ — «የመዝሙር ክፍል» አባላት የሚከተለውን ስምምነት ይቀበላሉ።</div>
+      <ol>
+        <li>የክፍሉን ሥርዓትና ደንብ ማክበር።</li>
+        <li>በአገልግሎት ወቅት ተገቢ አለባበስና ባህሪ መከተል።</li>
+        <li>ከኃላፊዎችና ከሌሎች አባላት ጋር በአክብሮት መግባባት።</li>
+        <li>የሰንበት ት/ቤቱንና የክፍሉን ስምና ክብር መጠበቅ።</li>
+        <li>የተሰጠኝን ኃላፊነት በታማኝነት መወጣት።</li>
+        <li>የክፍሉን ውስጣዊ መረጃ ምስጢራዊነት መጠበቅ።</li>
+        <li>የክፍሉን ሥርዓት የሚጥስ ተግባር ከመፈጸም መቆጠብ።</li>
+      </ol>
+      <div class="pledge">እኔ ከላይ የተጠቀሱትን ደንቦች ተረድቼ በመከተል ተስማምቻለሁ። ይህ ሳይሆን ቢቀር ክፍሉ የሚወስድብኝን ህጋዊ እርምጃ የምቀበል መሆኑን አረጋግጣለሁ።</div>
+      <div class="opts" style="padding-top:2.2mm">
+        <span class="opt"><span class="box"></span>አንብቤ ተስማምቻለሁ</span>
+        <span class="opt"><span class="box"></span>የመዝሙር ክፍልን አልቀላቀልም</span>
+      </div>
+      <div class="sign">
+        <div class="f"><label>የአባሉ ፊርማ</label><div class="line"></div></div>
+        <div class="f"><label>ቀን</label><div class="line"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">9</span>ማረጋገጫ</h2>
+    <div style="font-size:9.4pt">ከላይ የሰጠሁት መረጃ ትክክለኛ መሆኑን አረጋግጣለሁ።</div>
+    <div class="grid c3" style="margin-top:1.5mm">
+      <div class="f"><label>የአባሉ ስም</label><div class="line"></div></div>
+      <div class="f"><label>ፊርማ</label><div class="line"></div></div>
+      <div class="f"><label>ቀን</label><div class="line"></div></div>
+      <div class="f span3"><label>ለሕፃናት፦ የወላጅ ወይም የአሳዳጊ ስምና ፊርማ</label><div class="line"></div></div>
+    </div>
+  </section>
+
+  <div class="office">
+    <div class="t">ለቢሮ አገልግሎት ብቻ</div>
+    <div class="grid c4">
+      <div class="f"><label>የተቀበለው</label><div class="line"></div></div>
+      <div class="f"><label>የተቀበለበት ቀን</label><div class="line"></div></div>
+      <div class="f"><label>የአባልነት መለያ ቁጥር</label><div class="line"></div></div>
+      <div class="f"><label>በሲስተሙ የመዘገበው</label><div class="line"></div></div>
+    </div>
+  </div>
+
+  <div class="foot"><span>ገጽ 2 ከ 2</span><span>በደ/ነ/ቅ/ዮሐንስ የፍቁረ እግዚእ ሰንበት ት/ቤት</span></div>
+</div>
+
+</body>
+</html>

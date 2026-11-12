@@ -1,0 +1,911 @@
+<title>Fikure Egzi User Manual</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;500;600;700&family=Noto+Serif+Ethiopic:wght@500;600;700&display=swap">
+<style>
+/* Layout: sticky contents rail on the left, one reading column on the right; the system's own green-and-gold palette. */
+:root {
+  --bg: oklch(0.965 0.009 95);
+  --surface: oklch(0.995 0.004 100);
+  --fg: oklch(0.29 0.035 165);
+  --muted: oklch(0.5 0.025 160);
+  --line: oklch(0.9 0.012 120);
+  --brand: oklch(0.46 0.14 144);
+  --brand-soft: oklch(0.93 0.04 145);
+  --on-brand: oklch(0.99 0.005 100);
+  --gold: oklch(0.72 0.11 75);
+  --gold-soft: oklch(0.94 0.045 85);
+  --warn-soft: oklch(0.95 0.05 75);
+  --bubble-in: oklch(0.995 0.004 100);
+  --bubble-out: oklch(0.92 0.06 140);
+  --chat-bg: oklch(0.9 0.03 150);
+  --key: oklch(0.97 0.006 120);
+  --font-body: 'Karla', 'Noto Sans Ethiopic', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Noto Serif Ethiopic', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: oklch(0.17 0.012 160); --surface: oklch(0.215 0.014 160); --fg: oklch(0.93 0.01 120);
+    --muted: oklch(0.72 0.02 150); --line: oklch(0.32 0.015 160); --brand: oklch(0.72 0.15 145);
+    --brand-soft: oklch(0.28 0.05 150); --on-brand: oklch(0.17 0.03 150); --gold: oklch(0.8 0.11 78);
+    --gold-soft: oklch(0.3 0.05 80); --warn-soft: oklch(0.3 0.05 70); --bubble-in: oklch(0.26 0.015 160);
+    --bubble-out: oklch(0.34 0.06 145); --chat-bg: oklch(0.21 0.02 160); --key: oklch(0.3 0.015 160);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: oklch(0.17 0.012 160); --surface: oklch(0.215 0.014 160); --fg: oklch(0.93 0.01 120);
+  --muted: oklch(0.72 0.02 150); --line: oklch(0.32 0.015 160); --brand: oklch(0.72 0.15 145);
+  --brand-soft: oklch(0.28 0.05 150); --on-brand: oklch(0.17 0.03 150); --gold: oklch(0.8 0.11 78);
+  --gold-soft: oklch(0.3 0.05 80); --warn-soft: oklch(0.3 0.05 70); --bubble-in: oklch(0.26 0.015 160);
+  --bubble-out: oklch(0.34 0.06 145); --chat-bg: oklch(0.21 0.02 160); --key: oklch(0.3 0.015 160);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+a { color: var(--brand); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
+[lang="am"] { font-family: 'Noto Sans Ethiopic', var(--font-body); }
+
+.shell { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px; }
+@media (max-width: 860px) { .shell { grid-template-columns: minmax(0, 1fr); gap: 0; } .rail { display: none; } }
+
+/* Masthead */
+.mast { max-width: 1120px; margin: 0 auto; padding-block: 28px 32px; border-bottom: 1px solid var(--line); margin-bottom: 40px; }
+.mast .am-name { font-family: var(--font-display); color: var(--gold); font-weight: 600; font-size: 1.05rem; margin: 0; }
+.mast h1 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; letter-spacing: -0.01em; }
+.mast p.lede { max-width: 62ch; color: var(--muted); margin: 0 0 24px; font-size: 1.08rem; }
+.chooser { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.chooser a {
+  display: grid; gap: 2px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); text-decoration: none; color: var(--fg); transition: border-color .15s, transform .15s;
+}
+.chooser a:hover { border-color: var(--brand); transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { .chooser a { transition: none; } .chooser a:hover { transform: none; } }
+.chooser .who { font-weight: 700; }
+.chooser .am { font-size: .88rem; color: var(--brand); }
+.chooser .what { font-size: .85rem; color: var(--muted); line-height: 1.4; }
+
+/* Rail */
+.rail nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); font-size: .9rem; }
+.rail p { text-transform: uppercase; letter-spacing: .08em; font-size: .72rem; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.rail ol { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 2px; }
+.rail a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--fg); text-decoration: none; border-left: 2px solid transparent; }
+.rail a:hover { background: var(--brand-soft); }
+
+/* Content */
+main { min-width: 0; }
+section.part { padding-bottom: 48px; margin-bottom: 48px; border-bottom: 1px solid var(--line); }
+section.part:last-child { border-bottom: 0; }
+.eyebrow { text-transform: uppercase; letter-spacing: .1em; font-size: .74rem; font-weight: 700; color: var(--brand); margin: 0 0 6px; }
+h2 { font-family: var(--font-display); font-size: clamp(1.6rem, 3.4vw, 2.1rem); line-height: 1.2; margin: 0 0 6px; text-wrap: balance; }
+h2 .am { display: block; font-size: .62em; color: var(--muted); font-weight: 500; margin-top: 4px; }
+h3 { font-size: 1.15rem; margin: 32px 0 8px; text-wrap: balance; }
+p, li { max-width: 68ch; }
+.intro { font-size: 1.05rem; color: var(--muted); margin-top: 8px; }
+ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 10px; }
+ol.steps > li { counter-increment: s; position: relative; padding-left: 40px; }
+ol.steps > li::before {
+  content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--brand-soft); color: var(--brand); font-weight: 700; font-size: .85rem; display: grid; place-items: center;
+  font-variant-numeric: tabular-nums;
+}
+ul { padding-left: 22px; }
+ul li { margin: 4px 0; }
+.path { font-weight: 600; white-space: nowrap; }
+.path::before { content: ""; }
+kbd, .btn {
+  display: inline-block; font-family: var(--font-body); font-size: .88em; font-weight: 600; padding: 1px 8px; border-radius: 6px;
+  background: var(--key); border: 1px solid var(--line); border-bottom-width: 2px; white-space: nowrap; line-height: 1.5;
+}
+code { font-family: var(--font-mono); font-size: .9em; background: var(--key); padding: 1px 5px; border-radius: 4px; }
+.note, .tip {
+  border-radius: 10px; padding: 12px 16px; margin: 16px 0; max-width: 68ch; font-size: .95rem;
+}
+.note { background: var(--warn-soft); }
+.tip { background: var(--brand-soft); }
+.note strong, .tip strong { display: block; margin-bottom: 2px; }
+.scope { display: inline-flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
+.pill { font-size: .8rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--gold-soft); color: var(--fg); }
+.pill.no { background: var(--key); color: var(--muted); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: .92rem; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--bg); }
+tbody tr:last-child td { border-bottom: 0; }
+td.y { color: var(--brand); font-weight: 700; }
+td.p { color: var(--gold); font-weight: 700; }
+td.n { color: var(--muted); }
+
+/* Telegram mock */
+.phone-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 32px; align-items: start; margin: 16px 0; }
+@media (max-width: 760px) { .phone-row { grid-template-columns: minmax(0, 1fr); } }
+.chat {
+  background: var(--chat-bg); border-radius: 18px; padding: 14px 12px 10px; display: grid; gap: 8px;
+  border: 1px solid var(--line); font-size: .86rem; line-height: 1.45; max-width: 340px;
+}
+.chat .head { display: flex; align-items: center; gap: 8px; padding: 0 4px 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.chat .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: var(--on-brand); display: grid; place-items: center; font-weight: 700; font-size: .8rem; }
+.chat .head b { display: block; font-size: .88rem; }
+.chat .head small { color: var(--muted); font-size: .74rem; }
+.bub { background: var(--bubble-in); padding: 8px 11px; border-radius: 12px 12px 12px 4px; max-width: 88%; justify-self: start; }
+.bub.me { background: var(--bubble-out); border-radius: 12px 12px 4px 12px; justify-self: end; }
+.bub .bar { color: var(--brand); letter-spacing: 1px; font-size: .8rem; }
+.keys { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 2px; }
+.keys span { background: var(--bubble-in); border-radius: 8px; padding: 7px 6px; text-align: center; font-weight: 600; font-size: .8rem; border-bottom: 2px solid var(--line); }
+.keys span.wide { grid-column: span 2; }
+.chat-caption { font-size: .8rem; color: var(--muted); margin: 6px 4px 0; max-width: 340px; }
+
+.flow { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; padding: 0; list-style: none; }
+.flow li { font-size: .85rem; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); max-width: none; }
+
+dl.faq { display: grid; gap: 16px; margin: 16px 0; }
+dl.faq dt { font-weight: 700; }
+dl.faq dd { margin: 4px 0 0; color: var(--fg); max-width: 68ch; }
+footer { max-width: 1120px; margin: 0 auto; color: var(--muted); font-size: .85rem; }
+
+/* Language switch */
+.langbar { max-width: 1120px; margin: 0 auto; display: flex; justify-content: flex-end; padding-block: 16px 0; }
+.seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.seg button { font: inherit; font-size: .88rem; font-weight: 600; border: 0; background: transparent; color: var(--muted); padding: 5px 14px; border-radius: 999px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); }
+[data-lang="am"] { font-family: 'Noto Sans Ethiopic', var(--font-body); line-height: 1.7; }
+[data-lang="am"] h1, [data-lang="am"] h2 { letter-spacing: 0; }
+</style>
+
+<div class="langbar">
+  <div class="seg" role="group" aria-label="ቋንቋ · Language">
+    <button type="button" data-set="am" aria-pressed="true" lang="am">አማርኛ</button>
+    <button type="button" data-set="en" aria-pressed="false">English</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ አማርኛ ═══════════════════════════ -->
+<div data-lang="am" lang="am">
+<header class="mast">
+  <p class="am-name">ፍቁረ እግዚእ ሰንበት ትምህርት ቤት</p>
+  <h1>የሰንበት ትምህርት ቤቱን ሲስተም እንዴት መጠቀም ይቻላል</h1>
+  <p class="lede">ሲስተሙን ለሚጠቀሙ ሁሉ አንድ መመሪያ፦ ለፅህፈት ቤት ሠራተኞች፣ ለአገልግሎት ክፍል መሪዎች፣ ለአቴንዳንስ ያዦች፣ ለመምህራን እንዲሁም የቴሌግራም ቦቱን ወይም የአባል ገጹን ለሚጠቀሙ አባላት። ከታች የእርስዎን ክፍል ይምረጡ።</p>
+  <div class="chooser">
+    <a href="#am-office"><span class="who">የፅህፈት ቤት አስተዳዳሪ</span><span class="am" lang="en">Office administrator</span><span class="what">ሁሉንም ነገር፣ ለሁሉም የአገልግሎት ክፍሎች</span></a>
+    <a href="#am-dept-admin"><span class="who">የአገልግሎት ክፍል አስተዳዳሪ</span><span class="am" lang="en">Department administrator</span><span class="what">አንድ ወይም ከዚያ በላይ የአገልግሎት ክፍል ይመራል</span></a>
+    <a href="#am-taker"><span class="who">አቴንዳንስ ያዥ</span><span class="am" lang="en">Attendance taker</span><span class="what">የዛሬውን አቴንዳንስ ይወስዳል</span></a>
+    <a href="#am-teacher"><span class="who">መምህር</span><span class="am" lang="en">Teacher</span><span class="what">ምዘናዎችና ውጤቶች</span></a>
+    <a href="#am-bot"><span class="who">አባል · ቴሌግራም ቦት</span><span class="am" lang="en">Member · Telegram bot</span><span class="what">ይመዝገቡ፣ መረጃዎን ይመልከቱ</span></a>
+    <a href="#am-portal"><span class="who">አባል · ድረ ገጽ</span><span class="am" lang="en">Member · website</span><span class="what">መረጃዎን በአሳሽ ይመልከቱ</span></a>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail" aria-label="ማውጫ">
+    <nav>
+      <p>ሠራተኞች</p>
+      <ol>
+        <li><a href="#am-start">ወደ ሲስተሙ መግባት</a></li>
+        <li><a href="#am-office">የፅህፈት ቤት አስተዳዳሪ</a></li>
+        <li><a href="#am-dept-admin">የአገልግሎት ክፍል አስተዳዳሪ</a></li>
+        <li><a href="#am-taker">አቴንዳንስ ያዥ</a></li>
+        <li><a href="#am-teacher">መምህር</a></li>
+        <li><a href="#am-who-can">ማን ምን ይችላል</a></li>
+      </ol>
+      <p>አባላት</p>
+      <ol>
+        <li><a href="#am-bot">የቴሌግራም ቦት</a></li>
+        <li><a href="#am-register">በቦቱ መመዝገብ</a></li>
+        <li><a href="#am-portal">የአባል ገጽ በድረ ገጽ</a></li>
+      </ol>
+      <p>እገዛ</p>
+      <ol>
+        <li><a href="#am-faq">ተደጋጋሚ ጥያቄዎች</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <main>
+
+    <section class="part" id="am-start">
+      <p class="eyebrow">ለሁሉም ሠራተኞች</p>
+      <h2>ወደ ሲስተሙ መግባት<span class="am" lang="en">Signing in</span></h2>
+      <p class="intro">የሠራተኛ መለያዎች የሚፈጠሩት በፅህፈት ቤቱ ነው፤ የአገልግሎት ክፍል አስተዳዳሪዎችም ለራሳቸው ክፍል አቴንዳንስ ያዦችንና መምህራንን መፍጠር ይችላሉ። ማንም ሰው የራሱን የሠራተኛ መለያ መፍጠር አይችልም።</p>
+      <ol class="steps">
+        <li>በስልክ ወይም በኮምፒውተር አሳሽ <strong>portal.fikureegzi4.com</strong>ን ይክፈቱ።</li>
+        <li>የተሰጠዎትን ኢሜይልና የይለፍ ቃል ይጻፉ፣ ከዚያ <span class="btn">ግባ</span> ይጫኑ።</li>
+        <li>ለመጀመሪያ ጊዜ ሲገቡ ከላይ ጥግ ያለውን ስምዎን ይጫኑ፣ <span class="path">የእኔ መገለጫ</span>ን ይምረጡና የይለፍ ቃሉን እርስዎ ብቻ በሚያውቁት ይቀይሩ።</li>
+      </ol>
+      <h3>ሁሉም ተጠቃሚ የሚችላቸው</h3>
+      <ul>
+        <li><strong>ቋንቋ መቀየር።</strong> ከላይ ያለው የቋንቋ መቀየሪያ ሁሉንም ገጾች በአማርኛና በእንግሊዝኛ መካከል ይቀይራል።</li>
+        <li><strong>ብሩህ ወይም ጨለማ ገጽታ።</strong> የገጽታ ቁልፉ ከቋንቋ መቀየሪያው አጠገብ ነው።</li>
+        <li><strong>ሚናዎ የሚፈቅደውን ብቻ ማየት።</strong> በግራ ያለው ማውጫ መጠቀም የሚችሏቸውን ገጾች ብቻ ያሳያል። የሚፈልጉት ገጽ ከሌለ ፅህፈት ቤቱ ሚናዎን እንዲያይ ይጠይቁ።</li>
+        <li><strong>ቀኖች በኢትዮጵያ አቆጣጠር።</strong> በሲስተሙም በቦቱም ሁሉም ቀኖች በኢትዮጵያ አቆጣጠር (ዓ.ም) ይታያሉ፤ ይጻፋሉም።</li>
+      </ul>
+      <div class="note"><strong>የይለፍ ቃልዎን ለማንም አይስጡ።</strong>በሲስተሙ ላይ የሚደረግ እያንዳንዱ ለውጥ ካደረገው ሰው ስም ጋር ይመዘገባል። በጋራ ኮምፒውተር ላይ ሲጨርሱ <span class="path">ስምዎ → ውጣ</span> በማለት ይውጡ።</div>
+    </section>
+
+    <section class="part" id="am-office">
+      <p class="eyebrow">የሚና መመሪያ</p>
+      <h2>የፅህፈት ቤት አስተዳዳሪ<span class="am" lang="en">Office administrator</span></h2>
+      <p class="intro">ፅህፈት ቤቱ በሁሉም የአገልግሎት ክፍሎች ሁሉንም ነገር ያያል፣ ያስተዳድራልም። የአባላትን መረጃ መመዝገብና ማስተካከል፣ የሲስተሙን አጠቃላይ ማስተካከያዎች መቀየር እና የአገልግሎት ክፍል አስተዳዳሪዎችን መፍጠር የሚችለው ይህ ሚና ብቻ ነው።</p>
+      <div class="scope"><span class="pill">ሁሉም የአገልግሎት ክፍሎች</span><span class="pill">ሁሉም ገጾች</span></div>
+
+      <h3>አዲስ አባል መመዝገብ</h3>
+      <ol class="steps">
+        <li>ወደ <span class="path">አባላት</span> ይሂዱና <span class="btn">አባል መዝግብ</span> ይጫኑ።</li>
+        <li>ክፍሎቹን ይሙሉ፦ የግል መረጃ፣ የመገናኛና የአድራሻ መረጃ፣ ትምህርትና ሥራ፣ የአደጋ ጊዜ ተጠሪ እና ጤና። የግድ የሚያስፈልጉት ስም፣ የአባት ስም፣ ጾታ፣ የትውልድ ቀን እና የተቀላቀሉበት ቀን ብቻ ናቸው። አባሉ ቦቱንና የአባል ገጹን ለመጠቀም ስለሚያስፈልገው ስልክ ቁጥሩንም ያስገቡ።</li>
+        <li>በ<strong>ክፍሎች</strong> ስር አባሉ ለሚማርበት እያንዳንዱ ክፍል ያለበትን ደረጃ ይምረጡ።</li>
+        <li>የተመረጠው ክፍል ስምምነት ካለው (ለምሳሌ የመዝሙር ክፍል) የስምምነት መቀየሪያ ይታያል። አባሉ ደንቦቹን አንብቦ ከተቀበለ በኋላ ብቻ ያብሩት።</li>
+        <li>ያስቀምጡ። አባሉ እንደ <code>FE-00042</code> ያለ የአባልነት መለያ ቁጥር ያገኛል፤ ይህም የQR ኮዱ ነው።</li>
+      </ol>
+      <div class="tip"><strong>ብዙ አባላትን በአንድ ጊዜ</strong>የአባላት ዝርዝሩ የኤክሴል ማስገቢያም አለው። ቅጹን አውርደው ይሙሉት፣ ይጫኑት፣ ፍተሻው ያመለከታቸውን ረድፎች ያስተካክሉ፣ ከዚያ ሁሉንም በአንድ ጊዜ ይመዝግቡ።</div>
+
+      <h3>የአባላትን መረጃ ወቅታዊ ማድረግ</h3>
+      <ul>
+        <li>አንድን አባል ከዝርዝሩ ሲከፍቱ ስለ እርሱ ሁሉንም ያያሉ፦ መረጃ፣ ክፍሎች፣ የአገልግሎት ክፍሎች፣ አቴንዳንስ፣ ኮርሶችና ፈተናዎች። መረጃውን ወይም ፎቶውን ለመቀየር <span class="btn">አስተካክል</span> ይጫኑ።</li>
+        <li>በአባላት ዝርዝሩ ማጣሪያዎች በክፍል፣ በአገልግሎት ክፍል፣ በሁኔታ ወይም በተመዘገቡበት መንገድ ይለዩ። በቦቱ ራሳቸውን የመዘገቡትን ለመገምገም <strong>የተመዘገቡበት → በቦት ራሳቸውን የመዘገቡ</strong>ን ይምረጡ።</li>
+        <li>መምጣት ያቆመን አባል ከመሰረዝ ይልቅ <strong>ንቁ ያልሆነ</strong> ያድርጉት፤ ታሪኩ ይጠበቃል።</li>
+      </ul>
+
+      <h3>የQR የአባልነት ካርዶችን ማተም</h3>
+      <p>በአባላት ዝርዝሩ ላይ <span class="btn">QR ኮዶችን አትም</span> ተጭነው በእያንዳንዱ A4 ገጽ 20 QR ኮዶችን፣ ከእያንዳንዱ ስር ስምና መለያ ቁጥር ጋር ያትሙ። የሚያትመው በዝርዝሩ ላይ አሁን ካሉት ማጣሪያዎች ጋር የሚስማሙትን አባላት በሙሉ ነው፤ ስለዚህ መጀመሪያ ያጣሩ። በአንድ አባል ገጽ ላይ <span class="btn">QR አትም</span> የዚያን አባል ብቻ ያትማል።</p>
+
+      <h3>ክፍሎችና ስምምነቶቻቸው</h3>
+      <p>በ<span class="path">ክፍሎች</span> ስር እያንዳንዱ ክፍል (ለምሳሌ የመዝሙር ክፍል) ደረጃዎች አሉት። አባላት መቀበል ያለባቸውን ደንቦች ለአንድ ክፍል ለመስጠት የክፍሉን ምናሌ ከፍተው <span class="path">ስምምነት ጨምር</span>ን ይምረጡ፤ እያንዳንዱን ደንብ በአንድ መስመር ይጻፉ። ከዚያ ይህን ክፍል ለሚመርጥ ሁሉ ስምምነቱ በአባል ቅጹም በቦት ምዝገባው መጨረሻም ይታያል።</p>
+
+      <h3>የአገልግሎት ክፍሎች</h3>
+      <ul>
+        <li><span class="path">የአገልግሎት ክፍሎች</span> ዘጠኙን ዋና ዋና ክፍሎችና ንዑስ ክፍሎቻቸውን ያሳያል። መዋቅሩን በሙሉ በአንድ ጊዜ ለማየት በ<strong>ካርዶች</strong>ና በ<strong>ዛፍ</strong> መካከል ይቀያይሩ፤ ዛፉ የፍለጋ ሳጥን አለው።</li>
+        <li>አንድን ክፍል ሲከፍቱ አባላቱን ያያሉ። አባላትን ይጨምሩና ሚናቸውን ይወስኑ፦ ሰብሳቢ፣ ምክትል ሰብሳቢ፣ ጸሐፊ ወይም አባል።</li>
+        <li><span class="path">የአገልግሎት ምድቦች</span> አባላትን በየአገልግሎት ዘመኑ በምድብ ያደራጃል።</li>
+      </ul>
+
+      <h3>የሠራተኛ መለያዎች</h3>
+      <ol class="steps">
+        <li>ወደ <span class="path">ተጠቃሚዎች</span> ይሂዱና <span class="btn">አዲስ ተጠቃሚ</span> ይጫኑ።</li>
+        <li>ሚናውን ይምረጡ። ከፅህፈት ቤት አስተዳዳሪ በስተቀር ለሁሉም ሚናዎች ሰውየው የሚሠራበትን የአገልግሎት ክፍል ወይም ክፍሎች ይምረጡ። ከሥራቸው ያሉትን ንዑስ ክፍሎችም በራሱ ያገኛሉ።</li>
+        <li>ለሰውየው ኢሜይሉንና የመጀመሪያ የይለፍ ቃሉን ይስጡት፤ እንዲቀይረውም ይንገሩት።</li>
+      </ol>
+
+      <h3>በቦት ራስን መመዝገብን ማብራትና ማጥፋት</h3>
+      <p>ወደ <span class="path">ማስተካከያዎች</span> ይሂዱና በ<strong>ራስን መመዝገብ</strong> ስር <strong>አዲስ ሰዎች ራሳቸውን እንዲመዘግቡ ፍቀድ</strong>ን ያብሩ። ይህ በርቶ እያለ ስልክ ቁጥሩ በአባልነት መዝገብ ላይ የሌለ ማንኛውም ሰው በቴሌግራም ቦቱ ራሱን መመዝገብ ይችላል። የምዝገባ ዘመቻው ሲያልቅ ያጥፉት፤ ለውጡ በጥቂት ሰከንዶች ውስጥ ይሠራል።</p>
+
+      <h3>ሌሎች ሥራዎች</h3>
+      <p>ፅህፈት ቤቱ ከታች ለአገልግሎት ክፍል አስተዳዳሪዎች የተገለጸውን ሁሉ (አቴንዳንስ፣ ኮርሶች፣ ፈተናዎች፣ ንብረት) ለሁሉም ክፍሎች መሥራት ይችላል። <span class="path">ኦዲት</span> ማን ምን መቼ እንደቀየረ ያሳያል።</p>
+    </section>
+
+    <section class="part" id="am-dept-admin">
+      <p class="eyebrow">የሚና መመሪያ</p>
+      <h2>የአገልግሎት ክፍል አስተዳዳሪ<span class="am" lang="en">Department administrator</span></h2>
+      <p class="intro">የአገልግሎት ክፍል አስተዳዳሪ የራሱን ክፍል ወይም ክፍሎች፣ ከሥራቸው ያሉትን ንዑስ ክፍሎች ጨምሮ ይመራል። የክፍሎቹን አባላት ያያል፤ ነገር ግን የአባላትን መረጃ መመዝገብም ማስተካከልም አይችልም። ለዚያ ፅህፈት ቤቱን ይጠይቁ።</p>
+      <div class="scope"><span class="pill">የራስ ክፍሎችና ንዑስ ክፍሎች</span><span class="pill no">የአባላትን መረጃ ማስተካከል አይችልም</span></div>
+
+      <h3>የክፍልዎ ሰዎች</h3>
+      <ul>
+        <li><span class="path">የአገልግሎት ክፍሎች</span>ን ከፍተው ክፍልዎን ይምረጡ፤ አባላትን ይጨምሩና ሚናቸውን ይወስኑ።</li>
+        <li>ከአባላትዎ ማንኛውንም ከፍተው መረጃውን፣ አቴንዳንሱን፣ ኮርሶቹንና ፈተናዎቹን ይመልከቱ።</li>
+        <li><span class="path">የአገልግሎት ምድቦች</span>ን ያደራጁ፤ ክፍልዎ የሚመራቸውን <span class="path">ክፍሎች</span> ያስተዳድሩ።</li>
+      </ul>
+
+      <h3>አቴንዳንስ</h3>
+      <ol class="steps">
+        <li>ወደ <span class="path">አቴንዳንስ</span> ይሂዱና <span class="btn">አዲስ ክፍለ ጊዜ</span> ይጫኑ።</li>
+        <li>ለምን እንደሆነ ይምረጡ፦ የአንድ ክፍል ደረጃ፣ የአገልግሎት ምድብ፣ ወይም እንደ ስብሰባ ያለ ሌላ መሰባሰብ። የስም ዝርዝሩ ከምርጫው በራሱ ይሞላል።</li>
+        <li>ቀኑንና የመጀመሪያ ሰዓቱን ያስገቡ። ከመጀመሪያው ሰዓት ከ15 ደቂቃ በኋላ የሚገቡ በራሱ «አርፍዷል» ይባላሉ፤ ደቂቃዎቹን መቀየር ይችላሉ።</li>
+        <li>QR ኮዶችን በመቃኘት ወይም የእያንዳንዱን ሰው ሁኔታ በመጫን አቴንዳንስ ይውሰዱ። ሲያልቅ <span class="btn">ክፍለ ጊዜውን ዝጋ</span> ይጫኑ። ስሕተት ለማረም በኋላ <span class="btn">እንደገና ክፈት</span> ይጫኑ።</li>
+      </ol>
+      <p>ከአቴንዳንስ ያዦች በተለየ የአገልግሎት ክፍል አስተዳዳሪዎች ላለፉ ወይም ለሚመጡ ቀናት ክፍለ ጊዜዎችን መፍጠርና መቀየር ይችላሉ። <span class="path">አቴንዳንስ → ሪፖርቶች</span> በብዛት የሚመጡትን እና ከተወሰነ መጠን በታች የወረዱትን ያሳያል፤ በዚህም ማንን መከታተል እንዳለብዎ ያውቃሉ።</p>
+
+      <h3>ኮርሶች</h3>
+      <p>በ<span class="path">ኮርሶች</span> ስር ኮርስ ይመዝግቡ፣ ዙር (ቀን የተወሰነለት የኮርሱ አንድ ዙር) ያዘጋጁ፣ ተማሪዎችን ይጨምሩና መምህራንን ይመድቡ። ከዚያ መምህራኑ ምዘናዎቹን አዘጋጅተው ውጤት ያስገባሉ፤ እርስዎም ይህን ማድረግ ይችላሉ።</p>
+
+      <h3>ፈተናዎች</h3>
+      <p>ፈተናዎች የኮርስ አካል ያልሆኑ የአገልግሎት ክፍል መመዘኛዎች ናቸው፤ ለምሳሌ የመዝሙር ክፍል የቅዱስ ዮሐንስ ወረብ መመዘኛ። እያንዳንዱ ፈተና የአንድ ክፍል ነው፤ ከፈለጉ የአንድ ደረጃ ብቻ ሊሆን ይችላል።</p>
+      <ol class="steps">
+        <li>ወደ <span class="path">ፈተናዎች</span> ይሂዱ፣ <span class="btn">አዲስ ፈተና</span> ይጫኑ፣ ክፍሉን ይምረጡ፤ ለአንድ ደረጃ ብቻ ከሆነ ደረጃውንም ይምረጡ።</li>
+        <li>መመዘኛዎቹንና ድርሻቸውን ያስገቡ፤ ለምሳሌ እንቅስቃሴ 40% እና ዜማ 60%። የድርሻዎቹ ድምር 100 መሆን አለበት። ካልቀየሩት በስተቀር ማለፊያ ነጥቡ 50 ነው።</li>
+        <li>ተፈታኞችን ይጨምሩ፦ አንድን ደረጃ ወይም ክፍሉን በሙሉ በአንድ ጊዜ፣ ወይም አባላትን በስማቸው ወይም በመለያ ቁጥራቸው ፈልገው አንድ በአንድ። በኋላ ክፍሉን የሚቀላቀሉም በዚሁ መንገድ ይጨመራሉ።</li>
+        <li>የእያንዳንዱን ሰው ውጤት በውጤት ሰንጠረዡ ላይ ያስገቡ። እያንዳንዱ መመዘኛ ከድርሻው ይታረማል፤ ስለዚህ ዜማ ከ60 ነው። ሁሉም መመዘኛዎች ሲታረሙ ድምሩና ማለፍ ወይም መውደቁ ይታያል።</li>
+      </ol>
+
+      <h3>ንብረት</h3>
+      <p>በ<span class="path">ንብረት</span> ስር ክፍልዎ ያለውን ንብረት ከፎቶ ጋር ይመዝግቡ፤ በዚህም በቀላሉ ይገኛል፣ ይቆጠራልም።</p>
+
+      <h3>የእርስዎ አቴንዳንስ ያዦችና መምህራን</h3>
+      <p>በ<span class="path">ተጠቃሚዎች</span> ውስጥ ለራስዎ ክፍሎች ብቻ የአቴንዳንስ ያዦችንና የመምህራንን መለያ መፍጠር ይችላሉ። ሌላ የአገልግሎት ክፍል አስተዳዳሪ መፍጠር የሚችለው ፅህፈት ቤቱ ብቻ ነው።</p>
+    </section>
+
+    <section class="part" id="am-taker">
+      <p class="eyebrow">የሚና መመሪያ</p>
+      <h2>አቴንዳንስ ያዥ<span class="am" lang="en">Attendance taker</span></h2>
+      <p class="intro">አቴንዳንስ ያዥ የሚያየው የአቴንዳንስ ገጹን ብቻ ነው፤ ያውም የራሱ ክፍሎች የዛሬ ክፍለ ጊዜዎችን ብቻ።</p>
+      <div class="scope"><span class="pill">ዛሬ ብቻ</span><span class="pill">የራስ ክፍሎች</span></div>
+      <ol class="steps">
+        <li>ይግቡና <span class="path">አቴንዳንስ</span>ን ይክፈቱ። የክፍሎችዎ የዛሬ ክፍለ ጊዜዎች ተዘርዝረዋል።</li>
+        <li>ክፍለ ጊዜውን ይክፈቱ፤ የዛሬው ገና ካልተፈጠረ <span class="btn">አዲስ ክፍለ ጊዜ</span> ይጫኑ።</li>
+        <li><span class="btn">ካሜራ ክፈት</span>ን ይጫኑና ካሜራው የእያንዳንዱን አባል QR ኮድ ከታተመው ካርድ ወይም በስልኩ ካለው ቦት ላይ እንዲያነብ ያድርጉ። እያንዳንዱ ቅኝት «ተገኝቷል»፣ ከማርፈጃው ሰዓት በኋላ ከመጣ ደግሞ «አርፍዷል» ብሎ ይመዘግባል።</li>
+        <li>ካሜራው ካርዱን ማንበብ ካልቻለ የአባሉን መለያ ቁጥር ከካሜራው ስር ባለው ሳጥን ይጻፉና <span class="btn">መዝግብ</span> ይጫኑ።</li>
+        <li>ኮድ ለሌለው ሰው ስሙን በዝርዝሩ ፈልገው ሁኔታውን ይጫኑ፦ ተገኝቷል፣ አርፍዷል፣ ቀርቷል ወይም ፈቃድ።</li>
+        <li>ሁሉም ከተመዘገቡ በኋላ <span class="btn">ክፍለ ጊዜውን ዝጋ</span> ይጫኑ።</li>
+      </ol>
+      <div class="note"><strong>አንድ ቀን አምልጦዎታል?</strong>አቴንዳንስ ያዦች የትናንትናን አቴንዳንስ መመዝገብ አይችሉም። የአገልግሎት ክፍል አስተዳዳሪዎን ይጠይቁ፤ እርሱ ይችላል።</div>
+    </section>
+
+    <section class="part" id="am-teacher">
+      <p class="eyebrow">የሚና መመሪያ</p>
+      <h2>መምህር<span class="am" lang="en">Teacher</span></h2>
+      <p class="intro">መምህር የሚያየው እንዲያስተምር የተመደበባቸውን የኮርስ ዙሮች ብቻ ነው።</p>
+      <ol class="steps">
+        <li>ይግቡና <span class="path">ኮርሶች</span>ን ይክፈቱ። የእርስዎ ዙሮች ብቻ ተዘርዝረዋል።</li>
+        <li>አንድን ዙር ከፍተው ምዘናዎቹን ያዘጋጁ፤ ለምሳሌ የአጋማሽ ፈተና እና የማጠቃለያ ፈተና፣ እያንዳንዱ ምን ያህል ነጥብ እንደሚይዝ ጭምር።</li>
+        <li>የእያንዳንዱን ተማሪ ውጤት ያስገቡ። ድምሩና ማለፍ ወይም መውደቅ በራሱ ይሰላል።</li>
+      </ol>
+      <p>ተማሪዎችዎ ውጤታቸውን በቴሌግራም ቦቱ <span class="btn">🎓 ኮርሶች</span> ስር ማየት ይችላሉ። እርስዎም አባል እንደመሆንዎ በቦቱ ያው ቁልፍ የሚያስተምሯቸውን ዙሮች ያሳይዎታል።</p>
+    </section>
+
+    <section class="part" id="am-who-can">
+      <p class="eyebrow">ማጣቀሻ</p>
+      <h2>ማን ምን ይችላል<span class="am" lang="en">Who can do what</span></h2>
+      <p class="intro">«የራስ» ማለት ለዚያ ሰው የተመደቡት የአገልግሎት ክፍሎችና ከሥራቸው ያሉት ንዑስ ክፍሎች ሁሉ ማለት ነው።</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ሥራ</th><th>የፅህፈት ቤት አስተዳዳሪ</th><th>የአገልግሎት ክፍል አስተዳዳሪ</th><th>አቴንዳንስ ያዥ</th><th>መምህር</th></tr></thead>
+          <tbody>
+            <tr><td>አባላትን መመዝገብና ማስተካከል</td><td class="y">አዎ</td><td class="n">የራስን ማየት ብቻ</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+            <tr><td>የአገልግሎት ክፍል አባላት ዝርዝር</td><td class="y">ሁሉም</td><td class="p">የራስ</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+            <tr><td>የአገልግሎት ክፍሎችን መፍጠርና ስም መቀየር</td><td class="y">አዎ</td><td class="n">አይችልም</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+            <tr><td>ክፍሎች፣ ደረጃዎች፣ የአገልግሎት ምድቦች</td><td class="y">ሁሉም</td><td class="p">የራስ</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+            <tr><td>አቴንዳንስ መውሰድ</td><td class="y">በማንኛውም ቀን</td><td class="p">በማንኛውም ቀን፣ የራስ</td><td class="p">ዛሬ፣ የራስ</td><td class="n">አይችልም</td></tr>
+            <tr><td>የአቴንዳንስ ሪፖርቶች</td><td class="y">ሁሉም</td><td class="p">የራስ</td><td class="p">የራስ ክፍለ ጊዜዎች</td><td class="n">አይችልም</td></tr>
+            <tr><td>ኮርሶችና ዙሮች</td><td class="y">ሁሉም</td><td class="p">የራስ</td><td class="n">አይችልም</td><td class="p">የራስ ዙሮች</td></tr>
+            <tr><td>የኮርስ ውጤት ማስገባት</td><td class="y">አዎ</td><td class="p">የራስ</td><td class="n">አይችልም</td><td class="p">የራስ ዙሮች</td></tr>
+            <tr><td>ፈተናዎችና ውጤቶቻቸው</td><td class="y">ሁሉም</td><td class="p">የራስ ክፍሎች</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+            <tr><td>ንብረት</td><td class="y">ሁሉም</td><td class="p">የራስ</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+            <tr><td>የሠራተኛ መለያ መፍጠር</td><td class="y">ማንኛውም ሚና</td><td class="p">ያዦችና መምህራን</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+            <tr><td>ኦዲት</td><td class="y">አዎ</td><td class="p">አዎ</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+            <tr><td>ማስተካከያዎች (በቦት ራስን መመዝገብ)</td><td class="y">አዎ</td><td class="n">አይችልም</td><td class="n">አይችልም</td><td class="n">አይችልም</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="part" id="am-bot">
+      <p class="eyebrow">ለአባላት</p>
+      <h2>የቴሌግራም ቦት<span class="am" lang="en">The Telegram bot</span></h2>
+      <p class="intro">ቦቱ የአባልነት መረጃዎን፣ አቴንዳንስዎን፣ ኮርሶችዎንና የQR ኮድዎን በስልክዎ ያሳያል። መጀመሪያ በአማርኛ ይናገራል፤ ወደ እንግሊዝኛ ለመቀየር <span class="btn">🌐 English</span> ይጫኑ።</p>
+
+      <div class="phone-row">
+        <div>
+          <h3 style="margin-top:0">መለያዎን ማገናኘት</h3>
+          <ol class="steps">
+            <li>የሰንበት ትምህርት ቤቱን ቦት በቴሌግራም ይክፈቱ (ሊንኩን ፅህፈት ቤቱ ያጋራል) እና <span class="btn">Start</span> ይጫኑ።</li>
+            <li><span class="btn">📱 ስልክ ቁጥሬን አጋራ</span>ን ይጫኑና ያረጋግጡ። የራስዎ ቁጥር መሆን አለበት፤ ከሌላ ሰው የተላለፈ አድራሻ ተቀባይነት የለውም።</li>
+            <li>ቁጥሩ በአባልነት መዝገብዎ ላይ ካለ ቦቱ በስምዎ ሰላምታ ሰጥቶ ምናሌውን ያሳያል።</li>
+            <li>ቁጥሩን ብዙ አባላት ቢጋሩት (ለምሳሌ ወላጆችና ልጆች) ቦቱ የማንን መረጃ ማሳየት እንዳለበት ይጠይቃል። በኋላ ለመቀየር <span class="btn">👥 አባል ቀይር</span> ይጫኑ።</li>
+          </ol>
+          <p>ቁጥሩ በየትኛውም መዝገብ ላይ ከሌለ፣ ፅህፈት ቤቱ ምዝገባ ከከፈተ ቦቱ እንዲመዘገቡ ያቀርብልዎታል፤ ካልሆነ ፅህፈት ቤቱን እንዲያነጋግሩ ይጠይቅዎታል።</p>
+        </div>
+        <div>
+          <div class="chat" aria-label="የቦቱ ምናሌ ምሳሌ">
+            <div class="head"><span class="avatar">ፍ</span><div><b>ፍቁረ እግዚእ</b><small>bot</small></div></div>
+            <div class="bub">✅ እንኳን ደህና መጡ፣ <b>ዮሴፍ ገብረ መድኅን</b>!<br>ከታች ካሉት ቁልፎች ይምረጡ።</div>
+            <div class="keys">
+              <span>👤 መረጃዬ</span><span>📅 አቴንዳንስ</span>
+              <span>🎓 ኮርሶች</span><span>🔳 የQR ኮዴ</span>
+              <span>🌐 English</span><span>🚪 ውጣ</span>
+            </div>
+          </div>
+          <p class="chat-caption">ምናሌው ሁልጊዜ በውይይቱ ግርጌ ይቆያል። እዚህ የሚታዩት ስሞች ምሳሌ ናቸው።</p>
+        </div>
+      </div>
+
+      <h3>እያንዳንዱ ቁልፍ የሚያሳየው</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ቁልፍ</th><th>የሚያገኙት</th></tr></thead>
+          <tbody>
+            <tr><td><b>👤 መረጃዬ</b></td><td>የአባልነት ካርድዎ፦ ፎቶ፣ መለያ ቁጥር፣ የክርስትና ስም፣ ጾታ፣ የትውልድ ቀን፣ ስልክ፣ ሁኔታ፣ የተቀላቀሉበት ቀን፣ ክፍሎችዎና ደረጃዎችዎ፣ የአገልግሎት ክፍሎችዎና ሚናዎችዎ እንዲሁም የአገልግሎት ምድብዎ።</td></tr>
+            <tr><td><b>📅 አቴንዳንስ</b></td><td>ቦቱ መጀመሪያ የትኛውን የአገልግሎት ክፍል እንደሆነ ይጠይቃል። አንዱን ወይም <span>📋 ሁሉም</span>ን ይምረጡ። ያለፉትን 90 ቀናት ያያሉ፦ ስንት ጊዜ እንደተገኙ፣ እንዳረፈዱ፣ እንደቀሩ ወይም ፈቃድ እንደወሰዱ፣ የመገኘት መጠንዎን እና እያንዳንዱን ክፍለ ጊዜ።</td></tr>
+            <tr><td><b>🎓 ኮርሶች</b></td><td>የገቡበት እያንዳንዱ ኮርስ፣ የሚጀምር፣ በሂደት ላይ ወይም የተጠናቀቀ መሆኑ፣ ውጤትዎና ማለፍዎ። መምህራን የሚያስተምሯቸውንም ዙሮች ያያሉ።</td></tr>
+            <tr><td><b>🔳 የQR ኮዴ</b></td><td>የQR ኮድዎ። በአቴንዳንስ ጊዜ ከታተመ ካርድ ይልቅ ለአቴንዳንስ ያዡ ያሳዩት።</td></tr>
+            <tr><td><b>🌐 English / አማርኛ</b></td><td>የቦቱን ቋንቋ ይቀይራል።</td></tr>
+            <tr><td><b>🚪 ውጣ</b></td><td>ይህን የቴሌግራም መለያ ያላቅቃል። ለመመለስ ቁጥርዎን እንደገና ያጋሩ።</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="part" id="am-register">
+      <p class="eyebrow">ለአዲስ አባላት</p>
+      <h2>በቦቱ ራስን መመዝገብ<span class="am" lang="en">Registering yourself in the bot</span></h2>
+      <p class="intro">ይህ የሚሠራው ፅህፈት ቤቱ ራስን መመዝገብን ሲያበራ ብቻ ነው። አምስት ደቂቃ ያህል ይወስዳል፤ ቦቱም ፅህፈት ቤቱ የሚጠይቀውን ሁሉ ይጠይቃል።</p>
+
+      <div class="phone-row">
+        <div>
+          <ol class="steps">
+            <li>ቦቱን ይጀምሩና ስልክ ቁጥርዎን ያጋሩ። ቁጥሩ በየትኛውም መዝገብ ላይ ከሌለ ቦቱ የሚጠይቃቸውን ያሳያል። <span class="btn">📝 ልመዝገብ</span>ን ይጫኑ።</li>
+            <li>ጥያቄዎቹን አንድ በአንድ ይመልሱ። መልስዎን ይጻፉ ወይም ቁልፍ ይጫኑ። ከላይ ያለው አሞሌ ምን ያህል እንደደረሱ ያሳያል።</li>
+            <li>በመጨረሻ ቦቱ ያስገቡትን ሁሉ ያሳያል። ሁሉም ትክክል ከሆነ <span class="btn">✅ ይመዝገብ</span>ን ይጫኑ።</li>
+            <li>እንደ <code>FE-02015</code> ያለ የአባልነት መለያ ቁጥር ይደርስዎታል። ምናሌው ይታያል፤ ቦቱንም ወዲያውኑ መጠቀም ይችላሉ።</li>
+          </ol>
+          <h3>ሁልጊዜ የሚገኙ ቁልፎች</h3>
+          <ul>
+            <li><span class="btn">⬅ ተመለስ</span> መልስ ለማረም አንድ ጥያቄ ወደ ኋላ ይመልሳል።</li>
+            <li><span class="btn">⏭ እለፍ</span> መልስ የሌለዎትን ጥያቄ ያልፋል።</li>
+            <li><span class="btn">✖ ሰርዝ</span> ምዝገባውን ይሰርዛል፤ ምንም አይቀመጥም።</li>
+            <li><span class="btn">🔁 እንደገና ልሙላ</span> በመጨረሻው ማጠቃለያ ላይ መልሶቹን ከመጀመሪያ ያስጀምራል።</li>
+          </ul>
+        </div>
+        <div>
+          <div class="chat" aria-label="የምዝገባ ጥያቄ ምሳሌ">
+            <div class="head"><span class="avatar">ፍ</span><div><b>ፍቁረ እግዚእ</b><small>bot</small></div></div>
+            <div class="bub"><b>👤 የግል መረጃ</b><br><span class="bar">▰▰▰▱▱▱▱▱▱▱</span><br>የትውልድ ቀንዎን በኢትዮጵያ አቆጣጠር ይጻፉ።</div>
+            <div class="bub me">15/01/2000</div>
+            <div class="bub"><b>📚 ክፍሎች</b><br>በ«የመዝሙር ክፍል» ውስጥ ያሉበት ደረጃ የትኛው ነው?</div>
+            <div class="keys">
+              <span>ደረጃ 1</span><span>ደረጃ 2</span>
+              <span>⬅ ተመለስ</span><span>⏭ እለፍ</span>
+              <span class="wide">✖ ሰርዝ</span>
+            </div>
+          </div>
+          <p class="chat-caption">እዚህ የሚታዩት የደረጃ ስሞች ምሳሌ ናቸው፤ ቦቱ የእያንዳንዱን ክፍል ትክክለኛ ደረጃዎች ይዘረዝራል።</p>
+        </div>
+      </div>
+
+      <h3>ቦቱ በቅደም ተከተል የሚጠይቃቸው</h3>
+      <ul class="flow">
+        <li>👤 የግል መረጃ</li><li>📚 ክፍሎች</li><li>⛪ የአገልግሎት ክፍሎች</li><li>📞 የመገናኛ መረጃ</li><li>🏠 አድራሻ</li>
+        <li>🎓 ትምህርትና ሥራ</li><li>🆘 የአደጋ ጊዜ ተጠሪ</li><li>🩺 ጤና</li><li>📷 ፎቶ</li><li>📜 ስምምነት</li>
+      </ul>
+      <ul>
+        <li><strong>የግል መረጃ፦</strong> ስምዎ፣ የአባትና የአያት ስም፣ የክርስትና ስም፣ ጾታ፣ የትውልድ ቀን፣ የትውልድ ቦታ፣ የጋብቻ ሁኔታ እና የንስሐ አባት።</li>
+        <li><strong>ክፍሎች፦</strong> ለእያንዳንዱ ክፍል ያሉበት ደረጃ። ለማይማሩበት ክፍል <span class="btn">⏭ እለፍ</span> ይጫኑ።</li>
+        <li><strong>የአገልግሎት ክፍሎች፦</strong> የሚያገለግሉበትን እያንዳንዱን ክፍል ይጫኑ። እያንዳንዱ ጫና ምልክት (✅) ያደርጋል ወይም ያነሳል። ሲጨርሱ፣ ወይም ገና በየትኛውም ክፍል የማያገለግሉ ከሆነ ወዲያውኑ፣ <span class="btn">✔ ጨርሻለሁ</span>ን ይጫኑ።</li>
+        <li><strong>መገናኛና አድራሻ፦</strong> ተጨማሪ ስልክ፣ ኢሜይል፣ ከተማ፣ ክፍለ ከተማ፣ ወረዳ፣ ቀበሌ እና የቤት ቁጥር።</li>
+        <li><strong>ትምህርትና ሥራ፣ የአደጋ ጊዜ ተጠሪ፦</strong> የትምህርት ደረጃዎ፣ ሥራዎ፣ እና በአደጋ ጊዜ የሚጠራ ሰው ከዝምድናውና ከስልክ ቁጥሩ ጋር።</li>
+        <li><strong>ጤና፦</strong> ክትትል የሚፈልግ የጤና ሁኔታ ካለዎት። ካለ በጥቂት ቃላት ይግለጹ፤ ለምሳሌ አስም ወይም የስኳር ሕመም።</li>
+        <li><strong>ፎቶ፦</strong> ፊትዎ በግልጽ የሚታይበት ከ2 MB ያልበለጠ ፎቶ ይላኩ፤ ወይም ይለፉት።</li>
+        <li><strong>ስምምነት፦</strong> ስምምነት ላላቸው ክፍሎች ብቻ፣ ለምሳሌ የመዝሙር ክፍል። ደንቦቹን አንብበው <span class="btn">✅ አንብቤ ተስማምቻለሁ</span>ን ይጫኑ። ካልተስማሙ <span class="btn">🚫 … አልቀላቀልም</span> የሚለውን ይጫኑ፤ ያለዚያ ክፍል ይመዘገባሉ።</li>
+      </ul>
+      <div class="tip"><strong>ቀንና ቁጥር አጻጻፍ</strong>ቀንን በኢትዮጵያ አቆጣጠር ቀን/ወር/ዓመት ብለው ይጻፉ፤ ለምሳሌ <code>15/01/2000</code>። ስልክ ቁጥርን በ09 ወይም በ07 የሚጀምር 10 አሃዝ አድርገው ይጻፉ፤ ለምሳሌ <code>0911223344</code>።</div>
+    </section>
+
+    <section class="part" id="am-portal">
+      <p class="eyebrow">ለአባላት</p>
+      <h2>የአባል ገጽዎ በድረ ገጽ<span class="am" lang="en">Your member page on the web</span></h2>
+      <p class="intro">ቴሌግራም የሌላቸው አባላት ተመሳሳዩን መረጃ በማንኛውም አሳሽ ማየት ይችላሉ። የይለፍ ቃል አያስፈልግም።</p>
+      <ol class="steps">
+        <li><strong>portal.fikureegzi4.com/portal</strong>ን ይክፈቱ።</li>
+        <li>የአባልነት መለያ ቁጥርዎን ይጻፉ፤ ለምሳሌ <code>FE-00042</code>። ወይም <span class="btn">QR ኮዴን ቃኝ</span>ን ተጭነው ካርድዎን ወደ ካሜራው ያቅርቡ።</li>
+        <li>በአባልነት መዝገብዎ ላይ ያለውን ስልክ ቁጥር ይጻፉና <span class="btn">መረጃዬን አሳይ</span>ን ይጫኑ።</li>
+      </ol>
+      <p>ገጹ ፎቶዎን፣ መለያ ቁጥርዎን እና በአቴንዳንስ ጊዜ የሚያሳዩትን QR ኮድ፤ የግልና የመገናኛ መረጃዎን፤ ክፍሎችዎንና ደረጃዎችዎን፤ የአገልግሎት ክፍሎችዎን፣ ሚናዎችዎንና የአገልግሎት ምድብዎን፤ ኮርሶችዎንና ውጤቶችዎን፤ እንዲሁም ጊዜውን መቀየር የሚችሉበትን አቴንዳንስዎን ያሳያል።</p>
+      <div class="note"><strong>መረጃዎ የተሳሳተ ነው?</strong>አባላት የራሳቸውን መረጃ መቀየር አይችሉም። የተሳሳተ ወይም ያረጀ ነገር ካለ ለፅህፈት ቤቱ ይንገሩ፤ ያርሙታል።</div>
+    </section>
+
+    <section class="part" id="am-faq">
+      <p class="eyebrow">እገዛ</p>
+      <h2>ተደጋጋሚ ጥያቄዎች<span class="am" lang="en">Common questions</span></h2>
+      <dl class="faq">
+        <dt>ቦቱ ቁጥሬ በመዝገቡ ውስጥ የለም ይላል።</dt>
+        <dd>ስልክ ቁጥርዎ በአባልነት መዝገብዎ ላይ በትክክል መኖር አለበት። ፅህፈት ቤቱ እንዲያረጋግጥ ወይም እንዲጨምር ይጠይቁ፤ ከዚያ በቦቱ ቁጥርዎን እንደገና ያጋሩ። ምዝገባ ክፍት ከሆነ ደግሞ ቦቱ እንዲመዘገቡ ያቀርብልዎታል።</dd>
+        <dt>ቦቱ ራስን መመዝገብ ዝግ ነው ይላል።</dt>
+        <dd>ፅህፈት ቤቱ አጥፍቶታል። በፅህፈት ቤቱ ይመዝገቡ ወይም የሚቀጥለውን የምዝገባ ዘመቻ ይጠብቁ።</dd>
+        <dt>ሁለታችን አንድ ስልክ እንጠቀማለን።</dt>
+        <dd>ሁለቱንም አባላት በዚያው ቁጥር ያስመዝግቡ። ቦቱ የማንን መረጃ እንደሚያሳይ ይጠይቃል፤ <span class="btn">👥 አባል ቀይር</span> በመካከላቸው ያቀያይራል።</dd>
+        <dt>የአባል ገጹ መለያ ቁጥሩና ስልኩ አይገጥሙም ይላል።</dt>
+        <dd>መለያ ቁጥሩን እና በመዝገብዎ ላይ ያለውን ቁጥር በትክክል እንደጻፉ ያረጋግጡ። ብዙ ጊዜ ከተሳሳቱ እንደገና ከመሞከርዎ በፊት ጥቂት ደቂቃዎች እንዲጠብቁ ይጠይቃል።</dd>
+        <dt>የሚያስፈልገኝ ገጽ በማውጫዬ ውስጥ የለም።</dt>
+        <dd>ሚናዎ አያካትተውም፣ ወይም በዚያ የአገልግሎት ክፍል አልተመደቡም። ፅህፈት ቤቱ በ«ተጠቃሚዎች» ውስጥ መለያዎን እንዲያይ ይጠይቁ።</dd>
+        <dt>የአቴንዳንስ ምልክት ተሳስቷል።</dt>
+        <dd>ክፍለ ጊዜውን ከፍተው ትክክለኛውን ሁኔታ ይጫኑ። ክፍለ ጊዜው ተዘግቶ ከሆነ መጀመሪያ <span class="btn">እንደገና ክፈት</span>ን ይጫኑ። አቴንዳንስ ያዦች የዛሬን ክፍለ ጊዜ ብቻ መቀየር ይችላሉ፤ ለቀደሙ ቀናት የአገልግሎት ክፍል አስተዳዳሪን ይጠይቁ።</dd>
+        <dt>በቦት ራሱን የመዘገበ አባል መረጃ የተሳሳተ ይመስላል።</dt>
+        <dd>ፅህፈት ቤቱ አባሉን ከፍቶ መረጃውን ያስተካክላል። ራሳቸውን የመዘገቡትን ሁሉ ለመገምገም <strong>የተመዘገቡበት → በቦት ራሳቸውን የመዘገቡ</strong> ማጣሪያን ይጠቀሙ።</dd>
+      </dl>
+    </section>
+  </main>
+</div>
+
+<footer>ፍቁረ እግዚእ ሰንበት ትምህርት ቤት ማኔጅመንት ሲስተም · ጥቅምት 2019 ዓ.ም የተሻሻለ</footer>
+</div>
+
+<!-- ═══════════════════════════ English ═══════════════════════════ -->
+<div data-lang="en" lang="en" hidden>
+<header class="mast">
+  <p class="am-name" lang="am">ፍቁረ እግዚእ ሰንበት ትምህርት ቤት</p>
+  <h1>How to use the Sunday school system</h1>
+  <p class="lede">One guide for everyone who uses it: office staff, department leaders, attendance takers, teachers, and members using the Telegram bot or the member page. Pick your part below.</p>
+  <div class="chooser">
+    <a href="#office"><span class="who">Office administrator</span><span class="am" lang="am">የፅህፈት ቤት አስተዳዳሪ</span><span class="what">Everything, for every department</span></a>
+    <a href="#dept-admin"><span class="who">Department administrator</span><span class="am" lang="am">የአገልግሎት ክፍል አስተዳዳሪ</span><span class="what">Runs one or more departments</span></a>
+    <a href="#taker"><span class="who">Attendance taker</span><span class="am" lang="am">አቴንዳንስ ያዥ</span><span class="what">Takes today's attendance</span></a>
+    <a href="#teacher"><span class="who">Teacher</span><span class="am" lang="am">መምህር</span><span class="what">Assessments and marks</span></a>
+    <a href="#bot"><span class="who">Member · Telegram bot</span><span class="am" lang="am">አባል · ቴሌግራም ቦት</span><span class="what">Register and see your details</span></a>
+    <a href="#portal"><span class="who">Member · website</span><span class="am" lang="am">አባል · ድረ ገጽ</span><span class="what">See your details in a browser</span></a>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail" aria-label="Contents">
+    <nav>
+      <p>Staff</p>
+      <ol>
+        <li><a href="#start">Signing in</a></li>
+        <li><a href="#office">Office administrator</a></li>
+        <li><a href="#dept-admin">Department administrator</a></li>
+        <li><a href="#taker">Attendance taker</a></li>
+        <li><a href="#teacher">Teacher</a></li>
+        <li><a href="#who-can">Who can do what</a></li>
+      </ol>
+      <p>Members</p>
+      <ol>
+        <li><a href="#bot">Telegram bot</a></li>
+        <li><a href="#register">Registering in the bot</a></li>
+        <li><a href="#portal">Member page on the web</a></li>
+      </ol>
+      <p>Help</p>
+      <ol>
+        <li><a href="#faq">Common questions</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <main>
+
+    <!-- ───────────── Signing in ───────────── -->
+    <section class="part" id="start">
+      <p class="eyebrow">All staff</p>
+      <h2>Signing in<span class="am" lang="am">ወደ ሲስተሙ መግባት</span></h2>
+      <p class="intro">Staff accounts are created by the office, or by a department administrator for their own attendance takers and teachers. Nobody can create their own staff account.</p>
+      <ol class="steps">
+        <li>Open <strong>portal.fikureegzi4.com</strong> in a browser on a phone or computer.</li>
+        <li>Type the email and password you were given, then press <span class="btn" lang="am">ግባ</span> (Sign in).</li>
+        <li>On your first sign-in, open your name in the top corner, choose <span class="path">My profile</span> <span lang="am">(የእኔ መገለጫ)</span> and change the password to one only you know.</li>
+      </ol>
+      <h3>Things every user can do</h3>
+      <ul>
+        <li><strong>Change the language.</strong> The language switch in the top bar flips every screen between Amharic and English.</li>
+        <li><strong>Change light or dark look.</strong> The theme button sits beside the language switch.</li>
+        <li><strong>See only what your role allows.</strong> The menu on the left only shows the pages you can use. If a page you need is missing, ask the office to check your role.</li>
+        <li><strong>Read dates in the Ethiopian calendar.</strong> Every date in the system and the bot is shown and typed in the Ethiopian calendar (ዓ.ም).</li>
+      </ul>
+      <div class="note"><strong>Keep your password to yourself.</strong>Every change in the system is recorded with the name of the person who made it. Sign out with <span class="path">your name → Sign out</span> on shared computers.</div>
+    </section>
+
+    <!-- ───────────── Office administrator ───────────── -->
+    <section class="part" id="office">
+      <p class="eyebrow">Role guide</p>
+      <h2>Office administrator<span class="am" lang="am">የፅህፈት ቤት አስተዳዳሪ</span></h2>
+      <p class="intro">The office sees and manages everything, across every department. It is the only role that registers and edits member records, changes office-wide settings, and creates department administrators.</p>
+      <div class="scope"><span class="pill">All departments</span><span class="pill">All pages</span></div>
+
+      <h3>Register a new member</h3>
+      <ol class="steps">
+        <li>Go to <span class="path">Members</span> <span lang="am">(አባላት)</span> and press <span class="btn">Register member</span>.</li>
+        <li>Fill the sections: personal details, contact and address, education and work, emergency contact, and health. Only the first name, father's name, gender, date of birth and joining date are required. Add the phone number too, because the member needs it to use the bot and the member page.</li>
+        <li>Under <strong>Classes</strong> <span lang="am">(ክፍሎች)</span>, choose the level the member is in for each class they attend.</li>
+        <li>If a chosen class has an agreement (for example the Mezmur Class), an agreement switch appears. Turn it on only after the member has read and accepted the rules.</li>
+        <li>Save. The member gets a member ID such as <code>FE-00042</code>, which is also their QR code.</li>
+      </ol>
+      <div class="tip"><strong>Many members at once</strong>The members list also has an Excel import. Download the template, fill it, upload it, fix any rows the check flags, then create them all in one go.</div>
+
+      <h3>Keep member records up to date</h3>
+      <ul>
+        <li>Open a member from the list to see everything about them: details, classes, departments, attendance, courses and exams. Press <span class="btn">Edit</span> to change their record or photo.</li>
+        <li>Use the filters on the members list to narrow by class, department, status or how they registered. Choose <strong>Registered via → Self-registered (bot)</strong> to review people who registered themselves.</li>
+        <li>Mark someone <strong>Inactive</strong> instead of deleting them when they stop coming, so their history is kept.</li>
+      </ul>
+
+      <h3>Print QR membership cards</h3>
+      <p>On the members list, press <span class="btn">Print QR codes</span> to print A4 sheets of QR codes, 20 per page, with the name and member ID under each. It prints every member that matches the list's current filters, so filter first. On a member's own page, <span class="btn">Print QR</span> prints just theirs.</p>
+
+      <h3>Classes and their agreements</h3>
+      <p>Under <span class="path">Classes</span> <span lang="am">(ክፍሎች)</span>, each class (for example the Mezmur Class) has levels. To give a class rules that members must accept, open the class menu and choose <span class="path">Add agreement</span>, then write one rule per line. The agreement then appears both in the member form and at the end of bot registration for anyone who picks that class.</p>
+
+      <h3>Departments</h3>
+      <ul>
+        <li><span class="path">Departments</span> <span lang="am">(የአገልግሎት ክፍሎች)</span> shows the nine main departments and their sub-departments. Switch between <strong>Cards</strong> and <strong>Tree</strong> to see the whole structure at once; the tree has a search box.</li>
+        <li>Open a department to see its roster. Add members to it and set their role: Head <span lang="am">(ሰብሳቢ)</span>, Deputy <span lang="am">(ምክትል)</span>, Secretary <span lang="am">(ጸሐፊ)</span> or Member.</li>
+        <li><span class="path">Service groups</span> organises members into groups per service term.</li>
+      </ul>
+
+      <h3>Staff accounts</h3>
+      <ol class="steps">
+        <li>Go to <span class="path">Users</span> <span lang="am">(ተጠቃሚዎች)</span> and press <span class="btn">New user</span>.</li>
+        <li>Choose the role. For every role except Office administrator, also choose the department or departments the person works in. They automatically get the sub-departments under them too.</li>
+        <li>Give the person their email and starting password and ask them to change it.</li>
+      </ol>
+
+      <h3>Turn bot self-registration on or off</h3>
+      <p>Go to <span class="path">Settings</span> <span lang="am">(ማስተካከያዎች)</span> and under <strong>Self-registration</strong> switch on <strong>Let newcomers register themselves</strong>. While it is on, anyone whose phone number is not yet on a member record can register themselves through the Telegram bot. Turn it off after a registration drive; the change takes effect within a few seconds.</p>
+
+      <h3>Everything else</h3>
+      <p>The office can also do everything described for department administrators below (attendance, courses, exams, assets), for every department. The <span class="path">Audit log</span> <span lang="am">(ኦዲት)</span> shows who changed what and when.</p>
+    </section>
+
+    <!-- ───────────── Department administrator ───────────── -->
+    <section class="part" id="dept-admin">
+      <p class="eyebrow">Role guide</p>
+      <h2>Department administrator<span class="am" lang="am">የአገልግሎት ክፍል አስተዳዳሪ</span></h2>
+      <p class="intro">A department administrator runs their own department or departments, including every sub-department under them. They see members of their departments but cannot register or edit member records; ask the office for that.</p>
+      <div class="scope"><span class="pill">Own departments and sub-departments</span><span class="pill no">Cannot edit member records</span></div>
+
+      <h3>Your department's people</h3>
+      <ul>
+        <li>Open <span class="path">Departments</span>, then your department, to add members to its roster and set their roles.</li>
+        <li>Open any of your members to see their details, attendance, courses and exams.</li>
+        <li>Organise <span class="path">Service groups</span> and manage the <span class="path">Classes</span> your department runs.</li>
+      </ul>
+
+      <h3>Attendance</h3>
+      <ol class="steps">
+        <li>Go to <span class="path">Attendance</span> <span lang="am">(አቴንዳንስ)</span> and press <span class="btn">New session</span>.</li>
+        <li>Choose what it is for: a class level, a service group, or another gathering such as a meeting. The roster fills itself from that choice.</li>
+        <li>Set the date and start time. People who check in more than 15 minutes after the start are marked Late automatically; you can change the minutes.</li>
+        <li>Take attendance by scanning QR codes or tapping each person's status. When it is over, press <span class="btn">Close session</span>. Press <span class="btn">Reopen</span> later if you need to fix a mistake.</li>
+      </ol>
+      <p>Unlike attendance takers, department administrators can create and change sessions for past or future days. <span class="path">Attendance → Reports</span> shows who comes most and who has dropped below a chosen rate, so you know whom to follow up.</p>
+
+      <h3>Courses</h3>
+      <p>Under <span class="path">Courses</span> <span lang="am">(ኮርሶች)</span>, register a course, schedule a run (a round of the course with dates), add the students and assign the teachers. Teachers then set up the assessments and enter marks; you can do the same.</p>
+
+      <h3>Exams</h3>
+      <p>Exams are department tests that are not part of a course, for example the St. John's Wereb assessment of the Mezmur Class. Each exam belongs to a class, optionally to one level of it.</p>
+      <ol class="steps">
+        <li>Go to <span class="path">Exams</span> <span lang="am">(ፈተናዎች)</span>, press <span class="btn">New exam</span>, choose the class and, if it is only for one level, that level.</li>
+        <li>Add the parts and their weights. For example <em lang="am">እንቅስቃሴ</em> 40% and <em lang="am">ዜማ</em> 60%. The weights must add up to 100. The pass mark is 50 unless you change it.</li>
+        <li>Add candidates: a whole level or the whole class in one press, or individual members by searching their name or ID. Anyone who joins the class later can be added the same way.</li>
+        <li>Enter each person's marks on the mark sheet. Each part is marked out of its weight, so <em lang="am">ዜማ</em> is out of 60. A total and pass or fail appear once every part is marked.</li>
+      </ol>
+
+      <h3>Assets</h3>
+      <p>Under <span class="path">Assets</span> <span lang="am">(ንብረት)</span>, record what your department owns, with photos, so it can be found and counted.</p>
+
+      <h3>Your attendance takers and teachers</h3>
+      <p>In <span class="path">Users</span>, you can create accounts for attendance takers and teachers, only within your own departments. Only the office can create another department administrator.</p>
+    </section>
+
+    <!-- ───────────── Attendance taker ───────────── -->
+    <section class="part" id="taker">
+      <p class="eyebrow">Role guide</p>
+      <h2>Attendance taker<span class="am" lang="am">አቴንዳንስ ያዥ</span></h2>
+      <p class="intro">An attendance taker only sees the attendance page, and only today's sessions for their own departments.</p>
+      <div class="scope"><span class="pill">Today only</span><span class="pill">Own departments</span></div>
+      <ol class="steps">
+        <li>Sign in and open <span class="path">Attendance</span>. Today's sessions for your departments are listed.</li>
+        <li>Open the session, or press <span class="btn">New session</span> if today's has not been created yet.</li>
+        <li>Press <span class="btn">Start camera</span> and let the camera read each member's QR code, from their printed card or from the bot on their phone. Each scan marks them Present, or Late if they arrive after the late time.</li>
+        <li>For anyone without a code, find their name on the roster and tap their status: Present <span lang="am">(ተገኝቷል)</span>, Late <span lang="am">(አርፍዷል)</span>, Absent <span lang="am">(ቀርቷል)</span> or Excused <span lang="am">(ፈቃድ)</span>.</li>
+        <li>If the camera cannot read a card, type the member ID into the box under the camera and press <span class="btn">Record</span>.</li>
+        <li>When everyone has been marked, press <span class="btn">Close session</span>.</li>
+      </ol>
+      <div class="note"><strong>Missed a day?</strong>Attendance takers cannot record yesterday's attendance. Ask your department administrator, who can.</div>
+    </section>
+
+    <!-- ───────────── Teacher ───────────── -->
+    <section class="part" id="teacher">
+      <p class="eyebrow">Role guide</p>
+      <h2>Teacher<span class="am" lang="am">መምህር</span></h2>
+      <p class="intro">A teacher sees only the course runs they are assigned to teach.</p>
+      <ol class="steps">
+        <li>Sign in and open <span class="path">Courses</span>. Only your own runs are listed.</li>
+        <li>Open a run and set up its assessments, for example a mid-term and a final, with how much each counts.</li>
+        <li>Enter each student's marks. The total and pass or fail are worked out for you.</li>
+      </ol>
+      <p>Your students can see their marks in the Telegram bot under <span class="btn" lang="am">🎓 ኮርሶች</span>. As a member yourself, the same button in the bot also lists the runs you are teaching.</p>
+    </section>
+
+    <!-- ───────────── Who can do what ───────────── -->
+    <section class="part" id="who-can">
+      <p class="eyebrow">Reference</p>
+      <h2>Who can do what</h2>
+      <p class="intro">“Own” means the departments assigned to that person, plus every sub-department under them.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Task</th><th>Office admin</th><th>Department admin</th><th>Attendance taker</th><th>Teacher</th></tr></thead>
+          <tbody>
+            <tr><td>Register and edit members</td><td class="y">Yes</td><td class="n">View own only</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Department rosters</td><td class="y">All</td><td class="p">Own</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Create and rename departments</td><td class="y">Yes</td><td class="n">No</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Classes, levels, service groups</td><td class="y">All</td><td class="p">Own</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Take attendance</td><td class="y">Any day</td><td class="p">Any day, own</td><td class="p">Today, own</td><td class="n">No</td></tr>
+            <tr><td>Attendance reports</td><td class="y">All</td><td class="p">Own</td><td class="p">Own sessions</td><td class="n">No</td></tr>
+            <tr><td>Courses and runs</td><td class="y">All</td><td class="p">Own</td><td class="n">No</td><td class="p">Own runs</td></tr>
+            <tr><td>Enter course marks</td><td class="y">Yes</td><td class="p">Own</td><td class="n">No</td><td class="p">Own runs</td></tr>
+            <tr><td>Exams and their marks</td><td class="y">All</td><td class="p">Own classes</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Assets</td><td class="y">All</td><td class="p">Own</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Create staff accounts</td><td class="y">Any role</td><td class="p">Takers and teachers</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Audit log</td><td class="y">Yes</td><td class="p">Yes</td><td class="n">No</td><td class="n">No</td></tr>
+            <tr><td>Settings (bot self-registration)</td><td class="y">Yes</td><td class="n">No</td><td class="n">No</td><td class="n">No</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ───────────── Telegram bot ───────────── -->
+    <section class="part" id="bot">
+      <p class="eyebrow">For members</p>
+      <h2>The Telegram bot<span class="am" lang="am">የቴሌግራም ቦት</span></h2>
+      <p class="intro">The bot shows your membership details, attendance, courses and QR code on your phone. It speaks Amharic first; press <span class="btn">🌐 English</span> to switch.</p>
+
+      <div class="phone-row">
+        <div>
+          <h3 style="margin-top:0">Connect your account</h3>
+          <ol class="steps">
+            <li>Open the Sunday school's bot in Telegram (the office shares the link) and press <span class="btn">Start</span>.</li>
+            <li>Press <span class="btn" lang="am">📱 ስልክ ቁጥሬን አጋራ</span> (Share my phone number) and confirm. It must be your own number; a forwarded contact is refused.</li>
+            <li>If that number is on your member record, the bot greets you by name and shows the menu.</li>
+            <li>If several members share the number, such as parents and children, the bot asks whose details to show. Press <span class="btn" lang="am">👥 አባል ቀይር</span> later to switch.</li>
+          </ol>
+          <p>If the number is not on any record, the bot either offers to register you (when the office has opened registration) or asks you to contact the office.</p>
+        </div>
+        <div>
+          <div class="chat" aria-label="Example of the bot menu">
+            <div class="head"><span class="avatar">ፍ</span><div><b lang="am">ፍቁረ እግዚእ</b><small>bot</small></div></div>
+            <div class="bub" lang="am">✅ እንኳን ደህና መጡ፣ <b>ዮሴፍ ገብረ መድኅን</b>!<br>ከታች ካሉት ቁልፎች ይምረጡ።</div>
+            <div class="keys" lang="am">
+              <span>👤 መረጃዬ</span><span>📅 አቴንዳንስ</span>
+              <span>🎓 ኮርሶች</span><span>🔳 የQR ኮዴ</span>
+              <span>🌐 English</span><span>🚪 ውጣ</span>
+            </div>
+          </div>
+          <p class="chat-caption">The menu stays at the bottom of the chat. The names shown here are an example.</p>
+        </div>
+      </div>
+
+      <h3>What each button shows</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Button</th><th>What you get</th></tr></thead>
+          <tbody>
+            <tr><td lang="am"><b>👤 መረጃዬ</b><br><small>My details</small></td><td>Your membership card: photo, member ID, Christian name, gender, date of birth, phone, status, the date you joined, your classes and levels, your departments and roles, and your service group.</td></tr>
+            <tr><td lang="am"><b>📅 አቴንዳንስ</b><br><small>Attendance</small></td><td>The bot first asks which department. Pick one or <span lang="am">📋 ሁሉም</span> (all). You see the last 90 days: how many times you were present, late, absent or excused, your attendance rate, and each session.</td></tr>
+            <tr><td lang="am"><b>🎓 ኮርሶች</b><br><small>Courses</small></td><td>Each course you are in, whether it is upcoming, ongoing or finished, your marks and whether you passed. Teachers also see the runs they teach.</td></tr>
+            <tr><td lang="am"><b>🔳 የQR ኮዴ</b><br><small>My QR code</small></td><td>Your QR code. Show it to the attendance taker at check-in instead of a printed card.</td></tr>
+            <tr><td><b>🌐 English / አማርኛ</b></td><td>Switches the bot's language.</td></tr>
+            <tr><td lang="am"><b>🚪 ውጣ</b><br><small>Sign out</small></td><td>Disconnects this Telegram account. Share your number again to come back.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ───────────── Registering in the bot ───────────── -->
+    <section class="part" id="register">
+      <p class="eyebrow">For new members</p>
+      <h2>Registering yourself in the bot<span class="am" lang="am">በቦቱ ራስን መመዝገብ</span></h2>
+      <p class="intro">This works only while the office has turned on self-registration. It takes about five minutes, and the bot asks for everything the office would.</p>
+
+      <div class="phone-row">
+        <div>
+          <ol class="steps">
+            <li>Start the bot and share your phone number. If it is not on any record, the bot shows what it will ask. Press <span class="btn" lang="am">📝 ልመዝገብ</span> (Register me).</li>
+            <li>Answer one question at a time. Type your answer or press a button. A bar at the top shows how far along you are.</li>
+            <li>At the end, the bot shows everything you entered. If it is all correct, press <span class="btn" lang="am">✅ ይመዝገብ</span>.</li>
+            <li>You receive your member ID, for example <code>FE-02015</code>. The menu appears and you can use the bot straight away.</li>
+          </ol>
+          <h3>Buttons that are always there</h3>
+          <ul>
+            <li><span class="btn" lang="am">⬅ ተመለስ</span> goes back one question to fix an answer.</li>
+            <li><span class="btn" lang="am">⏭ እለፍ</span> skips a question you do not have an answer for.</li>
+            <li><span class="btn" lang="am">✖ ሰርዝ</span> cancels the registration. Nothing is saved.</li>
+            <li><span class="btn" lang="am">🔁 እንደገና ልሙላ</span>, on the final summary, starts the answers over.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="chat" aria-label="Example of a registration question">
+            <div class="head"><span class="avatar">ፍ</span><div><b lang="am">ፍቁረ እግዚእ</b><small>bot</small></div></div>
+            <div class="bub" lang="am"><b>👤 የግል መረጃ</b><br><span class="bar">▰▰▰▱▱▱▱▱▱▱</span><br>የትውልድ ቀንዎን በኢትዮጵያ አቆጣጠር ይጻፉ።</div>
+            <div class="bub me">15/01/2000</div>
+            <div class="bub" lang="am"><b>📚 ክፍሎች</b><br>በ«የመዝሙር ክፍል» ውስጥ ያሉበት ደረጃ የትኛው ነው?</div>
+            <div class="keys" lang="am">
+              <span>ደረጃ 1</span><span>ደረጃ 2</span>
+              <span>⬅ ተመለስ</span><span>⏭ እለፍ</span>
+              <span class="wide">✖ ሰርዝ</span>
+            </div>
+          </div>
+          <p class="chat-caption">The level names shown here are an example; the bot lists each class's real levels.</p>
+        </div>
+      </div>
+
+      <h3>What the bot asks, in order</h3>
+      <ul class="flow" lang="am">
+        <li>👤 የግል መረጃ</li><li>📚 ክፍሎች</li><li>⛪ የአገልግሎት ክፍሎች</li><li>📞 የመገናኛ መረጃ</li><li>🏠 አድራሻ</li>
+        <li>🎓 ትምህርትና ሥራ</li><li>🆘 የአደጋ ጊዜ ተጠሪ</li><li>🩺 ጤና</li><li>📷 ፎቶ</li><li>📜 ስምምነት</li>
+      </ul>
+      <ul>
+        <li><strong>Personal details:</strong> your name, father's and grandfather's name, Christian name, gender, date of birth, place of birth, marital status and spiritual father.</li>
+        <li><strong>Classes:</strong> for each class, the level you are in. Press <span class="btn" lang="am">⏭ እለፍ</span> for classes you do not attend.</li>
+        <li><strong>Service departments:</strong> tap every department you serve in. Each tap toggles a tick (✅). Press <span class="btn" lang="am">✔ ጨርሻለሁ</span> when you are done, or straight away if you do not serve anywhere yet.</li>
+        <li><strong>Contact and address:</strong> a second phone number, email, city, sub-city, woreda, kebele and house number.</li>
+        <li><strong>Education and work, emergency contact:</strong> your education level, occupation, and a person to call in an emergency with their relationship to you and phone number.</li>
+        <li><strong>Health:</strong> whether you have a condition that needs attention. If yes, describe it in a few words, for example asthma or diabetes.</li>
+        <li><strong>Photo:</strong> send a clear photo of your face, under 2 MB, or skip it.</li>
+        <li><strong>Agreement:</strong> only for classes that have one, such as the Mezmur Class. Read the rules and press <span class="btn" lang="am">✅ አንብቤ ተስማምቻለሁ</span>. If you do not agree, press the <span class="btn" lang="am">🚫 … አልቀላቀልም</span> button; you are registered without that class.</li>
+      </ul>
+      <div class="tip"><strong>Typing dates and numbers</strong>Write dates in the Ethiopian calendar as day/month/year, for example <code>15/01/2000</code>. Write phone numbers as 10 digits starting with 09 or 07, for example <code>0911223344</code>.</div>
+    </section>
+
+    <!-- ───────────── Member web page ───────────── -->
+    <section class="part" id="portal">
+      <p class="eyebrow">For members</p>
+      <h2>Your member page on the web<span class="am" lang="am">የአባል ገጽ</span></h2>
+      <p class="intro">Members without Telegram can see the same details in any browser. No password is needed.</p>
+      <ol class="steps">
+        <li>Open <strong>portal.fikureegzi4.com/portal</strong>.</li>
+        <li>Type your member ID, for example <code>FE-00042</code>, or press <span class="btn">Scan my QR code</span> and hold your card to the camera.</li>
+        <li>Type the phone number on your membership record, then press <span class="btn">Show my details</span>.</li>
+      </ol>
+      <p>The page shows your photo, member ID and a QR code to show at check-in; your personal and contact details; your classes and levels; your departments, roles and service group; your courses and marks; and your attendance, with a period you can change.</p>
+      <div class="note"><strong>Wrong details?</strong>Members cannot change their own record. If anything is wrong or out of date, tell the office and they will correct it.</div>
+    </section>
+
+    <!-- ───────────── FAQ ───────────── -->
+    <section class="part" id="faq">
+      <p class="eyebrow">Help</p>
+      <h2>Common questions</h2>
+      <dl class="faq">
+        <dt>The bot says my number is not in the records.</dt>
+        <dd>Your phone number must be on your member record exactly. Ask the office to check or add it, then share your number in the bot again. If registration is open, the bot instead offers to register you.</dd>
+        <dt>The bot says self-registration is closed.</dt>
+        <dd>The office has switched it off. Register at the office, or wait for the next registration drive.</dd>
+        <dt>Two of us use the same phone.</dt>
+        <dd>Register both members with that number. The bot asks whose details to show, and <span class="btn" lang="am">👥 አባል ቀይር</span> switches between them.</dd>
+        <dt>The member page says the ID and phone do not match.</dt>
+        <dd>Check the ID and that you typed the number on your record. After several wrong tries it asks you to wait a few minutes before trying again.</dd>
+        <dt>A staff page I need is missing from my menu.</dt>
+        <dd>Your role does not include it, or you are not assigned to that department. Ask the office to check your account in Users.</dd>
+        <dt>An attendance mark is wrong.</dt>
+        <dd>Open the session and tap the right status. If the session is closed, reopen it first. Attendance takers can only change today's sessions; for earlier days, ask a department administrator.</dd>
+        <dt>A self-registered member's details look wrong.</dt>
+        <dd>The office opens the member and edits the record. Use the <strong>Registered via → Self-registered (bot)</strong> filter to review everyone who registered themselves.</dd>
+      </dl>
+    </section>
+  </main>
+</div>
+
+<footer>Fikure Egzi Sunday School Management System · Updated Tikimt 2019 E.C.</footer>
+</div>
+
+<script>
+(function () {
+  var KEY = 'fe-manual-lang';
+  var buttons = document.querySelectorAll('.seg button');
+  function show(lang) {
+    document.querySelectorAll('[data-lang]').forEach(function (el) { el.hidden = el.getAttribute('data-lang') !== lang; });
+    document.documentElement.lang = lang;
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === lang)); });
+    try { localStorage.setItem(KEY, lang); } catch (e) {}
+  }
+  function langOfHash() {
+    var id = location.hash.slice(1);
+    if (!id) return null;
+    var el = document.getElementById(id);
+    if (!el) return null;
+    var box = el.closest('[data-lang]');
+    return box ? box.getAttribute('data-lang') : null;
+  }
+  function jump() {
+    var el = document.getElementById(location.hash.slice(1));
+    if (el) el.scrollIntoView();
+  }
+  var start = langOfHash();
+  if (!start) { try { start = localStorage.getItem(KEY); } catch (e) {} }
+  show(start === 'en' ? 'en' : 'am');
+  if (langOfHash()) setTimeout(jump, 0);
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { show(b.getAttribute('data-set')); window.scrollTo(0, 0); });
+  });
+  window.addEventListener('hashchange', function () { var l = langOfHash(); if (l) { show(l); jump(); } });
+})();
+</script>

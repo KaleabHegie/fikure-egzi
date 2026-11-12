@@ -10,7 +10,7 @@ import {
   Min,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { Trim, TrimToNull } from '../../../common/transforms/string.transforms.js';
+import { Trim, TrimLines, TrimToNull } from '../../../common/transforms/string.transforms.js';
 
 const CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 const CODE_MESSAGE = 'code must be UPPERCASE letters, digits or _ (e.g. MEZMUR)';
@@ -143,14 +143,14 @@ export class ClassAgreementDto {
   titleEn: string;
 
   @ApiProperty({ description: 'One rule per line', maxLength: 5000 })
-  @Trim()
+  @TrimLines()
   @IsString()
   @IsNotEmpty()
   @MaxLength(5000)
   rulesAm: string;
 
   @ApiProperty({ description: 'One rule per line', maxLength: 5000 })
-  @Trim()
+  @TrimLines()
   @IsString()
   @IsNotEmpty()
   @MaxLength(5000)

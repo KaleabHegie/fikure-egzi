@@ -164,29 +164,44 @@ export function UsersPage() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="pl-5">{t('users.fields.fullName')}</TableHead>
-                <TableHead>{t('users.fields.role')}</TableHead>
-                <TableHead>{t('users.fields.departments')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('users.fields.role')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('users.fields.departments')}</TableHead>
                 <TableHead className="hidden md:table-cell">{t('users.lastLogin')}</TableHead>
-                <TableHead>{t('users.status')}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t('users.status')}</TableHead>
                 <TableHead className="w-10 pr-5" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {list.map((u) => (
                 <TableRow key={u.id} className={cn(!u.isActive && 'text-muted-foreground')}>
-                  <TableCell className="pl-5">
+                  <TableCell className="pl-5 whitespace-normal">
                     <span className="font-medium">{u.fullName}</span>
                     {u.id === me?.id && <span className="ml-1.5 text-xs text-muted-foreground">({t('users.you')})</span>}
-                    <span className="block text-xs text-muted-foreground">
+                    <span className="block text-xs break-all text-muted-foreground">
                       {u.email}
                       {u.member && <span className="font-mono"> · {u.member.memberCode}</span>}
                     </span>
-                  </TableCell>
-                  <TableCell>
+                    {/* On phones the departments and status columns are hidden; show them here. */}
                     {u.role && (
                       <span
                         className={cn(
-                          'inline-flex h-5 items-center rounded-full px-2 text-xs font-medium whitespace-nowrap',
+                          'mt-1.5 inline-flex min-h-5 items-center rounded-full px-2 py-0.5 text-xs font-medium sm:hidden',
+                          ROLE_STYLES[u.role.code],
+                        )}
+                      >
+                        {t(`userMenu.roles.${u.role.code}`)}
+                      </span>
+                    )}
+                    <span className="mt-1 block text-xs text-muted-foreground md:hidden">
+                      {u.departments.length === 0 ? t('users.allDepartments') : u.departments.map((d) => name(d)).join('، ')}
+                      {!u.isActive && <span className="sm:hidden"> · {t('users.inactive')}</span>}
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {u.role && (
+                      <span
+                        className={cn(
+                          'inline-flex min-h-5 items-center rounded-full px-2 py-0.5 text-xs font-medium sm:whitespace-nowrap',
                           ROLE_STYLES[u.role.code],
                         )}
                       >
@@ -194,7 +209,7 @@ export function UsersPage() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="max-w-64 text-sm">
+                  <TableCell className="hidden max-w-64 text-sm md:table-cell">
                     {u.departments.length === 0 ? (
                       <span className="text-muted-foreground">{t('users.allDepartments')}</span>
                     ) : (
@@ -204,7 +219,7 @@ export function UsersPage() {
                   <TableCell className="hidden text-sm md:table-cell">
                     {u.lastLoginAt ? formatDateTime(u.lastLoginAt) : <span className="text-muted-foreground">{t('users.never')}</span>}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <span
                       className={cn(
                         'inline-flex h-5 items-center rounded-full px-2 text-xs font-medium',

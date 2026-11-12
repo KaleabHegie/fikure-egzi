@@ -124,6 +124,7 @@ function MemberCard({ member: m }: { member: Member }) {
       <div className="grid gap-5 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-7 sm:p-7">
         <MemberAvatar
           member={m}
+          zoomable
           size="lg"
           className="size-24 text-2xl ring-[3px] ring-gold ring-offset-[3px] ring-offset-card sm:size-28 sm:text-3xl"
         />

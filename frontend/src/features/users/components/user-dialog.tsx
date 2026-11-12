@@ -30,13 +30,16 @@ const schema = z
     password: z.string(),
     isActive: z.boolean(),
     creating: z.boolean(),
+    /** Editing an account that is already linked to a member: it stays linked. */
+    hadMember: z.boolean(),
   })
   .refine((v) => !v.creating || v.password.length >= 8, { path: ['password'], message: msg('users.passwordTooShort') })
   .refine((v) => v.roleCode === 'SUPER_ADMIN' || v.departmentIds.length > 0, {
     path: ['departmentIds'],
     message: msg('users.chooseDepartment'),
   })
-  .refine((v) => v.roleCode !== 'TEACHER' || v.memberId !== null, {
+  // Every new account is made from a member; older unlinked accounts may stay so, except teachers.
+  .refine((v) => v.memberId !== null || (!v.creating && !v.hadMember && v.roleCode !== 'TEACHER'), {
     path: ['memberId'],
     message: msg('users.memberRequired'),
   })
@@ -55,15 +58,17 @@ function useDebounced(value: string, ms = 300) {
   return debounced
 }
 
-/** Picks the member a teacher login belongs to; members who already have a login can't be picked. */
-function TeacherMemberField({
+/** Picks the member an account belongs to; members who already have a login can't be picked. */
+function MemberField({
   selected,
   ownId,
   error,
+  required,
   onSelect,
 }: {
   selected: LinkedMember | null
   ownId?: number
+  required: boolean
   error?: string
   onSelect: (member: MemberCandidate | null) => void
 }) {
@@ -75,7 +80,7 @@ function TeacherMemberField({
   return (
     <fieldset className="grid gap-2">
       <legend className="mb-1 text-sm font-medium">
-        {t('users.fields.member')} <span className="text-destructive">*</span>
+        {t('users.fields.member')} {required && <span className="text-destructive">*</span>}
       </legend>
       {selected ? (
         <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2">
@@ -189,6 +194,7 @@ export function UserDialog({
       password: '',
       isActive: user?.isActive ?? true,
       creating: !user,
+      hadMember: Boolean(user?.member),
     },
   })
   const { control, setValue } = form
@@ -211,7 +217,7 @@ export function UserDialog({
         phone: v.phone || null,
         roleCode: v.roleCode,
         departmentIds: v.roleCode === 'SUPER_ADMIN' ? [] : v.departmentIds,
-        memberId: v.roleCode === 'TEACHER' ? v.memberId : null,
+        memberId: v.memberId,
         ...(user ? { isActive: v.isActive } : { password: v.password }),
       })
       close(false)
@@ -227,6 +233,19 @@ export function UserDialog({
           <DialogTitle>{user ? t('users.edit') : t('users.new')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="grid gap-4">
+          <MemberField
+            selected={linked}
+            ownId={user?.member?.id}
+            required={!user || Boolean(user.member) || roleCode === 'TEACHER'}
+            error={form.formState.errors.memberId?.message}
+            onSelect={(m) => {
+              setLinked(m)
+              setValue('memberId', m?.id ?? null, { shouldValidate: form.formState.isSubmitted })
+              // A new account takes its name and phone from the member record.
+              if (m && (!user || !form.getValues('fullName'))) setValue('fullName', memberFullName(m))
+              if (m?.phone && (!user || !form.getValues('phone'))) setValue('phone', m.phone)
+            }}
+          />
           <TextField control={control} name="fullName" label={t('users.fields.fullName')} required />
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField control={control} name="email" label={t('users.fields.email')} type="email" required autoComplete="off" />
@@ -252,20 +271,6 @@ export function UserDialog({
             options={(roles ?? []).map((r) => ({ value: r.code, label: t(`userMenu.roles.${r.code}`) }))}
           />
           {self && <p className="-mt-2 text-xs text-muted-foreground">{t('users.selfRoleHint')}</p>}
-          {roleCode === 'TEACHER' && (
-            <TeacherMemberField
-              selected={linked}
-              ownId={user?.member?.id}
-              error={form.formState.errors.memberId?.message}
-              onSelect={(m) => {
-                setLinked(m)
-                setValue('memberId', m?.id ?? null, { shouldValidate: form.formState.isSubmitted })
-                // A new teacher's name and phone come from their member record.
-                if (m && !form.getValues('fullName')) setValue('fullName', memberFullName(m))
-                if (m?.phone && !form.getValues('phone')) setValue('phone', m.phone)
-              }}
-            />
-          )}
           {scopedRole && (
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-medium">

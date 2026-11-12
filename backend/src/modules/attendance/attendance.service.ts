@@ -87,7 +87,19 @@ const SESSION_INCLUDE = {
 } satisfies Prisma.AttendanceSessionInclude;
 type SessionRow = Prisma.AttendanceSessionGetPayload<{ include: typeof SESSION_INCLUDE }>;
 
-type Audience = Pick<SessionRow, 'classGradeId' | 'departmentId' | 'serviceGroupId'>;
+type Audience = Pick<
+  SessionRow,
+  'classGradeId' | 'departmentId' | 'serviceGroupId' | 'extraServiceGroupIds'
+>;
+
+/** Every service group a session covers: its group plus any taking it together. */
+export function sessionGroupIds(s: Pick<Audience, 'serviceGroupId' | 'extraServiceGroupIds'>) {
+  if (!s.serviceGroupId) return [];
+  const extra = Array.isArray(s.extraServiceGroupIds)
+    ? s.extraServiceGroupIds.filter((id): id is number => typeof id === 'number')
+    : [];
+  return [...new Set([s.serviceGroupId, ...extra])];
+}
 type SessionTimes = Pick<SessionRow, 'startsAt' | 'endsAt' | 'absentAfterMinutes'>;
 
 /**
@@ -133,7 +145,9 @@ export function rosterWhere(s: Audience): Prisma.MemberWhereInput {
     status: MembershipStatus.ACTIVE,
     ...(s.classGradeId && { classEnrollments: { some: { classGradeId: s.classGradeId } } }),
     ...(s.departmentId && { departmentRoles: { some: { departmentId: s.departmentId } } }),
-    ...(s.serviceGroupId && { serviceGroups: { some: { groupId: s.serviceGroupId } } }),
+    ...(s.serviceGroupId && {
+      serviceGroups: { some: { groupId: { in: sessionGroupIds(s) } } },
+    }),
   };
 }
 
@@ -294,6 +308,10 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       departmentId: dto.departmentId !== undefined ? dto.departmentId : current.departmentId,
       serviceGroupId:
         dto.serviceGroupId !== undefined ? dto.serviceGroupId : current.serviceGroupId,
+      extraServiceGroupIds:
+        dto.extraServiceGroupIds !== undefined
+          ? dto.extraServiceGroupIds
+          : sessionGroupIds(current).slice(1),
       organiserId: dto.organiserId !== undefined ? dto.organiserId : current.organiserId,
       location: dto.location !== undefined ? dto.location : current.location,
       notes: dto.notes !== undefined ? dto.notes : current.notes,
@@ -962,12 +980,27 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
         messages: ['A service session needs a service group'],
       });
     }
-    if (
-      dto.serviceGroupId &&
-      kind === AttendanceSessionKind.SERVICE_GROUP &&
-      !(await this.prisma.serviceGroup.count({ where: { id: dto.serviceGroupId } }))
-    ) {
-      errors.push({ field: 'serviceGroupId', messages: ['Unknown service group'] });
+    // The extra groups must be real groups of the same grade and term as the main one.
+    const extraGroupIds = [...new Set(dto.extraServiceGroupIds ?? [])].filter(
+      (gid) => gid !== dto.serviceGroupId,
+    );
+    if (dto.serviceGroupId && kind === AttendanceSessionKind.SERVICE_GROUP) {
+      const groups = await this.prisma.serviceGroup.findMany({
+        where: { id: { in: [dto.serviceGroupId, ...extraGroupIds] } },
+        select: { id: true, termId: true, classGradeId: true },
+      });
+      const main = groups.find((g) => g.id === dto.serviceGroupId);
+      if (!main) {
+        errors.push({ field: 'serviceGroupId', messages: ['Unknown service group'] });
+      } else if (
+        groups.length !== extraGroupIds.length + 1 ||
+        groups.some((g) => g.termId !== main.termId || g.classGradeId !== main.classGradeId)
+      ) {
+        errors.push({
+          field: 'serviceGroupId',
+          messages: ['The groups must all be of the same grade'],
+        });
+      }
     }
     if (
       dto.classGradeId &&
@@ -1010,7 +1043,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
         ...(excludeId !== null && { id: { not: excludeId } }),
         ...(kind === AttendanceSessionKind.CLASS && { classGradeId: dto.classGradeId }),
         ...(kind === AttendanceSessionKind.SERVICE_GROUP && {
-          serviceGroupId: dto.serviceGroupId,
+          serviceGroupId: { in: [dto.serviceGroupId ?? 0, ...extraGroupIds] },
         }),
         ...(kind === AttendanceSessionKind.OTHER && { title: dto.title }),
       },
@@ -1037,6 +1070,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       classGradeId: isGroup ? null : (dto.classGradeId ?? null),
       departmentId: kind === AttendanceSessionKind.OTHER ? (dto.departmentId ?? null) : null,
       serviceGroupId: isGroup ? (dto.serviceGroupId ?? null) : null,
+      extraServiceGroupIds: isGroup && extraGroupIds.length > 0 ? extraGroupIds : Prisma.DbNull,
       organiserId,
       location: dto.location ?? null,
       notes: dto.notes ?? null,

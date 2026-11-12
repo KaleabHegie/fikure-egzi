@@ -7,10 +7,11 @@ export function useAudienceLabel() {
   const { t } = useTranslation()
   const name = useLocalizedName()
   const gradeLabel = useGradeLabel()
-  return (s: Pick<AttendanceSession, 'classGrade' | 'department' | 'serviceGroup'>) => {
+  return (s: Pick<AttendanceSession, 'classGrade' | 'department' | 'serviceGroup'> & { extraServiceGroupIds?: number[] | null }) => {
     const parts = [
       s.classGrade && `${name(s.classGrade.classType)} · ${gradeLabel(s.classGrade)}`,
-      s.serviceGroup && `${name(s.serviceGroup)} · ${name(s.serviceGroup.term)}`,
+      s.serviceGroup &&
+        `${name(s.serviceGroup)}${s.extraServiceGroupIds?.length ? ` ${t('attendance.moreGroups', { count: s.extraServiceGroupIds.length })}` : ''} · ${name(s.serviceGroup.term)}`,
       s.department && name(s.department),
     ].filter(Boolean)
     return parts.length > 0 ? parts.join(' · ') : t('attendance.everyone')

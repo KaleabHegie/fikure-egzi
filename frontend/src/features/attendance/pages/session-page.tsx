@@ -435,15 +435,17 @@ export function SessionPage() {
         )}
       </div>
 
-      <SessionDialog
-        open={dialog === 'edit'}
-        onOpenChange={(o) => !o && setDialog(null)}
-        session={s}
-        onSave={async ({ kind: _kind, ...input }) => {
-          await update.mutateAsync(input)
-          toast.success(t('attendance.saved'))
-        }}
-      />
+      {dialog === 'edit' && (
+        <SessionDialog
+          open
+          onOpenChange={(o) => !o && setDialog(null)}
+          session={s}
+          onSave={async ({ kind: _kind, ...input }) => {
+            await update.mutateAsync(input)
+            toast.success(t('attendance.saved'))
+          }}
+        />
+      )}
       <ConfirmDialog
         open={dialog === 'close'}
         onOpenChange={(o) => !o && setDialog(null)}

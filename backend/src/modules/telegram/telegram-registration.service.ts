@@ -602,10 +602,7 @@ export class TelegramRegistrationService {
       const ag = type.agreement!;
       const className = localName(type, lang);
       const title = lang === 'am' ? ag.titleAm : ag.titleEn;
-      const rules = (lang === 'am' ? ag.rulesAm : ag.rulesEn)
-        .split('\n')
-        .map((rule) => rule.trim())
-        .filter(Boolean);
+      const rules = splitRules(lang === 'am' ? ag.rulesAm : ag.rulesEn);
       const pledge = lang === 'am' ? ag.pledgeAm : ag.pledgeEn;
       const body = [
         header,
@@ -990,6 +987,22 @@ function duplicateCode(error: unknown): string | null {
     }
   }
   return null;
+}
+
+/**
+ * An agreement's rules, one per line. Text saved as a single paragraph (older
+ * saves lost the line breaks) is split at each sentence end (። or .) instead.
+ */
+export function splitRules(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((rule) => rule.trim())
+    .filter(Boolean);
+  if (lines.length !== 1) return lines;
+  const sentences = lines[0].match(/[^።.]+[።.]+/g)?.map((rule) => rule.trim()) ?? [];
+  const rest = lines[0].replace(/[^።.]+[።.]+/g, '').trim();
+  const all = rest ? [...sentences, rest] : sentences;
+  return all.length > 1 ? all : lines;
 }
 
 /** Classes the person is placed in whose agreement they accepted. */

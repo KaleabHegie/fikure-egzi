@@ -6,7 +6,7 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { MembersService } from '../members/members.service.js';
 import type { SettingsService } from '../settings/settings.service.js';
 import type { TelegramApi, TgMessage } from './telegram-api.js';
-import { TelegramRegistrationService } from './telegram-registration.service.js';
+import { splitRules, TelegramRegistrationService } from './telegram-registration.service.js';
 import { REG_TEXT } from './telegram-registration.texts.js';
 
 type Row = {
@@ -498,5 +498,22 @@ describe('TelegramRegistrationService', () => {
     await say(t.confirm);
     expect(create).toHaveBeenCalledTimes(2);
     expect(db.rows).toHaveLength(0);
+  });
+});
+
+describe('splitRules', () => {
+  it('keeps rules written one per line', () => {
+    expect(splitRules('ሀ።\nለ።\n\n')).toEqual(['ሀ።', 'ለ።']);
+  });
+
+  it('splits a single paragraph at each sentence end', () => {
+    expect(splitRules('የክፍሉን ደንብ ማክበር። ተገቢ ባህሪ መከተል።')).toEqual([
+      'የክፍሉን ደንብ ማክበር።',
+      'ተገቢ ባህሪ መከተል።',
+    ]);
+    expect(splitRules("Respect the rules. Keep the class's secrets.")).toEqual([
+      'Respect the rules.',
+      "Keep the class's secrets.",
+    ]);
   });
 });

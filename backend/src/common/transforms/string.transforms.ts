@@ -17,6 +17,21 @@ export const TrimToNull = () =>
     return trimmed === '' ? null : trimmed;
   });
 
+/**
+ * For "one item per line" text (e.g. agreement rules): trims and collapses
+ * spaces within each line but keeps the line breaks, dropping blank lines.
+ */
+export const TrimLines = () =>
+  Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string'
+      ? value
+          .split(/\r?\n/)
+          .map((line) => line.trim().replace(/[^\S\n]+/g, ' '))
+          .filter(Boolean)
+          .join('\n')
+      : value,
+  );
+
 export const LowerCase = () =>
   Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.toLowerCase() : value,

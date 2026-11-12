@@ -111,7 +111,8 @@ export class UsersService {
       actor.departmentIds,
     );
     await this.assertEmailFree(dto.email);
-    const memberId = await this.resolveMember(role.code, dto.memberId);
+    // Every new account belongs to a member of the Sunday school.
+    const memberId = await this.resolveMember(dto.memberId, true);
     const user = await this.prisma.user.create({
       data: {
         fullName: dto.fullName,
@@ -199,13 +200,14 @@ export class UsersService {
       (role.code !== OFFICE_ADMIN || dto.isActive === false);
     if (losesOfficeAdmin) await this.assertAnotherOfficeAdmin(id);
     if (dto.email && dto.email !== target.email) await this.assertEmailFree(dto.email);
-    // Teachers keep (or get) their member link; other roles drop it.
+    // An account keeps (or gets) its member link. Older accounts made before every
+    // account needed a member may stay unlinked, except teachers.
+    const mustLink = role.code === TEACHER || target.member !== null;
     const memberId =
-      role.code === TEACHER
-        ? dto.memberId !== undefined && dto.memberId !== target.member?.id
-          ? await this.resolveMember(role.code, dto.memberId, id)
-          : (target.member?.id ?? (await this.resolveMember(role.code, dto.memberId, id)))
-        : null;
+      dto.memberId !== undefined && dto.memberId !== target.member?.id
+        ? await this.resolveMember(dto.memberId, mustLink, id)
+        : (target.member?.id ??
+          (mustLink ? await this.resolveMember(dto.memberId, true, id) : null));
 
     const user = await this.prisma.$transaction(async (tx) => {
       if (role.code !== currentRole?.code) {
@@ -347,14 +349,14 @@ export class UsersService {
     return ids;
   }
 
-  /** Teachers must be linked to a member who has no other login; other roles have none. */
+  /** The member an account belongs to: a current member with no other login. */
   private async resolveMember(
-    roleCode: string,
     memberId: number | null | undefined,
+    required: boolean,
     userId?: number,
   ): Promise<number | null> {
-    if (roleCode !== TEACHER) return null;
     if (!memberId) {
+      if (!required) return null;
       throw new ValidationFailedException([
         { field: 'memberId', messages: ['users.memberRequired'] },
       ]);

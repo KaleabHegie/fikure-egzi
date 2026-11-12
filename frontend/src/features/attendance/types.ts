@@ -24,6 +24,8 @@ export interface AttendanceSession {
   classGradeId: number | null
   departmentId: number | null
   serviceGroupId: number | null
+  /** More groups of the same grade taking this attendance together. */
+  extraServiceGroupIds: number[] | null
   organiserId: number | null
   location: string | null
   notes: string | null
@@ -67,9 +69,11 @@ export interface SessionInput {
   classGradeId: number | null
   departmentId: number | null
   serviceGroupId: number | null
+  extraServiceGroupIds: number[] | null
   organiserId: number | null
-  location: string | null
-  notes: string | null
+  /** Left out of the form; omitted, the session keeps what it had. */
+  location?: string | null
+  notes?: string | null
 }
 
 export interface AttendanceMemberSummary {

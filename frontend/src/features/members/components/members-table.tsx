@@ -81,7 +81,7 @@ export function MembersTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <MemberAvatar member={m} />
+                    <MemberAvatar member={m} zoomable />
                     <div className="min-w-0">
                       <Link
                         to={`/members/${m.id}`}

@@ -501,34 +501,36 @@ enum AttendanceMethod {
 
 /// One occasion attendance is taken for. Its audience fields decide the roster.
 model AttendanceSession {
-  id                 Int                     @id @default(autoincrement())
-  kind               AttendanceSessionKind
-  title              String                  @db.VarChar(150)
-  startsAt           DateTime                @map("starts_at")
-  endsAt             DateTime                @map("ends_at")
+  id                   Int                     @id @default(autoincrement())
+  kind                 AttendanceSessionKind
+  title                String                  @db.VarChar(150)
+  startsAt             DateTime                @map("starts_at")
+  endsAt               DateTime                @map("ends_at")
   /// Check-ins later than startsAt + this many minutes are marked Late.
-  lateAfterMinutes   Int                     @default(15) @map("late_after_minutes")
+  lateAfterMinutes     Int                     @default(15) @map("late_after_minutes")
   /// Class and service-group sessions: past startsAt + this many minutes a check-in is
   /// Absent, and the session closes (later for members with a late permission).
   /// null = no cut-off; the session closes at endsAt.
-  absentAfterMinutes Int?                    @map("absent_after_minutes")
+  absentAfterMinutes   Int?                    @map("absent_after_minutes")
   /// Audience: a class grade, a service group, or a department; all null = every active member.
-  classGradeId       Int?                    @map("class_grade_id")
-  serviceGroupId     Int?                    @map("service_group_id")
-  departmentId       Int?                    @map("department_id")
+  classGradeId         Int?                    @map("class_grade_id")
+  serviceGroupId       Int?                    @map("service_group_id")
+  /// SERVICE_GROUP: more groups of the same grade taking this attendance together.
+  extraServiceGroupIds Json?                   @map("extra_service_group_ids")
+  departmentId         Int?                    @map("department_id")
   /// OTHER sessions: the department running it (null = the office). CLASS / SERVICE_GROUP
   /// sessions belong to the department that runs their class.
-  organiserId        Int?                    @map("organiser_id")
-  location           String?                 @db.VarChar(150)
-  notes              String?                 @db.Text
-  status             AttendanceSessionStatus @default(OPEN)
-  closedAt           DateTime?               @map("closed_at")
+  organiserId          Int?                    @map("organiser_id")
+  location             String?                 @db.VarChar(150)
+  notes                String?                 @db.Text
+  status               AttendanceSessionStatus @default(OPEN)
+  closedAt             DateTime?               @map("closed_at")
   /// Close automatically when endsAt passes (regular sessions created before they ended;
   /// turned off when someone reopens the session to correct it).
-  autoClose          Boolean                 @default(true) @map("auto_close")
-  createdById        Int?                    @map("created_by_id")
-  createdAt          DateTime                @default(now()) @map("created_at")
-  updatedAt          DateTime                @updatedAt @map("updated_at")
+  autoClose            Boolean                 @default(true) @map("auto_close")
+  createdById          Int?                    @map("created_by_id")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
 
   classGrade   ClassGrade?        @relation(fields: [classGradeId], references: [id], onDelete: Restrict)
   serviceGroup ServiceGroup?      @relation(fields: [serviceGroupId], references: [id], onDelete: Restrict)

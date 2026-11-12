@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from '../../common/types/authenticated-user.js
 import type { AppConfigService } from '../../config/app-config.service.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
 import { UsersService } from './users.service.js';
 
 type Fn = (...args: unknown[]) => Promise<unknown>;
@@ -76,5 +77,47 @@ describe('UsersService.remove', () => {
     count.mockResolvedValue(1);
     await service.remove(7, officeAdmin);
     expect(deleteUser).toHaveBeenCalledWith({ where: { id: 7 } });
+  });
+});
+
+describe('UsersService.create', () => {
+  const create = jest.fn<Fn>();
+  const prisma = {
+    role: {
+      findUnique: jest.fn<Fn>().mockResolvedValue({
+        id: 3,
+        code: 'OFFICE_ADMIN',
+        departmentScoped: false,
+      }),
+    },
+    user: { count: jest.fn<Fn>().mockResolvedValue(0), create },
+    member: { findFirst: jest.fn<Fn>() },
+  };
+  const service = new UsersService(
+    prisma as unknown as PrismaService,
+    { record: jest.fn<Fn>() } as unknown as AuditService,
+    { auth: { bcryptRounds: 4 } } as unknown as AppConfigService,
+  );
+  const officeAdmin = { id: 1, departmentIds: null } as unknown as AuthenticatedUser;
+  const dto = {
+    fullName: 'Hanna Girma',
+    email: 'hanna@example.com',
+    password: 'Secret123!',
+    roleCode: 'OFFICE_ADMIN',
+  };
+
+  it('refuses an account that is not made from a member, whatever its role', async () => {
+    await expect(service.create(dto, officeAdmin)).rejects.toBeInstanceOf(
+      ValidationFailedException,
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a member who already has a login', async () => {
+    prisma.member.findFirst.mockResolvedValue({ id: 9, user: { id: 2 } });
+    await expect(service.create({ ...dto, memberId: 9 }, officeAdmin)).rejects.toBeInstanceOf(
+      ValidationFailedException,
+    );
+    expect(create).not.toHaveBeenCalled();
   });
 });

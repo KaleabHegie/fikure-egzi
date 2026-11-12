@@ -59,12 +59,15 @@ export function applyApiFieldErrors<T extends FieldValues>(
   error: unknown,
   setError: UseFormSetError<T>,
   knownFields: readonly string[],
+  /** API field → form field, where the form names a field differently. */
+  aliases: Record<string, string> = {},
 ): boolean {
   const { details } = toApiError(error)
   let applied = false
   for (const detail of details) {
-    if (knownFields.includes(detail.field)) {
-      setError(detail.field as Path<T>, { type: 'server', message: detail.messages.join('. ') })
+    const field = aliases[detail.field] ?? detail.field
+    if (knownFields.includes(field)) {
+      setError(field as Path<T>, { type: 'server', message: detail.messages.join('. ') })
       applied = true
     }
   }

@@ -96,6 +96,18 @@ export class CreateSessionDto {
   serviceGroupId?: number | null;
 
   @ApiPropertyOptional({
+    type: [Number],
+    description:
+      'SERVICE_GROUP only: more groups of the same grade taking this attendance together',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  extraServiceGroupIds?: number[] | null;
+
+  @ApiPropertyOptional({
     description: 'OTHER only: the department running the session (null = the office)',
   })
   @IsOptional()

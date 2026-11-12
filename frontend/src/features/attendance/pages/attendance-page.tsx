@@ -294,15 +294,18 @@ export function AttendancePage() {
       />
       <SessionsList />
 
-      <SessionDialog
-        open={creating}
-        onOpenChange={setCreating}
-        onSave={async (input) => {
-          const session = await create.mutateAsync(input)
-          toast.success(t('attendance.created'))
-          navigate(`/attendance/${session.id}`)
-        }}
-      />
+      {/* Mounted only while open, so every new session starts from the defaults. */}
+      {creating && (
+        <SessionDialog
+          open
+          onOpenChange={setCreating}
+          onSave={async (input) => {
+            const session = await create.mutateAsync(input)
+            toast.success(t('attendance.created'))
+            navigate(`/attendance/${session.id}`)
+          }}
+        />
+      )}
       <AttendanceImportDialog open={importing} onOpenChange={setImporting} />
     </>
   )

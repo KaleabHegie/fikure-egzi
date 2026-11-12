@@ -64,7 +64,9 @@ export class CreateUserDto {
   @IsInt({ each: true })
   departmentIds?: number[];
 
-  @ApiPropertyOptional({ description: 'Teachers: the member record of the teacher' })
+  @ApiPropertyOptional({
+    description: 'The member this account belongs to (required when creating an account)',
+  })
   @IsOptional()
   @IsInt()
   memberId?: number | null;

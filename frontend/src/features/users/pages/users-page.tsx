@@ -30,6 +30,7 @@ import { UserDialog } from '../components/user-dialog'
 import type { SystemUser, UserInput } from '../types'
 
 const ROLE_STYLES: Record<string, string> = {
+  SYSTEM_ADMIN: 'bg-primary text-primary-foreground',
   SUPER_ADMIN: 'bg-primary/12 text-primary',
   DEPARTMENT_ADMIN: 'bg-accent text-accent-foreground',
   ATTENDANCE_TAKER: 'bg-muted text-foreground/80',
@@ -104,6 +105,7 @@ export function UsersPage() {
   const { t } = useTranslation()
   const name = useLocalizedName()
   const { user: me, can } = useAuth()
+  const iAmSystemAdmin = me?.roles.includes('SYSTEM_ADMIN') ?? false
   const [search, setSearch] = useState('')
   const query = useDebounced(search.trim())
   const users = useUsers(query)
@@ -230,6 +232,8 @@ export function UsersPage() {
                     </span>
                   </TableCell>
                   <TableCell className="pr-5">
+                    {/* Only a system administrator may change a system administrator's account. */}
+                    {(u.role?.code !== 'SYSTEM_ADMIN' || iAmSystemAdmin) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon-sm" aria-label={t('users.actions', { name: u.fullName })}>
@@ -274,6 +278,7 @@ export function UsersPage() {
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

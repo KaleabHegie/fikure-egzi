@@ -4,6 +4,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Search,
   Shuffle,
   Star,
   Trash2,
@@ -20,6 +21,7 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState, ErrorState } from '@/components/common/states'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,6 +57,27 @@ type DialogState =
   | { kind: 'remove'; group: ServiceGroup; member: GroupMember }
   | null
 
+/**
+ * Lower-cases and folds the Ge'ez letters that sound the same (ሐ/ኀ → ሀ, ሠ → ሰ,
+ * ዐ → አ, ፀ → ጸ, ሃ → ሀ, ኣ → አ) so a search finds a name however it was spelt.
+ */
+function fold(text: string): string {
+  return [...text.toLowerCase().replace(/\s+/g, ' ')]
+    .map((c) => {
+      let p = c.codePointAt(0)!
+      if (p >= 0x1210 && p <= 0x1217) p -= 0x10
+      else if (p >= 0x1280 && p <= 0x1286) p -= 0x80
+      else if (p >= 0x1220 && p <= 0x1227) p += 0x10
+      else if (p >= 0x12d0 && p <= 0x12d6) p -= 0x30
+      else if (p >= 0x1340 && p <= 0x1346) p -= 0x08
+      if (p === 0x1203) p = 0x1200
+      if (p === 0x12a3) p = 0x12a0
+      return String.fromCodePoint(p)
+    })
+    .join('')
+    .trim()
+}
+
 function GroupCard({
   group,
   index,
@@ -62,8 +85,11 @@ function GroupCard({
   canManage,
   onDialog,
   onMove,
+  shown = group.members,
 }: {
   group: ServiceGroup
+  /** Members to list: all of them, or those matching the search. */
+  shown?: GroupMember[]
   index: number
   groups: ServiceGroup[]
   canManage: boolean
@@ -150,7 +176,12 @@ function GroupCard({
         <p className="p-4 text-sm text-muted-foreground">{t('serviceGroups.noMembers')}</p>
       ) : (
         <ul className="scrollbar-quiet max-h-80 divide-y divide-border/70 overflow-y-auto">
-          {group.members.map((m) => (
+          {shown.length < group.members.length && (
+            <li className="bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground">
+              {t('serviceGroups.search.showing', { shown: shown.length, total: group.members.length })}
+            </li>
+          )}
+          {shown.map((m) => (
             <li key={m.id} className="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-muted/40">
               <MemberAvatar member={m} />
               <Link to={`/members/${m.id}`} className="min-w-0 flex-1 hover:underline">
@@ -209,6 +240,7 @@ export function ServiceGroupsPage() {
     canManage && (user?.departmentIds === null || (classTypes ?? []).some((type) => inDepartment(type.departmentId)))
   const [params, setParams] = useSearchParams()
   const [dialog, setDialog] = useState<DialogState>(null)
+  const [search, setSearch] = useState('')
   const terms = useServiceTerms()
 
   const termList = terms.data ?? []
@@ -219,6 +251,24 @@ export function ServiceGroupsPage() {
   const groupList = groups.data ?? []
   const manageableGroups = groupList.filter(managesGroup)
   const assigned = groupList.reduce((n, g) => n + g.members.length, 0)
+  // Search: a group's name or level shows the whole group; a member's name or ID
+  // shows the groups they are in, listing only the matching members.
+  const words = fold(search).split(' ').filter(Boolean)
+  const results = groupList
+    .map((g, index) => {
+      if (words.length === 0) return { group: g, index, shown: g.members }
+      const about = fold(
+        [g.nameAm, g.nameEn, g.classGrade?.nameAm, g.classGrade?.nameEn, g.classGrade?.classType.nameAm, g.classGrade?.classType.nameEn].join(' '),
+      )
+      if (words.every((w) => about.includes(w))) return { group: g, index, shown: g.members }
+      const shown = g.members.filter((m) => {
+        const text = fold([m.firstName, m.fatherName, m.grandfatherName, m.christianName, m.memberCode].join(' '))
+        return words.every((w) => text.includes(w))
+      })
+      return shown.length > 0 ? { group: g, index, shown } : null
+    })
+    .filter((r) => r !== null)
+  const matchedMembers = results.reduce((n, r) => n + r.shown.length, 0)
 
   const selectTerm = (id: number) => setParams({ term: String(id) }, { replace: true })
   const notifyError = (e: unknown) => toast.error(getErrorMessage(e))
@@ -406,11 +456,39 @@ export function ServiceGroupsPage() {
             }
           />
         ) : (
+          <>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t('serviceGroups.search.placeholder')}
+                aria-label={t('serviceGroups.search.placeholder')}
+                className="pl-8"
+              />
+            </div>
+            {words.length > 0 && (
+              <p className="text-sm text-muted-foreground" aria-live="polite">
+                {t('serviceGroups.search.found', { groups: results.length, members: matchedMembers })}
+              </p>
+            )}
+          </div>
+          {results.length === 0 ? (
+            <EmptyState
+              icon={Search}
+              title={t('serviceGroups.search.noMatch')}
+              description={t('serviceGroups.search.noMatchBody')}
+              className="rounded-xl border bg-card"
+            />
+          ) : (
           <div className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            {groupList.map((g, i) => (
+            {results.map(({ group: g, index: i, shown }) => (
               <GroupCard
                 key={g.id}
                 group={g}
+                shown={shown}
                 index={i}
                 groups={manageableGroups}
                 canManage={managesGroup(g)}
@@ -427,6 +505,8 @@ export function ServiceGroupsPage() {
               />
             ))}
           </div>
+          )}
+          </>
         )}
       </div>
     )

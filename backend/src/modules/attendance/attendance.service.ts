@@ -326,6 +326,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       organiserId: dto.organiserId !== undefined ? dto.organiserId : current.organiserId,
       location: dto.location !== undefined ? dto.location : current.location,
       notes: dto.notes !== undefined ? dto.notes : current.notes,
+      vestments: dto.vestments ?? current.vestments,
     };
     const data = await this.toSessionData(merged, current.kind, scope, id);
     const session = await this.prisma.attendanceSession.update({
@@ -469,6 +470,8 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
           method: true,
           note: true,
           inRoster: true,
+          vestmentTakenAt: true,
+          vestmentReturnedAt: true,
           member: { select: MEMBER_SUMMARY },
         },
       }),
@@ -621,7 +624,81 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
 
   async unmark(id: number, memberId: number, scope: DepartmentScope, anyDay = true): Promise<void> {
     assertDay(addisDateIso((await this.openSession(id, scope)).startsAt), anyDay);
+    // Clearing the mark would lose the note that they still have a vestment.
+    const out = await this.prisma.attendanceRecord.count({
+      where: { sessionId: id, memberId, vestmentTakenAt: { not: null }, vestmentReturnedAt: null },
+    });
+    if (out > 0) {
+      throw new ValidationFailedException([
+        { field: 'status', messages: ['attendance.vestments.returnFirst'] },
+      ]);
+    }
     await this.prisma.attendanceRecord.deleteMany({ where: { sessionId: id, memberId } });
+  }
+
+  /**
+   * ልብሰ ስብሐት for one member: taken (they must be marked present or late),
+   * returned, or cleared. Works on closed sessions too, since a vestment can
+   * come back after the session ends.
+   */
+  async setVestment(
+    id: number,
+    memberId: number,
+    state: 'NONE' | 'TAKEN' | 'RETURNED',
+    userId: number,
+    scope: DepartmentScope,
+  ) {
+    const session = await this.findRow(id, scope);
+    if (!session.vestments) {
+      throw new ValidationFailedException([
+        { field: 'state', messages: ['attendance.vestments.notThisSession'] },
+      ]);
+    }
+    const record = await this.prisma.attendanceRecord.findUnique({
+      where: { sessionId_memberId: { sessionId: id, memberId } },
+    });
+    const attended =
+      record?.status === AttendanceStatus.PRESENT || record?.status === AttendanceStatus.LATE;
+    if (!record || (state === 'TAKEN' && !attended)) {
+      throw new ValidationFailedException([
+        { field: 'state', messages: ['attendance.vestments.markFirst'] },
+      ]);
+    }
+    if (state === 'RETURNED' && !record.vestmentTakenAt) {
+      throw new ValidationFailedException([
+        { field: 'state', messages: ['attendance.vestments.notTaken'] },
+      ]);
+    }
+    const now = new Date();
+    const data: Prisma.AttendanceRecordUpdateInput =
+      state === 'NONE'
+        ? {
+            vestmentTakenAt: null,
+            vestmentTakenById: null,
+            vestmentReturnedAt: null,
+            vestmentReturnedById: null,
+          }
+        : state === 'TAKEN'
+          ? {
+              vestmentTakenAt: record.vestmentTakenAt ?? now,
+              vestmentTakenById: record.vestmentTakenAt ? record.vestmentTakenById : userId,
+              vestmentReturnedAt: null,
+              vestmentReturnedById: null,
+            }
+          : { vestmentReturnedAt: now, vestmentReturnedById: userId };
+    const updated = await this.prisma.attendanceRecord.update({ where: { id: record.id }, data });
+    return recordView(updated);
+  }
+
+  /** Mezmur class, service-group and other sessions hand out vestments unless told otherwise. */
+  private async vestmentsByDefault(kind: AttendanceSessionKind, classGradeId?: number | null) {
+    if (kind !== AttendanceSessionKind.CLASS) return true;
+    if (!classGradeId) return false;
+    const grade = await this.prisma.classGrade.findUnique({
+      where: { id: classGradeId },
+      select: { classType: { select: { code: true } } },
+    });
+    return grade?.classType.code === 'MEZMUR';
   }
 
   // ── Reports ──────────────────────────────────────────────────────────────
@@ -905,7 +982,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
   /** Session + roster size + counts per status (closed sessions count their snapshot). */
   private async withCounts(session: SessionRow) {
     const open = session.status === AttendanceSessionStatus.OPEN;
-    const [grouped, rosterSize, unmarked] = await Promise.all([
+    const [grouped, rosterSize, unmarked, vestmentsTaken, vestmentsOut] = await Promise.all([
       this.prisma.attendanceRecord.groupBy({
         by: ['status'],
         where: { sessionId: session.id },
@@ -920,6 +997,20 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
             where: { ...rosterWhere(session), attendance: { none: { sessionId: session.id } } },
           })
         : Promise.resolve(0),
+      session.vestments
+        ? this.prisma.attendanceRecord.count({
+            where: { sessionId: session.id, vestmentTakenAt: { not: null } },
+          })
+        : Promise.resolve(0),
+      session.vestments
+        ? this.prisma.attendanceRecord.count({
+            where: {
+              sessionId: session.id,
+              vestmentTakenAt: { not: null },
+              vestmentReturnedAt: null,
+            },
+          })
+        : Promise.resolve(0),
     ]);
     const counts = emptyCounts();
     for (const g of grouped) addCount(counts, g.status, g._count._all);
@@ -931,6 +1022,8 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       counts,
       unmarked,
       rate: attendanceRate(counts),
+      // ልብሰ ስብሐት taken at this session, and how many are still out.
+      vestmentCounts: session.vestments ? { taken: vestmentsTaken, out: vestmentsOut } : null,
     };
   }
 
@@ -1085,6 +1178,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       organiserId,
       location: dto.location ?? null,
       notes: dto.notes ?? null,
+      vestments: dto.vestments ?? (await this.vestmentsByDefault(kind, dto.classGradeId)),
     };
   }
 }
@@ -1106,9 +1200,20 @@ function recordView(r: {
   method: AttendanceMethod;
   note: string | null;
   inRoster: boolean;
+  vestmentTakenAt?: Date | null;
+  vestmentReturnedAt?: Date | null;
 }) {
   const { id, status, checkedInAt, method, note, inRoster } = r;
-  return { id, status, checkedInAt, method, note, inRoster };
+  return {
+    id,
+    status,
+    checkedInAt,
+    method,
+    note,
+    inRoster,
+    vestmentTakenAt: r.vestmentTakenAt ?? null,
+    vestmentReturnedAt: r.vestmentReturnedAt ?? null,
+  };
 }
 
 function rangeWhere(from?: string, to?: string): Prisma.AttendanceSessionWhereInput {

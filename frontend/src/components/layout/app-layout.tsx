@@ -5,12 +5,42 @@ import { Outlet, useLocation } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { Tibeb } from '@/components/brand/tibeb'
+import { isNativeApp } from '@/lib/native'
+import { AppTabs } from './app-tabs'
+import { useAndroidBack } from './use-android-back'
 import { BrandMark } from './brand-mark'
 import { LanguageSwitch, ThemeToggle } from './preferences'
 import { SidebarPanel } from './sidebar-nav'
 import { UserMenu } from './user-menu'
 
 export function AppLayout() {
+  const [native] = useState(isNativeApp)
+  return native ? <NativeLayout /> : <WebLayout />
+}
+
+/** The Android app: bottom tabs and «More» instead of the sidebar; the header is just the seal. */
+function NativeLayout() {
+  const { pathname } = useLocation()
+  useAndroidBack()
+  return (
+    <div className="min-h-svh">
+      <div className="sticky top-0 z-30 bg-background pt-[env(safe-area-inset-top)]">
+        <Tibeb scale={0.75} />
+      </div>
+      <header className="sticky top-[calc(12px+env(safe-area-inset-top))] z-20 flex h-14 items-center border-b bg-background/85 px-4 backdrop-blur">
+        <BrandMark compact />
+      </header>
+      <main className="mx-auto w-full max-w-7xl px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6">
+        <div key={pathname} className="rise-in">
+          <Outlet />
+        </div>
+      </main>
+      <AppTabs />
+    </div>
+  )
+}
+
+function WebLayout() {
   const { t } = useTranslation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const { pathname } = useLocation()

@@ -4,16 +4,21 @@ import {
   Clock,
   Lock,
   LockOpen,
+  Maximize2,
+  Minimize2,
   MapPin,
   MoreHorizontal,
   Pencil,
+  RotateCcw,
   Search,
+  Shirt,
   Trash2,
+  Undo2,
   Users,
   FileSpreadsheet,
   ChevronLeft,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -46,9 +51,9 @@ import { AttendanceStatusBadge } from '../components/status-badge'
 import { STATUS_STYLES } from '../status-styles'
 import { formatTime } from '@/lib/format'
 import { addisDate, addisEthTime, sessionDate, sessionTimes } from '../time'
-import { ATTENDANCE_STATUSES, type AttendanceStatus, type RosterRow, type ScanResult } from '../types'
+import { ATTENDANCE_STATUSES, type AttendanceStatus, type RosterRow, type ScanResult, type VestmentState } from '../types'
 
-type Filter = 'ALL' | 'UNMARKED' | AttendanceStatus
+type Filter = 'ALL' | 'UNMARKED' | 'VESTMENT_OUT' | AttendanceStatus
 const PAGE = 150
 
 interface Feed {
@@ -87,6 +92,34 @@ export function SessionPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [dialog, setDialog] = useState<'edit' | 'close' | 'delete' | null>(null)
+  // The scanner can fill the screen (a phone or tablet at the door); the browser's own
+  // full screen hides its bars where it is allowed, otherwise the panel just covers the page.
+  const [fullscreen, setFullscreen] = useState(false)
+  const enterFullscreen = () => {
+    setFullscreen(true)
+    void document.documentElement.requestFullscreen?.().catch(() => undefined)
+  }
+  const exitFullscreen = () => {
+    setFullscreen(false)
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+  }
+  useEffect(() => {
+    if (!fullscreen) return
+    const onChange = () => {
+      if (!document.fullscreenElement) setFullscreen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false)
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange)
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [fullscreen])
 
   /** Patch one roster row in the cache instead of refetching a possibly 2,000-row list. */
   const patchRoster = (memberId: number, patch: (row: RosterRow | undefined) => RosterRow | undefined) => {
@@ -143,6 +176,22 @@ export function SessionPage() {
     }
   }
 
+  /** ልብሰ ስብሐት: took, returned, or undone. Works on closed sessions too (returns come later). */
+  const setVestment = async (row: RosterRow, state: VestmentState) => {
+    try {
+      const record = await attendanceApi.vestment(id, row.member.id, state)
+      patchRoster(row.member.id, (r) => (r ? { ...r, record } : r))
+      // Keep the recent-scans list in step with the roster.
+      setFeed((items) =>
+        items.map((f) =>
+          f.result?.member.id === row.member.id ? { ...f, result: { ...f.result, record } } : f,
+        ),
+      )
+    } catch (e) {
+      toast.error(getErrorMessage(e))
+    }
+  }
+
   const update = useAttendanceMutation((input: Parameters<typeof attendanceApi.update>[1]) => attendanceApi.update(id, input))
   const close = useAttendanceMutation(() => attendanceApi.close(id))
   const reopen = useAttendanceMutation(() => attendanceApi.reopen(id))
@@ -152,7 +201,8 @@ export function SessionPage() {
     const q = search.trim().toLowerCase()
     return (roster.data ?? []).filter((r) => {
       if (filter === 'UNMARKED' && r.record) return false
-      if (filter !== 'ALL' && filter !== 'UNMARKED' && r.record?.status !== filter) return false
+      if (filter === 'VESTMENT_OUT' && !(r.record?.vestmentTakenAt && !r.record.vestmentReturnedAt)) return false
+      if (filter !== 'ALL' && filter !== 'UNMARKED' && filter !== 'VESTMENT_OUT' && r.record?.status !== filter) return false
       if (!q) return true
       return `${memberFullName(r.member)} ${r.member.christianName ?? ''} ${r.member.memberCode}`.toLowerCase().includes(q)
     })
@@ -296,6 +346,16 @@ export function SessionPage() {
         </div>
       )}
 
+      {showRoster && s.vestmentCounts && (
+        <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm">
+          <Shirt className="size-4 shrink-0 text-gilt-ink" aria-hidden />
+          <span className="font-medium">{t('attendance.vestments.label')}፦</span>
+          <span className="tabular">
+            {t('attendance.vestments.summary', { taken: s.vestmentCounts.taken, out: s.vestmentCounts.out })}
+          </span>
+        </p>
+      )}
+
       {(!open || !dayOk) && (
         <p className="mb-4 flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
           <Lock className="size-4" />
@@ -305,8 +365,42 @@ export function SessionPage() {
 
       <div className={cn('grid gap-4', editable && showRoster && 'lg:grid-cols-[minmax(0,26rem)_1fr]')}>
         {editable && (
-          <section className="space-y-4 rounded-xl border bg-card p-4 lg:sticky lg:top-20 lg:self-start">
-            <h2 className="font-semibold">{t('attendance.scan.title')}</h2>
+          <section
+            className={cn(
+              'space-y-4',
+              fullscreen
+                ? 'fixed inset-0 z-50 overflow-y-auto bg-background p-4 sm:p-8'
+                : 'rounded-xl border bg-card p-4 lg:sticky lg:top-20 lg:self-start',
+            )}
+            aria-label={t('attendance.scan.title')}
+            // Android's back button leaves full screen (it sends Escape to what is open).
+            data-back-closes={fullscreen || undefined}
+          >
+            <div className={cn('space-y-4', fullscreen && 'mx-auto max-w-2xl')}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className={cn('font-semibold', fullscreen && 'text-xl')}>{t('attendance.scan.title')}</h2>
+                {/* In full screen the rest of the page is hidden: say which session and how it stands. */}
+                {fullscreen && (
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">{s.title}</span>
+                    {' · '}
+                    {t('attendance.statuses.PRESENT')} {s.counts.present} · {t('attendance.statuses.LATE')} {s.counts.late}
+                    {s.vestmentCounts && ` · ${t('attendance.vestments.label')} ${t('attendance.vestments.summary', { taken: s.vestmentCounts.taken, out: s.vestmentCounts.out })}`}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={fullscreen ? exitFullscreen : enterFullscreen}
+                aria-pressed={fullscreen}
+              >
+                {fullscreen ? <Minimize2 /> : <Maximize2 />}
+                {fullscreen ? t('attendance.scan.exitFullscreen') : t('attendance.scan.fullscreen')}
+              </Button>
+            </div>
             <Scanner onCode={(c) => void onCode(c)} busy={scanning} />
             {feed.length > 0 && (
               <div>
@@ -320,7 +414,7 @@ export function SessionPage() {
                         {f.error}
                       </li>
                     ) : f.result!.record ? (
-                      <li key={f.key} className="flex items-center gap-3 rounded-md bg-muted/50 px-3 py-2">
+                      <li key={f.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-muted/50 px-3 py-2">
                         <MemberAvatar member={f.result!.member} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">{memberFullName(f.result!.member)}</p>
@@ -330,6 +424,23 @@ export function SessionPage() {
                           </p>
                         </div>
                         <AttendanceStatusBadge status={f.result!.record.status} />
+                        {s.vestments && showRoster && (
+                          <VestmentControl
+                            // The roster holds the latest state; the scan result is the fallback.
+                            record={
+                              roster.data?.find((r) => r.member.id === f.result!.member.id)?.record ?? f.result!.record
+                            }
+                            canChange={canTake}
+                            onChange={(state) =>
+                              setVestment(
+                                { member: f.result!.member, inRoster: true, record: f.result!.record, permission: null },
+                                state,
+                              )
+                            }
+                            name={memberFullName(f.result!.member)}
+                            compact
+                          />
+                        )}
                       </li>
                     ) : (
                       // Not in this session's class or group: just say so.
@@ -350,6 +461,7 @@ export function SessionPage() {
                 </ul>
               </div>
             )}
+            </div>
           </section>
         )}
 
@@ -385,7 +497,7 @@ export function SessionPage() {
                 />
               </div>
               <div className="flex flex-wrap gap-1.5" role="group">
-                {(['ALL', 'UNMARKED', ...statuses] as Filter[]).map((f) => (
+                {(['ALL', 'UNMARKED', ...statuses, ...(s.vestments ? ['VESTMENT_OUT'] : [])] as Filter[]).map((f) => (
                   <button
                     key={f}
                     type="button"
@@ -403,7 +515,9 @@ export function SessionPage() {
                       ? t('attendance.roster.all')
                       : f === 'UNMARKED'
                         ? t('attendance.roster.unmarked')
-                        : t(`attendance.statuses.${f}`)}
+                        : f === 'VESTMENT_OUT'
+                          ? t('attendance.vestments.outFilter', { count: s.vestmentCounts?.out ?? 0 })
+                          : t(`attendance.statuses.${f}`)}
                   </button>
                 ))}
               </div>
@@ -420,7 +534,16 @@ export function SessionPage() {
             ) : (
               <ul className="divide-y">
                 {rows.slice(0, limit).map((r) => (
-                  <RosterItem statuses={statuses} key={r.member.id} row={r} editable={editable} onMark={mark} />
+                  <RosterItem
+                    statuses={statuses}
+                    key={r.member.id}
+                    row={r}
+                    editable={editable}
+                    onMark={mark}
+                    vestments={s.vestments}
+                    canVestment={canTake}
+                    onVestment={setVestment}
+                  />
                 ))}
               </ul>
             )}
@@ -487,16 +610,102 @@ export function SessionPage() {
 }
 
 /** One roster line: who, their mark, and (while open) one-tap status buttons. */
+/**
+ * ልብሰ ስብሐት on a roster row: "took" once they are present or late, then
+ * "returned"; undo steps back. Shown even on closed sessions so a return can be
+ * noted later.
+ */
+function VestmentControl({
+  record,
+  canChange,
+  onChange,
+  name,
+  compact = false,
+}: {
+  record: RosterRow['record']
+  canChange: boolean
+  onChange: (state: VestmentState) => Promise<void>
+  name: string
+  /** In the narrow recent-scans list: icon-only "took" button. */
+  compact?: boolean
+}) {
+  const { t } = useTranslation()
+  const [busy, setBusy] = useState(false)
+  const run = (state: VestmentState) => {
+    setBusy(true)
+    void onChange(state).finally(() => setBusy(false))
+  }
+  const taken = record?.vestmentTakenAt
+  const returned = record?.vestmentReturnedAt
+  const attended = record?.status === 'PRESENT' || record?.status === 'LATE'
+  if (!taken) {
+    if (!canChange || !attended) return null
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8"
+        disabled={busy}
+        onClick={() => run('TAKEN')}
+        title={t('attendance.vestments.take')}
+        aria-label={`${t('attendance.vestments.take')} · ${name}`}
+      >
+        <Shirt />
+        {!compact && t('attendance.vestments.take')}
+      </Button>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1" role="group" aria-label={`${t('attendance.vestments.label')} · ${name}`}>
+      <span
+        className={cn(
+          'inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold',
+          returned ? 'bg-success/12 text-success' : 'bg-gold/20 text-gilt-ink',
+        )}
+        title={`${t('attendance.vestments.taken')} ${addisEthTime(taken)}${returned ? ` · ${t('attendance.vestments.returned')} ${addisEthTime(returned)}` : ''}`}
+      >
+        <Shirt className="size-3.5" aria-hidden />
+        {returned ? t('attendance.vestments.returned') : t('attendance.vestments.taken')}
+      </span>
+      {canChange && !returned && (
+        <Button size="sm" className="h-8" disabled={busy} onClick={() => run('RETURNED')}>
+          <Undo2 />
+          {t('attendance.vestments.giveBack')}
+        </Button>
+      )}
+      {canChange && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={busy}
+          title={t('attendance.vestments.undo')}
+          aria-label={t('attendance.vestments.undo')}
+          onClick={() => run(returned ? 'TAKEN' : 'NONE')}
+        >
+          <RotateCcw />
+        </Button>
+      )}
+    </div>
+  )
+}
+
 function RosterItem({
   row,
   statuses,
   editable,
   onMark,
+  vestments,
+  canVestment,
+  onVestment,
 }: {
   statuses: readonly AttendanceStatus[]
   row: RosterRow
   editable: boolean
   onMark: (row: RosterRow, status: AttendanceStatus | null, note?: string | null) => Promise<void>
+  /** ልብሰ ስብሐት is handed out at this session. */
+  vestments: boolean
+  canVestment: boolean
+  onVestment: (row: RosterRow, state: VestmentState) => Promise<void>
 }) {
   const { t } = useTranslation()
   const status = row.record?.status
@@ -557,6 +766,14 @@ function RosterItem({
           </div>
         ) : (
           status && <AttendanceStatusBadge status={status} />
+        )}
+        {vestments && (
+          <VestmentControl
+            record={row.record}
+            canChange={canVestment}
+            onChange={(state) => onVestment(row, state)}
+            name={memberFullName(row.member)}
+          />
         )}
       </div>
       {editable && status === 'EXCUSED' && (

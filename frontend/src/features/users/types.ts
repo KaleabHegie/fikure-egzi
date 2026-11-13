@@ -1,4 +1,4 @@
-export const USER_ROLES = ['SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_TAKER', 'TEACHER'] as const
+export const USER_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_TAKER', 'TEACHER'] as const
 export type UserRoleCode = (typeof USER_ROLES)[number]
 
 export interface UserRole {

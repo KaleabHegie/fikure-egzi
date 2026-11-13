@@ -2,6 +2,7 @@ import {
   ArrowRight,
   BookOpen,
   Building2,
+  ClipboardList,
   ChevronRight,
   Crown,
   Landmark,
@@ -26,7 +27,7 @@ import { buildDepartmentTree } from '@/features/departments/types'
 import { useMembers, useMemberStats } from '@/features/members/api'
 import { MemberAvatar } from '@/features/members/components/member-avatar'
 import { useMemberLabels } from '@/features/members/labels'
-import type { CountByKey } from '@/features/members/types'
+import type { CountByKey, MemberStats } from '@/features/members/types'
 import { memberFullName } from '@/features/members/utils'
 import { ecMonthName, ecToday, formatEth } from '@/lib/ethiopian-calendar'
 import { formatDate } from '@/lib/format'
@@ -345,6 +346,66 @@ function ClassesOverview() {
   )
 }
 
+/** Like pct, but only all or none show as 100% or 0% (2,009 of 2,015 reads 99%, not 100%). */
+const share = (part: number, whole: number) =>
+  part === 0 || part === whole ? pct(part, whole) : Math.min(Math.max(pct(part, whole), 1), 99)
+
+/** How complete members' records are; the photo counts open the members list filtered by photo. */
+function CompletionOverview({ total, completion }: { total: number; completion: MemberStats['completion'] }) {
+  const { t } = useTranslation()
+  const shown = useCountUp(completion.average)
+  const rows: { label: string; count: number; to?: string; tone: string }[] = [
+    { label: t('dashboard.completionComplete'), count: completion.complete, tone: 'bg-primary' },
+    { label: t('dashboard.completionUnderHalf'), count: completion.underHalf, tone: 'bg-destructive' },
+    { label: t('dashboard.completionWithPhoto'), count: completion.withPhoto, to: '/members?hasPhoto=true', tone: 'bg-chart-1' },
+    {
+      label: t('dashboard.completionWithoutPhoto'),
+      count: total - completion.withPhoto,
+      to: '/members?hasPhoto=false',
+      tone: 'bg-gold',
+    },
+  ]
+  return (
+    <Card title={t('dashboard.completionTitle')} icon={ClipboardList}>
+      <div className="flex items-baseline gap-2">
+        <p className="tabular font-record text-[2.6rem] leading-none font-semibold">{shown}%</p>
+        <p className="text-xs text-muted-foreground">{t('dashboard.completionAverage')}</p>
+      </div>
+      <div className="relative mt-3 mr-1.5 h-1 rounded-full bg-muted" aria-hidden>
+        <div className="h-full rounded-full bg-chart-1" style={{ width: `${completion.average}%` }} />
+        <span
+          className="absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[1px] bg-gold ring-2 ring-card"
+          style={{ left: `${Math.max(completion.average, 1)}%` }}
+        />
+      </div>
+      <ul className="mt-4 divide-y">
+        {rows.map((row) => {
+          const content = (
+            <>
+              <span className={cn('size-2 shrink-0 rotate-45 rounded-[1px]', row.tone)} aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-sm">{row.label}</span>
+              <span className="tabular text-sm font-medium">{row.count.toLocaleString()}</span>
+              <span className="tabular w-10 text-right text-xs text-muted-foreground">{share(row.count, total)}%</span>
+              {row.to && <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />}
+            </>
+          )
+          return (
+            <li key={row.label}>
+              {row.to ? (
+                <Link to={row.to} className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-muted/60">
+                  {content}
+                </Link>
+              ) : (
+                <div className="flex items-center gap-2.5 py-2 pr-[1.375rem]">{content}</div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </Card>
+  )
+}
+
 function RecentMembers() {
   const { t } = useTranslation()
   const { data } = useMembers({ page: 1, pageSize: 6, sortBy: 'createdAt', sortOrder: 'desc' })
@@ -454,6 +515,7 @@ function Overview() {
         {can(PERMISSIONS.DEPARTMENTS_READ) && <DepartmentsOverview />}
         {can(PERMISSIONS.CLASSES_READ) && <ClassesOverview />}
         <div className="space-y-4">
+          <CompletionOverview total={data.total} completion={data.completion} />
           <RecentMembers />
           <Card title={t('dashboard.byStatus')}>
             <Donut rows={data.byStatus} label={labels.status} total={data.total} />

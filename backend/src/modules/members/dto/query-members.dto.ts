@@ -64,6 +64,20 @@ export class QueryMembersDto extends PaginationQueryDto {
   @IsBoolean()
   selfRegistered?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'true: only members with a photo; false: only those without',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  hasPhoto?: boolean;
+
   @ApiPropertyOptional({ enum: MEMBER_SORT_FIELDS, default: 'createdAt' })
   @IsOptional()
   @IsIn(MEMBER_SORT_FIELDS)

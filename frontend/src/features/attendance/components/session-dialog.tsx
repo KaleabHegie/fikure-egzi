@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { type Control, useController, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
-import { DateField, SelectField, TextField, TimeField } from '@/components/form/form-fields'
+import { DateField, SelectField, SwitchField, TextField, TimeField } from '@/components/form/form-fields'
 import { FieldError } from '@/components/ui/field'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -40,6 +40,8 @@ const schema = z
     /** SERVICE_GROUP: one or more groups of the same grade; the first is the session's own. */
     serviceGroupIds: z.array(z.string()),
     organiserId: z.string(),
+    /** ልብሰ ስብሐት is handed out at this session. */
+    vestments: z.boolean(),
   })
   .refine((v) => v.kind !== 'CLASS' || v.classTypeId !== '', { path: ['classTypeId'], message: msg('validation.required') })
   // A chosen class type needs its grade (for CLASS always; for OTHER only when a type was picked).
@@ -92,7 +94,7 @@ function initialValues(session?: AttendanceSession, userId?: number): Values {
     return {
       // ቀን 12:00 – ማታ 2:00 (18:00–20:00); late after 15 minutes, absent after 30.
       kind: 'CLASS', title: '', date: todayIso(), startTime: '18:00', endTime: '20:00', lateAfterMinutes: '15', absentAfterMinutes: '30',
-      classTypeId: '', classGradeId: '', departmentId: '', serviceGroupIds: [], organiserId: '',
+      classTypeId: '', classGradeId: '', departmentId: '', serviceGroupIds: [], organiserId: '', vestments: true,
       ...remembered(userId),
     }
   }
@@ -111,6 +113,7 @@ function initialValues(session?: AttendanceSession, userId?: number): Values {
       ? [session.serviceGroupId, ...(session.extraServiceGroupIds ?? [])].map(String)
       : [],
     organiserId: session.organiserId ? String(session.organiserId) : '',
+    vestments: session.vestments,
   }
 }
 
@@ -158,6 +161,13 @@ export function SessionDialog({
   )
   const typeOptions = activeTypes.map((type) => ({ value: String(type.id), label: name(type) }))
   const selectedType = activeTypes.find((type) => String(type.id) === classTypeId)
+  // ልብሰ ስብሐት: on for Mezmur class, service-group and other sessions, off for the Course class,
+  // until the user sets it themselves.
+  const vestmentsDefault = kind !== 'CLASS' || selectedType?.code === 'MEZMUR'
+  useEffect(() => {
+    if (session || form.getFieldState('vestments').isDirty) return
+    setValue('vestments', vestmentsDefault)
+  }, [session, vestmentsDefault, form, setValue])
   const gradeOptions = (selectedType?.grades ?? [])
     .filter((g) => g.isActive || String(g.id) === classGradeId)
     .map((g) => ({ value: String(g.id), label: gradeLabel(g) }))
@@ -257,6 +267,7 @@ export function SessionDialog({
         serviceGroupId: isGroup && v.serviceGroupIds[0] ? Number(v.serviceGroupIds[0]) : null,
         extraServiceGroupIds: isGroup ? v.serviceGroupIds.slice(1).map(Number) : null,
         organiserId: v.kind === 'OTHER' && v.organiserId ? Number(v.organiserId) : null,
+        vestments: v.vestments,
       })
       if (!session) remember(user?.id, v)
       onOpenChange(false)
@@ -327,6 +338,12 @@ export function SessionDialog({
             />
           )}
           <TextField control={control} name="title" label={t('attendance.fields.title')} required />
+          <SwitchField
+            control={control}
+            name="vestments"
+            label={t('attendance.vestments.field')}
+            description={t('attendance.vestments.fieldHint')}
+          />
           {!timingOpen ? (
             <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2.5">
               <CalendarClock className="size-4 shrink-0 text-muted-foreground" aria-hidden />

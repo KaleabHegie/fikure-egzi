@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsIn,
@@ -108,6 +109,14 @@ export class CreateSessionDto {
   extraServiceGroupIds?: number[] | null;
 
   @ApiPropertyOptional({
+    description:
+      'Members may take ልብሰ ስብሐት (vestments of praise). Defaults to on for Mezmur class, service-group and other sessions',
+  })
+  @IsOptional()
+  @IsBoolean()
+  vestments?: boolean;
+
+  @ApiPropertyOptional({
     description: 'OTHER only: the department running the session (null = the office)',
   })
   @IsOptional()
@@ -209,6 +218,15 @@ export class MarkDto {
   @IsString()
   @MaxLength(255)
   note?: string | null;
+}
+
+export const VESTMENT_STATES = ['NONE', 'TAKEN', 'RETURNED'] as const;
+
+/** ልብሰ ስብሐት for one member at a session: none, taken, or taken and returned. */
+export class VestmentDto {
+  @ApiProperty({ enum: VESTMENT_STATES })
+  @IsIn(VESTMENT_STATES)
+  state: (typeof VESTMENT_STATES)[number];
 }
 
 export class ReportQueryDto {

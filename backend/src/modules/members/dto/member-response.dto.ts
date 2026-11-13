@@ -53,6 +53,13 @@ class MemberAgreementDto {
   @ApiProperty() acceptedAt: string;
 }
 
+export class MemberCompletionDto {
+  @ApiProperty({ description: '0–100; 100 means every registration field is filled in' })
+  percent: number;
+  @ApiProperty({ type: [String], description: 'Empty fields by API name (`photo` for the photo)' })
+  missing: string[];
+}
+
 export class MemberDto extends OmitType(CreateMemberDto, [
   'status',
   'classGradeIds',
@@ -69,6 +76,7 @@ export class MemberDto extends OmitType(CreateMemberDto, [
   @ApiProperty({ description: 'Registered by the member through the Telegram bot' })
   selfRegistered: boolean;
   @ApiProperty({ description: 'Fetch it from GET /members/:id/photo' }) hasPhoto: boolean;
+  @ApiProperty({ type: MemberCompletionDto }) completion: MemberCompletionDto;
   @ApiProperty({ type: [MemberClassDto] }) classes: MemberClassDto[];
   @ApiProperty({ type: [MemberDepartmentDto] }) departments: MemberDepartmentDto[];
   @ApiProperty() createdAt: string;
@@ -98,12 +106,20 @@ class CountByDateDto {
   @ApiProperty() count: number;
 }
 
+class CompletionStatsDto {
+  @ApiProperty({ description: 'Average completion, 0–100' }) average: number;
+  @ApiProperty({ description: 'Members with every field filled in' }) complete: number;
+  @ApiProperty({ description: 'Members under half filled in' }) underHalf: number;
+  @ApiProperty() withPhoto: number;
+}
+
 export class MemberStatsDto {
   @ApiProperty() total: number;
   @ApiProperty({ type: [CountByKeyDto] }) byStatus: CountByKeyDto[];
   @ApiProperty({ type: [CountByKeyDto] }) byGender: CountByKeyDto[];
   @ApiProperty() servingInDepartments: number;
   @ApiProperty() placedInClasses: number;
+  @ApiProperty({ type: CompletionStatsDto }) completion: CompletionStatsDto;
   @ApiProperty({ type: [CountByDateDto], description: 'Members by join date, last ~13 months' })
   joinedByDay: CountByDateDto[];
 }

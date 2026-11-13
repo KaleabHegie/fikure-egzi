@@ -204,18 +204,35 @@ export interface SystemRoleDefinition {
 
 const ALL_PERMISSIONS = PERMISSION_DEFINITIONS.map((p) => p.code);
 
+/** Kept for system administrators: running the system itself rather than the Sunday school. */
+const SYSTEM_ONLY: readonly PermissionCode[] = [
+  PERMISSIONS.USERS_DELETE,
+  PERMISSIONS.ROLES_MANAGE,
+  PERMISSIONS.SETTINGS_MANAGE,
+  PERMISSIONS.AUDIT_READ,
+];
+
 /**
- * The three kinds of user. Department-scoped roles see and act on only their
+ * The kinds of user. Department-scoped roles see and act on only their
  * assigned departments: their rosters, and the attendance of the classes and
  * sessions those departments run.
  */
 export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
   {
-    code: 'SUPER_ADMIN',
-    name: 'Office administrator',
-    description: 'ፅህፈት ቤት — full access to every module and every department',
+    code: 'SYSTEM_ADMIN',
+    name: 'System administrator',
+    description:
+      'Full control of the system: every module and department, all user accounts and roles, settings and the audit log',
     departmentScoped: false,
     permissions: ALL_PERMISSIONS,
+  },
+  {
+    code: 'SUPER_ADMIN',
+    name: 'Office administrator',
+    description:
+      'ፅህፈት ቤት — every module and every department, but not system settings, deleting accounts or the audit log',
+    departmentScoped: false,
+    permissions: ALL_PERMISSIONS.filter((p) => !SYSTEM_ONLY.includes(p)),
   },
   {
     code: 'DEPARTMENT_ADMIN',

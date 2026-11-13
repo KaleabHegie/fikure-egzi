@@ -50,7 +50,7 @@ model User {
 
 model Role {
   id               Int      @id @default(autoincrement())
-  /// Stable machine code, e.g. SUPER_ADMIN. Authorization never checks this — it checks permissions.
+  /// Stable machine code, e.g. SYSTEM_ADMIN. Authorization never checks this — it checks permissions.
   code             String   @unique @db.VarChar(50)
   name             String   @db.VarChar(100)
   description      String?  @db.VarChar(255)
@@ -508,6 +508,8 @@ model AttendanceSession {
   endsAt               DateTime                @map("ends_at")
   /// Check-ins later than startsAt + this many minutes are marked Late.
   lateAfterMinutes     Int                     @default(15) @map("late_after_minutes")
+  /// Members may take ልብሰ ስብሐት (vestments of praise) at this session; the roster notes who took and returned one.
+  vestments            Boolean                 @default(false)
   /// Class and service-group sessions: past startsAt + this many minutes a check-in is
   /// Absent, and the session closes (later for members with a late permission).
   /// null = no cut-off; the session closes at endsAt.
@@ -549,20 +551,26 @@ model AttendanceSession {
 
 /// One member's attendance at one session.
 model AttendanceRecord {
-  id           Int              @id @default(autoincrement())
-  sessionId    Int              @map("session_id")
-  memberId     Int              @map("member_id")
-  status       AttendanceStatus
+  id                   Int              @id @default(autoincrement())
+  sessionId            Int              @map("session_id")
+  memberId             Int              @map("member_id")
+  status               AttendanceStatus
   /// When they checked in (scan or manual Present/Late); drives Late and time attended.
-  checkedInAt  DateTime?        @map("checked_in_at")
-  method       AttendanceMethod
+  checkedInAt          DateTime?        @map("checked_in_at")
+  method               AttendanceMethod
   /// Reason for Excused, or any remark.
-  note         String?          @db.VarChar(255)
+  note                 String?          @db.VarChar(255)
   /// False when the member was recorded but was not in the session's audience (e.g. a visitor from another class).
-  inRoster     Boolean          @default(true) @map("in_roster")
-  recordedById Int?             @map("recorded_by_id")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
+  inRoster             Boolean          @default(true) @map("in_roster")
+  recordedById         Int?             @map("recorded_by_id")
+  /// ልብሰ ስብሐት (vestments of praise): when the member took one at this session, and who noted it.
+  vestmentTakenAt      DateTime?        @map("vestment_taken_at")
+  vestmentTakenById    Int?             @map("vestment_taken_by_id")
+  /// …and when it came back (may be after the session has closed).
+  vestmentReturnedAt   DateTime?        @map("vestment_returned_at")
+  vestmentReturnedById Int?             @map("vestment_returned_by_id")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
 
   session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   member  Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)

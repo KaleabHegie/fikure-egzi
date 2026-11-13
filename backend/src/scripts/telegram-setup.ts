@@ -43,6 +43,10 @@ async function main() {
     url: `${publicUrl}/${prefix}/v1/telegram/webhook`,
     secret_token: secret,
     allowed_updates: ['message', 'callback_query'],
+    // At most 25 updates at a time: the cPanel account serves 30 requests at
+    // once (its "entry processes" limit), so this leaves room for the web app.
+    // The bot sends only 25 messages a second anyway, so nothing gets slower.
+    max_connections: 25,
     drop_pending_updates: false,
   });
   if (!ok) throw new Error('setWebhook failed');

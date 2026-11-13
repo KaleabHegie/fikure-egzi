@@ -17,7 +17,7 @@ import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
 import { formatDateTime, initials } from '@/lib/format'
 import { type Profile, profileApi, useProfile, useUpdateProfile } from '../api'
 
-const KNOWN_ROLES = ['SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_TAKER', 'TEACHER'] as const
+const KNOWN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_TAKER', 'TEACHER'] as const
 
 function Card({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (

@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@/features/auth/use-auth'
 import { initials } from '@/lib/format'
 
-const KNOWN_ROLES = ['SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_TAKER', 'TEACHER'] as const
+const KNOWN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_TAKER', 'TEACHER'] as const
 type KnownRole = (typeof KNOWN_ROLES)[number]
 
 export function UserMenu() {

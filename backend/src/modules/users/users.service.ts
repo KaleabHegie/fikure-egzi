@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import type { DepartmentScope } from '../../common/auth/department-scope.js';
+import { SYSTEM_ROLES } from '../../common/auth/permissions.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
 import { AppConfigService } from '../../config/app-config.service.js';
@@ -14,7 +15,9 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { CreateUserDto, QueryUsersDto, UpdateUserDto } from './dto/users.dto.js';
 
-const OFFICE_ADMIN = 'SUPER_ADMIN';
+/** Runs the system itself; only another system administrator may give this role or touch the account. */
+export const SYSTEM_ADMIN = 'SYSTEM_ADMIN';
+const isSystemAdmin = (actor: AuthenticatedUser) => actor.roles?.includes(SYSTEM_ADMIN) ?? false;
 const TAKER = 'ATTENDANCE_TAKER';
 export const TEACHER = 'TEACHER';
 /** The roles a department administrator may hand out. */
@@ -96,15 +99,26 @@ export class UsersService {
 
   /** Roles the actor may assign. */
   async roles(actor: AuthenticatedUser) {
-    return this.prisma.role.findMany({
-      where: actor.departmentIds === null ? {} : { code: { in: DEPARTMENT_GRANTABLE } },
+    const rows = await this.prisma.role.findMany({
+      where:
+        actor.departmentIds !== null
+          ? { code: { in: DEPARTMENT_GRANTABLE } }
+          : isSystemAdmin(actor)
+            ? {}
+            : { code: { not: SYSTEM_ADMIN } },
       select: { code: true, name: true, description: true, departmentScoped: true },
       orderBy: { id: 'asc' },
     });
+    // Most senior first, as the roles are defined in code.
+    const rank = (code: string) => {
+      const i = SYSTEM_ROLES.findIndex((r) => r.code === code);
+      return i === -1 ? SYSTEM_ROLES.length : i;
+    };
+    return rows.sort((a, b) => rank(a.code) - rank(b.code));
   }
 
   async create(dto: CreateUserDto, actor: AuthenticatedUser) {
-    const role = await this.resolveRole(dto.roleCode, actor.departmentIds);
+    const role = await this.resolveRole(dto.roleCode, actor);
     const departmentIds = await this.resolveDepartments(
       role.departmentScoped,
       dto.departmentIds,
@@ -176,14 +190,14 @@ export class UsersService {
   }
 
   async update(id: number, dto: UpdateUserDto, actor: AuthenticatedUser) {
-    const target = await this.findManageable(id, actor);
+    const target = await this.findManageable(id, actor, true);
     const self = id === actor.id;
     const currentRole = target.roles[0]?.role;
     const roleCode = dto.roleCode ?? currentRole?.code ?? TAKER;
     if (self && (dto.isActive === false || roleCode !== currentRole?.code)) {
       throw new ForbiddenException('You cannot deactivate yourself or change your own role.');
     }
-    const role = await this.resolveRole(roleCode, actor.departmentIds);
+    const role = await this.resolveRole(roleCode, actor);
     // Department changes are validated whenever the role or the departments change.
     const departmentIds =
       dto.departmentIds !== undefined || dto.roleCode !== undefined
@@ -194,11 +208,11 @@ export class UsersService {
           )
         : undefined;
 
-    const losesOfficeAdmin =
-      currentRole?.code === OFFICE_ADMIN &&
+    const losesSystemAdmin =
+      currentRole?.code === SYSTEM_ADMIN &&
       target.isActive &&
-      (role.code !== OFFICE_ADMIN || dto.isActive === false);
-    if (losesOfficeAdmin) await this.assertAnotherOfficeAdmin(id);
+      (role.code !== SYSTEM_ADMIN || dto.isActive === false);
+    if (losesSystemAdmin) await this.assertAnotherSystemAdmin(id);
     if (dto.email && dto.email !== target.email) await this.assertEmailFree(dto.email);
     // An account keeps (or gets) its member link. Older accounts made before every
     // account needed a member may stay unlinked, except teachers.
@@ -251,7 +265,7 @@ export class UsersService {
 
   /** Gives a user a new password and signs them out of every device. */
   async setPassword(id: number, password: string, actor: AuthenticatedUser): Promise<void> {
-    await this.findManageable(id, actor);
+    await this.findManageable(id, actor, true);
     const passwordHash = await bcrypt.hash(password, this.config.auth.bcryptRounds);
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id }, data: { passwordHash } }),
@@ -276,10 +290,10 @@ export class UsersService {
    * deletion itself is recorded under the acting administrator.
    */
   async remove(id: number, actor: AuthenticatedUser): Promise<{ auditLogsDeleted: number }> {
-    const target = await this.findManageable(id, actor);
+    const target = await this.findManageable(id, actor, true);
     if (id === actor.id) throw new ForbiddenException('You cannot delete your own account.');
     const role = target.roles[0]?.role.code;
-    if (role === OFFICE_ADMIN && target.isActive) await this.assertAnotherOfficeAdmin(id);
+    if (role === SYSTEM_ADMIN && target.isActive) await this.assertAnotherSystemAdmin(id);
 
     const { count } = await this.prisma.$transaction(async (tx) => {
       const logs = await tx.auditLog.deleteMany({ where: { userId: id } });
@@ -302,19 +316,30 @@ export class UsersService {
     return manageableUsersWhere(scope);
   }
 
-  private async findManageable(id: number, actor: AuthenticatedUser) {
+  /** A user the actor may see; `forChange` also refuses a system administrator's account to anyone else. */
+  private async findManageable(id: number, actor: AuthenticatedUser, forChange = false) {
     const user = await this.prisma.user.findFirst({
       where: { id, ...this.manageableWhere(actor.departmentIds) },
       select: USER_VIEW,
     });
     if (!user) throw new NotFoundException(`User ${id} not found`);
+    if (forChange && user.roles[0]?.role.code === SYSTEM_ADMIN && !isSystemAdmin(actor)) {
+      throw new ForbiddenException(
+        'Only a system administrator can change a system administrator.',
+      );
+    }
     return user;
   }
 
-  private async resolveRole(code: string, scope: DepartmentScope) {
-    if (scope !== null && !DEPARTMENT_GRANTABLE.includes(code)) {
+  private async resolveRole(code: string, actor: AuthenticatedUser) {
+    if (actor.departmentIds !== null && !DEPARTMENT_GRANTABLE.includes(code)) {
       throw new ForbiddenException(
         'Department administrators can only create attendance takers and teachers.',
+      );
+    }
+    if (code === SYSTEM_ADMIN && !isSystemAdmin(actor)) {
+      throw new ForbiddenException(
+        'Only a system administrator can give the system administrator role.',
       );
     }
     const role = await this.prisma.role.findUnique({ where: { code } });
@@ -385,17 +410,17 @@ export class UsersService {
     }
   }
 
-  /** The system must always keep at least one active office administrator. */
-  private async assertAnotherOfficeAdmin(exceptId: number): Promise<void> {
+  /** The system must always keep at least one active system administrator. */
+  private async assertAnotherSystemAdmin(exceptId: number): Promise<void> {
     const others = await this.prisma.user.count({
       where: {
         id: { not: exceptId },
         isActive: true,
-        roles: { some: { role: { code: OFFICE_ADMIN } } },
+        roles: { some: { role: { code: SYSTEM_ADMIN } } },
       },
     });
     if (others === 0) {
-      throw new ConflictException('This is the last active office administrator.');
+      throw new ConflictException('This is the last active system administrator.');
     }
   }
 }

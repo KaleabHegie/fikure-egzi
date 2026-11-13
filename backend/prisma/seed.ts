@@ -103,8 +103,9 @@ async function ensureSuperAdmin(): Promise<void> {
     console.log(`Admin ${email} already exists — leaving it unchanged`);
     return;
   }
+  // The first account runs the system.
   const role = await prisma.role.findUniqueOrThrow({
-    where: { code: 'SUPER_ADMIN' },
+    where: { code: 'SYSTEM_ADMIN' },
   });
   await prisma.user.create({
     data: {
@@ -114,7 +115,7 @@ async function ensureSuperAdmin(): Promise<void> {
       roles: { create: { roleId: role.id } },
     },
   });
-  console.log(`Created super admin ${email}`);
+  console.log(`Created system administrator ${email}`);
 }
 
 /** Creates missing default class types; existing ones are left as the admins configured them. */

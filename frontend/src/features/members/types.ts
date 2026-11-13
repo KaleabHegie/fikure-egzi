@@ -73,6 +73,8 @@ export interface Member {
   selfRegistered: boolean
   /** Fetch the image with useMemberPhoto(); it is served only to signed-in users. */
   hasPhoto: boolean
+  /** How much of the registration form is filled in (computed by the API). */
+  completion: MemberCompletion
   /** Current grade per class type, in class-type order. */
   classes: MemberClass[]
   /** Departments the member serves in, with their role. */
@@ -82,6 +84,13 @@ export interface Member {
   updatedAt: string
   createdBy: UserRef | null
   updatedBy: UserRef | null
+}
+
+export interface MemberCompletion {
+  /** 0–100; 100 means every registration field is filled in. */
+  percent: number
+  /** Empty fields by API name (`photo` for the photo). */
+  missing: string[]
 }
 
 export type MemberSortField = 'createdAt' | 'firstName' | 'memberCode' | 'joinedAt'
@@ -97,6 +106,8 @@ export interface MemberListParams {
   departmentId?: number
   /** Only members who registered themselves through the bot. */
   selfRegistered?: boolean
+  /** true: only members with a photo; false: only those without. */
+  hasPhoto?: boolean
   sortBy?: MemberSortField
   sortOrder?: SortOrder
 }
@@ -112,6 +123,13 @@ export interface MemberStats {
   byGender: CountByKey<Gender>[]
   servingInDepartments: number
   placedInClasses: number
+  completion: {
+    /** Average completion, 0–100. */
+    average: number
+    complete: number
+    underHalf: number
+    withPhoto: number
+  }
   /** Gregorian join dates (last ~13 months) with counts; bucket into E.C. months client-side. */
   joinedByDay: { date: string; count: number }[]
 }

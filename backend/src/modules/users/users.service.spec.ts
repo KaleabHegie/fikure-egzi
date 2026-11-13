@@ -59,24 +59,44 @@ describe('UsersService.remove', () => {
     );
   });
 
+  const systemAdmin = {
+    id: 1,
+    departmentIds: null,
+    roles: ['SYSTEM_ADMIN'],
+  } as unknown as AuthenticatedUser;
+
   it('refuses to delete your own account', async () => {
-    findFirst.mockResolvedValue({ ...account('SUPER_ADMIN'), id: 1 });
-    await expect(service.remove(1, officeAdmin)).rejects.toBeInstanceOf(ForbiddenException);
+    findFirst.mockResolvedValue({ ...account('SYSTEM_ADMIN'), id: 1 });
+    await expect(service.remove(1, systemAdmin)).rejects.toBeInstanceOf(ForbiddenException);
     expect(deleteUser).not.toHaveBeenCalled();
   });
 
-  it('keeps the last active office administrator', async () => {
-    findFirst.mockResolvedValue(account('SUPER_ADMIN'));
+  it('keeps the last active system administrator', async () => {
+    findFirst.mockResolvedValue(account('SYSTEM_ADMIN'));
     count.mockResolvedValue(0);
-    await expect(service.remove(7, officeAdmin)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.remove(7, systemAdmin)).rejects.toBeInstanceOf(ConflictException);
     expect(deleteLogs).not.toHaveBeenCalled();
   });
 
-  it('deletes an office administrator when another one remains', async () => {
-    findFirst.mockResolvedValue(account('SUPER_ADMIN'));
+  it('deletes a system administrator when another one remains', async () => {
+    findFirst.mockResolvedValue(account('SYSTEM_ADMIN'));
     count.mockResolvedValue(1);
-    await service.remove(7, officeAdmin);
+    await service.remove(7, systemAdmin);
     expect(deleteUser).toHaveBeenCalledWith({ where: { id: 7 } });
+  });
+
+  it("does not let an office administrator touch a system administrator's account", async () => {
+    findFirst.mockResolvedValue(account('SYSTEM_ADMIN'));
+    const office = {
+      id: 2,
+      departmentIds: null,
+      roles: ['SUPER_ADMIN'],
+    } as unknown as AuthenticatedUser;
+    await expect(service.remove(7, office)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.setPassword(7, 'NewSecret123!', office)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(deleteUser).not.toHaveBeenCalled();
   });
 });
 
@@ -110,6 +130,18 @@ describe('UsersService.create', () => {
     await expect(service.create(dto, officeAdmin)).rejects.toBeInstanceOf(
       ValidationFailedException,
     );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('only lets a system administrator give the system administrator role', async () => {
+    const office = {
+      id: 2,
+      departmentIds: null,
+      roles: ['SUPER_ADMIN'],
+    } as unknown as AuthenticatedUser;
+    await expect(
+      service.create({ ...dto, roleCode: 'SYSTEM_ADMIN', memberId: 9 }, office),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(create).not.toHaveBeenCalled();
   });
 

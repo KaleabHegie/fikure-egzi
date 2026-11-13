@@ -13,6 +13,7 @@ import type {
   SessionInput,
   SessionKind,
   SessionStatus,
+  VestmentState,
 } from './types'
 
 export interface SessionListParams {
@@ -62,6 +63,9 @@ export const attendanceApi = {
   mark: (id: number, memberId: number, status: AttendanceStatus, note?: string | null) =>
     api.put<AttendanceRecord>(`${BASE}/${id}/records/${memberId}`, { status, note }),
   unmark: (id: number, memberId: number) => api.delete(`${BASE}/${id}/records/${memberId}`),
+  /** ልብሰ ስብሐት: note that a member took a vestment, returned it, or neither. */
+  vestment: (id: number, memberId: number, state: VestmentState) =>
+    api.put<AttendanceRecord>(`${BASE}/${id}/records/${memberId}/vestment`, { state }),
   lowAttendance: (p: LowAttendanceParams) =>
     api.get<LowAttendanceReport>('/attendance/reports/low-attendance', { params: p }),
   /** A member's attendance; `from`/`to` (Gregorian YYYY-MM-DD) narrow the period. */

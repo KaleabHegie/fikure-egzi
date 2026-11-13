@@ -33,6 +33,10 @@ export interface AttendanceSession {
   closedAt: string | null
   /** Closes itself (marking the unmarked Absent) when its end time passes. */
   autoClose: boolean
+  /** Members may take ልብሰ ስብሐት at this session. */
+  vestments: boolean
+  /** Vestments taken here, and how many are still out (null when the session has none). */
+  vestmentCounts: { taken: number; out: number } | null
   classGrade: {
     id: number
     nameEn: string
@@ -71,6 +75,7 @@ export interface SessionInput {
   serviceGroupId: number | null
   extraServiceGroupIds: number[] | null
   organiserId: number | null
+  vestments?: boolean
   /** Left out of the form; omitted, the session keeps what it had. */
   location?: string | null
   notes?: string | null
@@ -95,7 +100,12 @@ export interface AttendanceRecord {
   method: 'QR' | 'MANUAL'
   note: string | null
   inRoster: boolean
+  /** ልብሰ ስብሐት: when they took one at this session, and when it came back. */
+  vestmentTakenAt: string | null
+  vestmentReturnedAt: string | null
 }
+
+export type VestmentState = 'NONE' | 'TAKEN' | 'RETURNED'
 
 export interface RosterRow {
   member: AttendanceMemberSummary

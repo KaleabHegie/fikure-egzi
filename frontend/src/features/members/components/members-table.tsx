@@ -22,8 +22,9 @@ import type { Member } from '../types'
 import { memberFullName } from '../utils'
 import { StatusBadge } from './member-badges'
 import { MemberAvatar } from './member-avatar'
+import { CompletionMeter } from './member-completion'
 
-const COLUMNS = ['code', 'name', 'gender', 'classes', 'phone', 'status', 'joined'] as const
+const COLUMNS = ['code', 'name', 'gender', 'classes', 'phone', 'completion', 'status', 'joined'] as const
 
 /** Narrow screens keep name, status and actions; the rest returns as room allows. */
 const COLUMN_CLASS: Partial<Record<(typeof COLUMNS)[number], string>> = {
@@ -123,6 +124,9 @@ export function MembersTable({
                 </TableCell>
                 <TableCell className={cn('tabular whitespace-nowrap', COLUMN_CLASS.phone)}>
                   {formatPhone(m.phone) || '—'}
+                </TableCell>
+                <TableCell>
+                  <CompletionMeter completion={m.completion} />
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={m.status} />

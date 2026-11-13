@@ -86,10 +86,18 @@ export function MemberFilters({
     chips.push({ param: 'selfRegistered', category: t('members.filters.source'), value: t('members.filters.selfRegistered') })
   }
 
+  if (params.hasPhoto !== undefined) {
+    chips.push({
+      param: 'hasPhoto',
+      category: t('members.filters.photo'),
+      value: params.hasPhoto ? t('members.filters.withPhoto') : t('members.filters.withoutPhoto'),
+    })
+  }
+
   const set = (param: keyof MemberListParams, v: string | undefined) =>
     onChange({ [param]: v } as Partial<Record<keyof MemberListParams, string | undefined>>)
   const radio = (param: keyof MemberListParams) => ({
-    value: params[param] ? String(params[param]) : ALL,
+    value: params[param] !== undefined ? String(params[param]) : ALL,
     onValueChange: (v: string) => set(param, v === ALL ? undefined : v),
   })
 
@@ -224,6 +232,16 @@ export function MemberFilters({
               <DropdownMenuRadioGroup {...radio('selfRegistered')}>
                 <DropdownMenuRadioItem value={ALL}>{t('members.filters.allSources')}</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="true">{t('members.filters.selfRegistered')}</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>{t('members.filters.photo')}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup {...radio('hasPhoto')}>
+                <DropdownMenuRadioItem value={ALL}>{t('members.filters.allPhotos')}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="true">{t('members.filters.withPhoto')}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="false">{t('members.filters.withoutPhoto')}</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>

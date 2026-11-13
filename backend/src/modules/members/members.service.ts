@@ -18,6 +18,7 @@ import { CreateMemberDto } from './dto/create-member.dto.js';
 import { QueryMembersDto } from './dto/query-members.dto.js';
 import { UpdateMemberDto } from './dto/update-member.dto.js';
 import { formatMemberCode } from './member-code.js';
+import { COMPLETION_SELECT, memberCompletion, type MemberCompletion } from './member-completion.js';
 import { memberSearchWhere } from './member-search.js';
 
 const ENTITY = 'Member';
@@ -122,6 +123,8 @@ export type MemberRecord = Omit<
   /** Departments the member serves in, with their role. */
   departments: MemberRow['departmentRoles'];
   hasPhoto: boolean;
+  /** How much of the registration form is filled in. */
+  completion: MemberCompletion;
   /** Current grade per class type, in class-type order. */
   classes: MemberClass[];
 };
@@ -134,6 +137,7 @@ const toMember = ({
   ...rest
 }: MemberRow): MemberRecord => ({
   ...rest,
+  completion: memberCompletion({ ...rest, photoPath }),
   departments: departmentRoles,
   agreements: agreements.map(({ acceptedAt, agreement: { id, ...agreement } }) => ({
     agreementId: id,
@@ -674,7 +678,7 @@ export class MembersService {
     const inDepartments = scope === null ? {} : { departmentId: { in: scope } };
     const inClasses = scope === null ? {} : { classType: { departmentId: { in: scope } } };
     const since = dateOnly(todayIso(new Date(Date.now() - 400 * 86_400_000)));
-    const [total, byStatus, byGender, serving, placed, joined] = await Promise.all([
+    const [total, byStatus, byGender, serving, placed, joined, details] = await Promise.all([
       this.prisma.member.count({ where }),
       this.prisma.member.groupBy({ by: ['status'], where, _count: { _all: true } }),
       this.prisma.member.groupBy({ by: ['gender'], where, _count: { _all: true } }),
@@ -686,7 +690,10 @@ export class MembersService {
         _count: { _all: true },
         orderBy: { joinedAt: 'asc' },
       }),
+      // ~17 short columns per member: small enough to score in memory.
+      this.prisma.member.findMany({ where, select: COMPLETION_SELECT }),
     ]);
+    const scores = details.map((m) => memberCompletion(m).percent);
     return {
       total,
       byStatus: byStatus.map((r) => ({ key: r.status, count: r._count._all })),
@@ -695,6 +702,16 @@ export class MembersService {
       servingInDepartments: serving,
       /** Members placed in at least one class. */
       placedInClasses: placed,
+      /** How complete members' information is. */
+      completion: {
+        /** Average completion, 0–100. */
+        average: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+        /** Members with everything filled in. */
+        complete: scores.filter((p) => p === 100).length,
+        /** Members under half filled in. */
+        underHalf: scores.filter((p) => p < 50).length,
+        withPhoto: details.filter((m) => m.photoPath !== null).length,
+      },
       joinedByDay: joined.map((r) => ({
         date: r.joinedAt.toISOString().slice(0, 10),
         count: r._count._all,
@@ -715,6 +732,9 @@ export class MembersService {
       ...(query.status && { status: query.status }),
       ...(query.educationLevel && { educationLevel: query.educationLevel }),
       ...(query.selfRegistered && { selfRegistered: true }),
+      ...(query.hasPhoto !== undefined && {
+        photoPath: query.hasPhoto ? { not: null } : null,
+      }),
       ...(query.classGradeId && {
         classEnrollments: { some: { classGradeId: query.classGradeId } },
       }),

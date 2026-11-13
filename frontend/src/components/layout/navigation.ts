@@ -1,8 +1,10 @@
 import {
+  BarChart3,
   BookOpen,
   Building2,
   CalendarCheck,
   ClipboardCheck,
+  FileCheck2,
   GraduationCap,
   LayoutDashboard,
   Package,
@@ -24,6 +26,8 @@ type NavKey =
   | 'attendanceSessions'
   | 'attendanceReports'
   | 'attendancePermissions'
+  | 'attendanceReportsFull'
+  | 'attendancePermissionsFull'
   | 'courses'
   | 'exams'
   | 'serviceGroups'
@@ -37,6 +41,10 @@ export interface NavChild {
   key: NavKey
   to: string
   permission?: PermissionCode
+  /** Shown when the child stands alone (the app's «More» sheet). */
+  icon?: LucideIcon
+  /** Label when shown outside its group, e.g. "Attendance reports" rather than "Reports". */
+  fullKey?: NavKey
 }
 
 export interface NavItem {
@@ -97,8 +105,20 @@ export const NAVIGATION: NavSection[] = [
         children: [
           { key: 'attendanceSessions', to: '/attendance', permission: PERMISSIONS.ATTENDANCE_READ },
           // The reports list members, so attendance takers don't get them.
-          { key: 'attendanceReports', to: '/attendance/reports', permission: PERMISSIONS.MEMBERS_READ },
-          { key: 'attendancePermissions', to: '/attendance/permissions', permission: PERMISSIONS.ATTENDANCE_PERMISSIONS },
+          {
+            key: 'attendanceReports',
+            to: '/attendance/reports',
+            permission: PERMISSIONS.MEMBERS_READ,
+            icon: BarChart3,
+            fullKey: 'attendanceReportsFull',
+          },
+          {
+            key: 'attendancePermissions',
+            to: '/attendance/permissions',
+            permission: PERMISSIONS.ATTENDANCE_PERMISSIONS,
+            icon: FileCheck2,
+            fullKey: 'attendancePermissionsFull',
+          },
         ],
       },
       { key: 'courses', icon: GraduationCap, to: '/courses', permission: PERMISSIONS.COURSES_READ },

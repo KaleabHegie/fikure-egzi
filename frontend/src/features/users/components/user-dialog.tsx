@@ -19,6 +19,9 @@ import { memberFullName } from '@/features/members/utils'
 import { useAssignableRoles, useMemberCandidates } from '../api'
 import { type MemberCandidate, type SystemUser, type UserInput, USER_ROLES } from '../types'
 
+/** System and office administrators work across every department; the other roles need theirs. */
+const scopedRoleCode = (code: string) => code !== 'SYSTEM_ADMIN' && code !== 'SUPER_ADMIN'
+
 const schema = z
   .object({
     fullName: z.string().trim().min(1, msg('validation.required')).max(150, msg('validation.tooLong', { max: 150 })),
@@ -34,7 +37,7 @@ const schema = z
     hadMember: z.boolean(),
   })
   .refine((v) => !v.creating || v.password.length >= 8, { path: ['password'], message: msg('users.passwordTooShort') })
-  .refine((v) => v.roleCode === 'SUPER_ADMIN' || v.departmentIds.length > 0, {
+  .refine((v) => !scopedRoleCode(v.roleCode) || v.departmentIds.length > 0, {
     path: ['departmentIds'],
     message: msg('users.chooseDepartment'),
   })
@@ -199,7 +202,7 @@ export function UserDialog({
   })
   const { control, setValue } = form
   const [roleCode, departmentIds] = useWatch({ control, name: ['roleCode', 'departmentIds'] })
-  const scopedRole = roleCode !== 'SUPER_ADMIN'
+  const scopedRole = scopedRoleCode(roleCode)
   const departmentsError = form.formState.errors.departmentIds?.message
 
   const toggle = (id: number) =>
@@ -216,7 +219,7 @@ export function UserDialog({
         email: v.email,
         phone: v.phone || null,
         roleCode: v.roleCode,
-        departmentIds: v.roleCode === 'SUPER_ADMIN' ? [] : v.departmentIds,
+        departmentIds: scopedRoleCode(v.roleCode) ? v.departmentIds : [],
         memberId: v.memberId,
         ...(user ? { isActive: v.isActive } : { password: v.password }),
       })

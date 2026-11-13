@@ -27,6 +27,7 @@ import { AttendanceService } from './attendance.service.js';
 import {
   CreateSessionDto,
   MarkDto,
+  VestmentDto,
   QuerySessionsDto,
   ReportQueryDto,
   TopAttendanceQueryDto,
@@ -124,6 +125,18 @@ export class AttendanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.attendance.mark(id, memberId, dto, user.id, user.departmentIds, anyDay(user));
+  }
+
+  /** ልብሰ ስብሐት: note that a member took a vestment, or returned it (also after the session closes). */
+  @Put('sessions/:id/records/:memberId/vestment')
+  @RequirePermissions(PERMISSIONS.ATTENDANCE_TAKE, PERMISSIONS.MEMBERS_READ)
+  vestment(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+    @Body() dto: VestmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attendance.setVestment(id, memberId, dto.state, user.id, user.departmentIds);
   }
 
   @Delete('sessions/:id/records/:memberId')

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   assertInScope,
   type DepartmentScope,
@@ -10,6 +10,7 @@ import { dateOnly } from '../../common/utils/dates.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { OFFICE_DEPARTMENT } from '../departments/default-departments.js';
 import type {
   AddCandidatesDto,
   CreateExamDto,
@@ -22,6 +23,8 @@ import type {
 
 const ENTITY = 'Exam';
 const OWN_DEPARTMENT = 'You can only manage the exams of the classes your department runs.';
+const OWNER_ONLY =
+  'Only the person who created this exam, an office administrator or the ፅህፈት ቤት can change it.';
 
 const MEMBER_NAME = {
   id: true,
@@ -46,6 +49,7 @@ const EXAM_SELECT = {
   description: true,
   heldOn: true,
   passMark: true,
+  createdById: true,
   createdAt: true,
   updatedAt: true,
   classType: {
@@ -87,10 +91,14 @@ const toExam = ({ _count, parts, classType: { department, ...classType }, ...e }
  * A class's own exams and assessments outside its courses (e.g. the Mezmur
  * class's St. John wereb assessment): free parts with weights, candidates
  * from the class's levels, and a mark per candidate per part. Department
- * admins manage the exams of the classes their departments run.
+ * admins see the exams of the classes their departments run; only an exam's
+ * creator, office administrators and the ፅህፈት ቤት change it.
  */
 @Injectable()
 export class ExamsService {
+  /** Id of the ፅህፈት ቤት department, looked up once (null when it does not exist). */
+  private officeId?: Promise<number | null>;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -112,9 +120,14 @@ export class ExamsService {
       select: EXAM_SELECT,
     });
     const progress = await this.progress(exams.map(toExam));
+    const office = await this.inOffice(actor);
     return exams.map((row) => {
       const exam = toExam(row);
-      return { ...exam, ...progress.get(exam.id), canManage: inScope(scope, exam.departmentId) };
+      return {
+        ...exam,
+        ...progress.get(exam.id),
+        canManage: inScope(scope, exam.departmentId) && this.mayEdit(exam, actor, office),
+      };
     });
   }
 
@@ -124,7 +137,9 @@ export class ExamsService {
     return {
       ...exam,
       ...(await this.progress([exam])).get(exam.id),
-      canManage: inScope(actor.departmentIds, exam.departmentId),
+      canManage:
+        inScope(actor.departmentIds, exam.departmentId) &&
+        this.mayEdit(exam, actor, await this.inOffice(actor)),
     };
   }
 
@@ -183,7 +198,7 @@ export class ExamsService {
 
   /** Changes the details. Moving it to another class or level keeps its candidates. */
   async update(id: number, dto: UpdateExamDto, actor: AuthenticatedUser) {
-    const current = await this.managed(id, actor);
+    const current = await this.owned(id, actor);
     if (dto.classTypeId !== undefined || dto.classGradeId !== undefined) {
       await this.assertClass(
         dto.classTypeId ?? current.classTypeId,
@@ -216,7 +231,7 @@ export class ExamsService {
 
   /** Removes the exam with its parts, candidates and marks. */
   async remove(id: number, actor: AuthenticatedUser): Promise<void> {
-    const exam = await this.managed(id, actor);
+    const exam = await this.owned(id, actor);
     await this.prisma.exam.delete({ where: { id } });
     await this.audit.record({
       userId: actor.id,
@@ -231,7 +246,7 @@ export class ExamsService {
 
   /** Replaces the exam's parts (in order). A removed part loses its marks. */
   async setParts(id: number, dto: SetExamPartsDto, actor: AuthenticatedUser) {
-    const exam = await this.managed(id, actor);
+    const exam = await this.owned(id, actor);
     this.assertParts(dto.parts);
     const existing = new Set(exam.parts.map((p) => p.id));
     if (dto.parts.some((p) => p.id !== undefined && !existing.has(p.id))) {
@@ -318,7 +333,7 @@ export class ExamsService {
 
   /** Adds individual members, everyone in one of the class's levels, or the whole class. */
   async addCandidates(id: number, dto: AddCandidatesDto, actor: AuthenticatedUser) {
-    const exam = await this.managed(id, actor);
+    const exam = await this.owned(id, actor);
     const ors: Prisma.MemberWhereInput[] = [];
     if (dto.memberIds?.length) ors.push({ id: { in: dto.memberIds } });
     if (dto.classGradeId) {
@@ -361,7 +376,7 @@ export class ExamsService {
 
   /** Takes a member off the exam, with their marks in it. */
   async removeCandidate(id: number, memberId: number, actor: AuthenticatedUser) {
-    const exam = await this.managed(id, actor);
+    const exam = await this.owned(id, actor);
     await this.prisma.$transaction([
       this.prisma.examMark.deleteMany({
         where: { memberId, partId: { in: exam.parts.map((p) => p.id) } },
@@ -380,7 +395,7 @@ export class ExamsService {
 
   /** Members to add one by one: any current member, by name, code or phone. */
   async candidateSearch(id: number, search: string, actor: AuthenticatedUser) {
-    await this.managed(id, actor);
+    await this.owned(id, actor);
     const terms = search.split(/\s+/).filter(Boolean).slice(0, 4);
     if (terms.length === 0) return [];
     const [members, already] = await Promise.all([
@@ -408,7 +423,7 @@ export class ExamsService {
   }
 
   async setMarks(id: number, dto: SetExamMarksDto, actor: AuthenticatedUser) {
-    const exam = await this.managed(id, actor);
+    const exam = await this.owned(id, actor);
     const weight = new Map(exam.parts.map((p) => [p.id, Number(p.weight)]));
     const memberIds = [...new Set(dto.marks.map((m) => m.memberId))];
     const candidates = new Set(
@@ -566,11 +581,42 @@ export class ExamsService {
     return row;
   }
 
-  /** An exam the actor may change (its department is theirs). */
+  /** An exam in the actor's departments. */
   private async managed(id: number, actor: AuthenticatedUser) {
     const row = await this.row(id, actor.departmentIds);
     assertInScope(actor.departmentIds, row.classType.departmentId, OWN_DEPARTMENT);
     return row;
+  }
+
+  /**
+   * An exam the actor may change in any way (details, parts, candidates,
+   * marks) or delete: its creator, an office or system administrator, or
+   * someone assigned to the ፅህፈት ቤት. Others in its department only view it.
+   */
+  private async owned(id: number, actor: AuthenticatedUser) {
+    const row = await this.managed(id, actor);
+    if (!this.mayEdit(row, actor, await this.inOffice(actor))) {
+      throw new ForbiddenException(OWNER_ONLY);
+    }
+    return row;
+  }
+
+  private mayEdit(
+    exam: { createdById: number | null },
+    actor: AuthenticatedUser,
+    inOffice: boolean,
+  ): boolean {
+    return actor.departmentIds === null || exam.createdById === actor.id || inOffice;
+  }
+
+  /** Whether a department-scoped actor is assigned to the ፅህፈት ቤት itself. */
+  private async inOffice(actor: AuthenticatedUser): Promise<boolean> {
+    if (actor.departmentIds === null) return true;
+    this.officeId ??= this.prisma.department
+      .findUnique({ where: { code: OFFICE_DEPARTMENT.code }, select: { id: true } })
+      .then((d) => d?.id ?? null);
+    const officeId = await this.officeId;
+    return officeId !== null && actor.departmentIds.includes(officeId);
   }
 
   /** The class exists, the level (if any) is one of its levels, and the actor's department runs it. */

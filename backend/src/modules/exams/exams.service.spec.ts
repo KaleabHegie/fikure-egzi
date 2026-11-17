@@ -22,6 +22,7 @@ const examRow = (over: Record<string, unknown> = {}) => ({
   description: null,
   heldOn: null,
   passMark: 60,
+  createdById: 2,
   createdAt: new Date(),
   updatedAt: new Date(),
   classType: {
@@ -53,12 +54,17 @@ const member = (id: number, firstName: string) => ({
 
 describe('ExamsService', () => {
   const prisma = {
-    exam: { findMany: asyncMock(), findFirst: asyncMock(), create: asyncMock() },
+    exam: {
+      findMany: asyncMock(),
+      findFirst: asyncMock(),
+      create: asyncMock(),
+      update: asyncMock(),
+    },
     classType: { findUnique: asyncMock() },
     member: { findMany: asyncMock() },
     examMark: { findMany: asyncMock(), count: asyncMock() },
     examCandidate: { findMany: asyncMock(), createMany: asyncMock() },
-    department: { count: asyncMock() },
+    department: { count: asyncMock(), findUnique: asyncMock() },
     $transaction: jest.fn<(arg: unknown) => unknown>(),
   };
   const audit = { record: asyncMock() };
@@ -71,6 +77,8 @@ describe('ExamsService', () => {
     jest.clearAllMocks();
     prisma.examMark.findMany.mockResolvedValue([]);
     prisma.department.count.mockResolvedValue(1);
+    // The ፅህፈት ቤት is department 1.
+    prisma.department.findUnique.mockResolvedValue({ id: 1 });
     // The Mezmur class (run by department 4) with its Geez and Ezel levels.
     prisma.classType.findUnique.mockResolvedValue({
       departmentId: 4,
@@ -208,5 +216,34 @@ describe('ExamsService', () => {
     await expect(
       service.setMarks(9, { marks: [{ partId: 1, memberId: 7, score: 10 }] }, office),
     ).rejects.toMatchObject({ details: [{ messages: ['exams.notCandidate'] }] });
+  });
+
+  it('lets only the creator, office admins or the ፅህፈት ቤት change an exam', async () => {
+    // Created by user 2; user 3 also runs the Mezmur department.
+    const otherMezmurAdmin = { id: 3, departmentIds: [4] } as unknown as AuthenticatedUser;
+    const secretariat = { id: 5, departmentIds: [1, 4] } as unknown as AuthenticatedUser;
+    prisma.exam.findFirst.mockResolvedValue(examRow());
+    prisma.examMark.count.mockResolvedValue(0);
+
+    const forbidden = [
+      service.update(9, { heldOn: '2026-11-20' }, otherMezmurAdmin),
+      service.remove(9, otherMezmurAdmin),
+      service.setParts(9, { parts: [{ name: 'ዜማ', weight: 100 }] }, otherMezmurAdmin),
+      service.addCandidates(9, { memberIds: [1] }, otherMezmurAdmin),
+      service.removeCandidate(9, 1, otherMezmurAdmin),
+      service.setMarks(9, { marks: [{ partId: 1, memberId: 1, score: 30 }] }, otherMezmurAdmin),
+    ];
+    for (const call of forbidden) await expect(call).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.exam.update).not.toHaveBeenCalled();
+    // They can still see it.
+    await expect(service.findOne(9, otherMezmurAdmin)).resolves.toMatchObject({
+      canManage: false,
+    });
+
+    for (const actor of [mezmurAdmin, office, secretariat]) {
+      await service.update(9, { heldOn: '2026-11-20' }, actor);
+      await expect(service.findOne(9, actor)).resolves.toMatchObject({ canManage: true });
+    }
+    expect(prisma.exam.update).toHaveBeenCalledTimes(3);
   });
 });

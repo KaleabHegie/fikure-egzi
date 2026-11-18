@@ -1295,6 +1295,12 @@ export const am: Translations = {
       ofCandidates: 'ከ{{count}}',
       passed: 'ያለፉ',
       passRate: 'የማለፍ መጠን',
+      failed: 'የወደቁ',
+      unmarked: 'ውጤት ያልተሟላ',
+      needMarks: 'ውጤት የሚቀራቸው',
+      showAll: 'ሁሉንም አሳይ',
+      rate: 'የማለፍ መጠን {{rate}}%',
+      filter: 'ተፈታኞችን በውጤት አጣራ',
     },
     candidates: {
       addTitle: 'ተፈታኞችን ጨምር',

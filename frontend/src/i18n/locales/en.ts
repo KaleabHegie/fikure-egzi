@@ -1296,6 +1296,12 @@ export const en = {
       ofCandidates: 'of {{count}}',
       passed: 'Passed',
       passRate: 'Pass rate',
+      failed: 'Failed',
+      unmarked: 'Not fully marked',
+      needMarks: 'Still need marks',
+      showAll: 'Show everyone',
+      rate: '{{rate}}% pass rate',
+      filter: 'Filter candidates by result',
     },
     candidates: {
       addTitle: 'Add candidates',

@@ -14,21 +14,48 @@ import { getErrorMessage } from '@/lib/api/errors'
 import { useAuth } from '@/features/auth/use-auth'
 import { oversees } from '@/lib/edit-window'
 import { formatDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { PERMISSIONS } from '@/lib/permissions'
 import { examsApi, useExamMutation, useExamSheet } from '../api'
 import { AddCandidatesDialog } from '../components/add-candidates-dialog'
 import { ExamDialog } from '../components/exam-dialog'
 import { ExamMarksSheet } from '../components/exam-marks-sheet'
 import { PartsDialog } from '../components/parts-dialog'
+import { fullyMarked, matchesFilter, type ExamFilter } from '../exam-filter'
 import type { ExamMember } from '../types'
 
-function Figure({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+/** A figure above the mark sheet; pressing it shows only those candidates (again: everyone). */
+function Figure({
+  label,
+  value,
+  hint,
+  active,
+  onClick,
+  className,
+}: {
+  label: string
+  value: React.ReactNode
+  hint?: string
+  active: boolean
+  onClick: () => void
+  className?: string
+}) {
   return (
-    <div className="rounded-xl border bg-card px-4 py-3">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="tabular mt-0.5 font-record text-2xl font-semibold">{value}</dd>
-      {hint && <dd className="text-xs text-muted-foreground">{hint}</dd>}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'rounded-xl border bg-card px-4 py-3 text-left transition-colors outline-none',
+        'hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring/40 active:bg-accent',
+        active && 'border-primary bg-primary/8 ring-1 ring-primary',
+        className,
+      )}
+    >
+      <span className={cn('block text-xs', active ? 'font-medium text-primary' : 'text-muted-foreground')}>{label}</span>
+      <span className="tabular mt-0.5 block font-record text-2xl font-semibold">{value}</span>
+      <span className="block min-h-4 text-xs text-muted-foreground">{hint}</span>
+    </button>
   )
 }
 
@@ -46,6 +73,7 @@ export function ExamPage() {
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [removing, setRemoving] = useState<ExamMember | null>(null)
+  const [filter, setFilter] = useState<ExamFilter>('all')
 
   const update = useExamMutation((input: Parameters<typeof examsApi.update>[1]) => examsApi.update(id, input))
   const setParts = useExamMutation((parts: Parameters<typeof examsApi.setParts>[1]) => examsApi.setParts(id, parts))
@@ -65,7 +93,12 @@ export function ExamPage() {
   }
   const { exam, candidates } = sheet.data
   const title = i18n.language === 'en' && exam.nameEn ? exam.nameEn : exam.nameAm
-  const passRate = exam.markedCount > 0 ? Math.round((exam.passedCount / exam.markedCount) * 100) : null
+  const count = (f: ExamFilter) => candidates.filter((c) => matchesFilter(c, exam.parts, f)).length
+  const marked = candidates.filter((c) => fullyMarked(c, exam.parts)).length
+  const passed = count('passed')
+  const failed = count('failed')
+  const passRate = passed + failed > 0 ? Math.round((passed / (passed + failed)) * 100) : null
+  const pick = (f: ExamFilter) => setFilter((now) => (now === f ? 'all' : f))
   // Exam takers change the department's exams until the 5th day after; heads and the ፅህፈት ቤት any time.
   const limited = can(PERMISSIONS.EXAMS_MANAGE) && !oversees(user, can, PERMISSIONS.EXAMS_OVERRIDE)
   const until = formatDate(exam.editableUntil)
@@ -131,12 +164,43 @@ export function ExamPage() {
         )}
       </div>
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Figure label={t('exams.figures.candidates')} value={exam.candidateCount} />
-        <Figure label={t('exams.figures.marked')} value={exam.markedCount} hint={t('exams.figures.ofCandidates', { count: exam.candidateCount })} />
-        <Figure label={t('exams.figures.passed')} value={exam.passedCount} />
-        <Figure label={t('exams.figures.passRate')} value={passRate === null ? '—' : `${passRate}%`} />
-      </dl>
+      <div role="group" aria-label={t('exams.figures.filter')} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <Figure
+          label={t('exams.figures.candidates')}
+          value={candidates.length}
+          hint={t('exams.figures.showAll')}
+          active={filter === 'all'}
+          onClick={() => setFilter('all')}
+          className="col-span-2 sm:col-span-1"
+        />
+        <Figure
+          label={t('exams.figures.unmarked')}
+          value={candidates.length - marked}
+          hint={t('exams.figures.needMarks')}
+          active={filter === 'unmarked'}
+          onClick={() => pick('unmarked')}
+        />
+        <Figure
+          label={t('exams.figures.marked')}
+          value={marked}
+          hint={t('exams.figures.ofCandidates', { count: candidates.length })}
+          active={filter === 'marked'}
+          onClick={() => pick('marked')}
+        />
+        <Figure
+          label={t('exams.figures.passed')}
+          value={passed}
+          hint={passRate === null ? undefined : t('exams.figures.rate', { rate: passRate })}
+          active={filter === 'passed'}
+          onClick={() => pick('passed')}
+        />
+        <Figure
+          label={t('exams.figures.failed')}
+          value={failed}
+          active={filter === 'failed'}
+          onClick={() => pick('failed')}
+        />
+      </div>
 
       {exam.parts.length === 0 ? (
         <EmptyState
@@ -171,6 +235,7 @@ export function ExamPage() {
       ) : (
         <ExamMarksSheet
           sheet={sheet.data}
+          filter={filter}
           editable={exam.canManage}
           onSave={async (marks) => {
             await setMarks.mutateAsync(marks)

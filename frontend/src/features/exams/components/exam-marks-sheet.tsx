@@ -9,6 +9,7 @@ import { memberFullName } from '@/features/members/utils'
 import { getErrorMessage } from '@/lib/api/errors'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
+import { matchesFilter, type ExamFilter } from '../exam-filter'
 import type { ExamCandidateRow, ExamMarkInput, ExamMember, ExamSheet } from '../types'
 import { ExamResultBadge } from './exam-result-badge'
 
@@ -26,8 +27,11 @@ export function ExamMarksSheet({
   editable,
   onSave,
   onRemove,
+  filter = 'all',
 }: {
   sheet: ExamSheet
+  /** Narrows the rows, e.g. only candidates still missing marks (chosen from the figures). */
+  filter?: ExamFilter
   editable: boolean
   onSave: (marks: ExamMarkInput[]) => Promise<void>
   onRemove: (member: ExamMember) => void
@@ -64,6 +68,7 @@ export function ExamMarksSheet({
   })
   const term = search.trim().toLocaleLowerCase()
   const rows = sheet.candidates.filter((c: ExamCandidateRow) => {
+    if (!matchesFilter(c, parts, filter)) return false
     if (!term) return true
     const m = c.member
     return [m.memberCode, m.firstName, m.fatherName, m.grandfatherName, m.christianName]

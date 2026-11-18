@@ -265,6 +265,29 @@
   body {
     background: white !important;
   }
+  /* Report printouts: plain rows, colours kept for badges, no row split across pages. */
+  .print-report table {
+    font-size: 10pt;
+  }
+  .print-report tr {
+    break-inside: avoid;
+  }
+  .print-report thead {
+    display: table-header-group;
+  }
+  .print-report * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .print-report th,
+  .print-report td {
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+    color: #000;
+  }
+  .print-report .text-muted-foreground {
+    color: #444 !important;
+  }
   .qr-page {
     break-after: page;
   }

@@ -19,9 +19,9 @@ export function AttendanceReportsPage() {
 
   return (
     <>
-      <PageHeader title={t('nav.attendanceReports')} description={t('attendance.reportsDescription')} />
+      <PageHeader title={t('nav.attendanceReports')} description={t('attendance.reportsDescription')} className="print:hidden" />
       <Tabs value={tab} onValueChange={(v) => setParams(v === 'top' ? {} : { tab: v }, { replace: true })}>
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 print:hidden">
           <TabsTrigger value="top">{t('attendance.tabs.top')}</TabsTrigger>
           <TabsTrigger value="low">{t('attendance.tabs.report')}</TabsTrigger>
         </TabsList>

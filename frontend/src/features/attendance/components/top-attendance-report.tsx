@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Printer, Trophy } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PrintButton, PrintHeader } from '@/components/common/print'
 import { EmptyState, ErrorState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -13,6 +14,7 @@ import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localize
 import { MemberAvatar } from '@/features/members/components/member-avatar'
 import { memberFullName } from '@/features/members/utils'
 import { useServiceGroups, useServiceTerms } from '@/features/service-groups/api'
+import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { attendanceApi, attendanceKeys, useSessions } from '../api'
 import { PeriodFilter, type PeriodPreset, presetRange } from './period-filter'
@@ -261,8 +263,16 @@ export function TopAttendanceReport() {
         ) : report.data.members.length === 0 ? (
           <EmptyState icon={Trophy} title={t('attendance.top.empty')} className="rounded-xl border bg-card" />
         ) : (
-          <section className="rounded-xl border bg-card">
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+          <section className="print-report rounded-xl border bg-card print:border-0">
+            <PrintHeader
+              title={t('attendance.top.title')}
+              details={[
+                range.from && range.to && t('print.period', { from: formatDate(range.from), to: formatDate(range.to) }),
+                kind ? t(`attendance.kinds.${kind}`) : t('attendance.filters.allKinds'),
+                t('attendance.top.summary', { sessions: report.data.totalSessions, attendees: report.data.attendees }),
+              ]}
+            />
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 print:hidden">
               <div className="flex items-start gap-2.5">
                 <span className="grid size-6 shrink-0 place-items-center rounded-md bg-gold/20 text-gilt-ink" aria-hidden>
                   <Trophy className="size-3.5" />
@@ -277,10 +287,7 @@ export function TopAttendanceReport() {
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={() => window.print()} className="print:hidden">
-                <Printer />
-                {t('attendance.top.print')}
-              </Button>
+              <PrintButton size="sm" />
             </header>
             <div className="overflow-x-auto">
               <Table>
@@ -289,10 +296,10 @@ export function TopAttendanceReport() {
                     <TableHead className="w-14 pl-4">#</TableHead>
                     <TableHead>{t('attendance.top.member')}</TableHead>
                     <TableHead className="text-right">{t('attendance.top.attended')}</TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">{t('attendance.statuses.LATE')}</TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">{t('attendance.statuses.ABSENT')}</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell print:table-cell">{t('attendance.statuses.LATE')}</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell print:table-cell">{t('attendance.statuses.ABSENT')}</TableHead>
                     <TableHead className="text-right">{t('attendance.member.rate')}</TableHead>
-                    <TableHead className="hidden pr-4 text-right md:table-cell">{t('attendance.member.timeAttended')}</TableHead>
+                    <TableHead className="hidden pr-4 text-right md:table-cell print:table-cell">{t('attendance.member.timeAttended')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -314,7 +321,7 @@ export function TopAttendanceReport() {
                       </TableCell>
                       <TableCell>
                         <MemberLink memberId={r.member.id} className="flex items-center gap-3">
-                          <MemberAvatar member={r.member} />
+                          <MemberAvatar member={r.member} className="print:hidden" />
                           <span>
                             <span className="block font-medium">{memberFullName(r.member)}</span>
                             <span className="block font-mono text-xs text-muted-foreground">{r.member.memberCode}</span>
@@ -324,8 +331,8 @@ export function TopAttendanceReport() {
                       <TableCell className="tabular text-right font-semibold">
                         {r.attended} / {report.data.totalSessions}
                       </TableCell>
-                      <TableCell className="tabular hidden text-right sm:table-cell">{r.late}</TableCell>
-                      <TableCell className="tabular hidden text-right sm:table-cell">{r.absent}</TableCell>
+                      <TableCell className="tabular hidden text-right sm:table-cell print:table-cell">{r.late}</TableCell>
+                      <TableCell className="tabular hidden text-right sm:table-cell print:table-cell">{r.absent}</TableCell>
                       <TableCell className="text-right">
                         {r.rate === null ? (
                           <span className="text-muted-foreground">—</span>
@@ -338,7 +345,7 @@ export function TopAttendanceReport() {
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="tabular hidden pr-4 text-right md:table-cell">
+                      <TableCell className="tabular hidden pr-4 text-right md:table-cell print:table-cell">
                         {formatDuration(r.minutesAttended, t)}
                       </TableCell>
                     </TableRow>

@@ -41,7 +41,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const resolvedTheme: ResolvedTheme = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', resolvedTheme === 'dark')
+    const root = document.documentElement
+    root.classList.toggle('dark', resolvedTheme === 'dark')
+    // Paper is always printed light, whatever the screen shows.
+    const light = () => root.classList.remove('dark')
+    const restore = () => root.classList.toggle('dark', resolvedTheme === 'dark')
+    window.addEventListener('beforeprint', light)
+    window.addEventListener('afterprint', restore)
+    return () => {
+      window.removeEventListener('beforeprint', light)
+      window.removeEventListener('afterprint', restore)
+    }
   }, [resolvedTheme])
 
   const setTheme = useCallback((next: Theme) => {

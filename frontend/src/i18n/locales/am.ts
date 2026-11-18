@@ -2,6 +2,12 @@ import type { Translations } from './en'
 
 /** Amharic strings. Must mirror en.ts key-for-key (enforced by the type). */
 export const am: Translations = {
+  print: {
+    print: 'አትም',
+    printedOn: 'የታተመበት',
+    period: 'ጊዜ፦ {{from}} – {{to}}',
+    showing: 'የሚታዩት፦ {{filter}}',
+  },
   common: {
     showPassword: 'የይለፍ ቃሉን አሳይ',
     hidePassword: 'የይለፍ ቃሉን ደብቅ',
@@ -921,6 +927,7 @@ export const am: Translations = {
       lastAttended: 'መጨረሻ የተገኙበት',
       never: 'አልተገኙም',
       count: '{{count}} አባላት ክትትል ያስፈልጋቸዋል',
+      rule: 'ከ{{threshold}}% በታች · ቢያንስ {{minSessions}} ክፍለ ጊዜዎች',
     },
     hoursMinutes: '{{h}} ሰዓት {{m}} ደቂቃ',
     minutesOnly: '{{m}} ደቂቃ',

@@ -3,6 +3,12 @@
  * must provide exactly the same keys; TypeScript enforces it.
  */
 export const en = {
+  print: {
+    print: 'Print',
+    printedOn: 'Printed',
+    period: 'Period: {{from}} – {{to}}',
+    showing: 'Showing: {{filter}}',
+  },
   common: {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
@@ -922,6 +928,7 @@ export const en = {
       lastAttended: 'Last attended',
       never: 'Never',
       count: '{{count}} members need follow-up',
+      rule: 'Below {{threshold}}% · at least {{minSessions}} sessions',
     },
     hoursMinutes: '{{h}} h {{m}} min',
     minutesOnly: '{{m}} min',

@@ -1,6 +1,7 @@
 import { SlidersHorizontal, TrendingDown } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PrintButton, PrintHeader } from '@/components/common/print'
 import { EmptyState, ErrorState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
@@ -14,6 +15,7 @@ import { MemberLink } from './member-link'
 import { memberFullName } from '@/features/members/utils'
 import { useLowAttendance } from '../api'
 import { PeriodFilter, type PeriodPreset, presetRange } from './period-filter'
+import { formatDate } from '@/lib/format'
 import { formatDuration, sessionDate } from '../time'
 import { SESSION_KINDS, type SessionKind } from '../types'
 
@@ -52,7 +54,7 @@ export function LowAttendanceReport() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border bg-card p-4">
+      <div className="rounded-xl border bg-card p-4 print:hidden">
         <header className="mb-3 flex items-start gap-2.5 border-b border-dashed pb-3">
           <span className="grid size-6 shrink-0 place-items-center rounded-md bg-destructive/10 text-destructive" aria-hidden>
             <TrendingDown className="size-3.5" />
@@ -107,7 +109,7 @@ export function LowAttendanceReport() {
         </div>
       </div>
 
-      <section className="rounded-xl border bg-card">
+      <section className="print-report rounded-xl border bg-card print:border-0">
         {isError ? (
           <ErrorState error={error} onRetry={() => void refetch()} />
         ) : isPending ? (
@@ -120,22 +122,34 @@ export function LowAttendanceReport() {
           <EmptyState icon={TrendingDown} title={t('attendance.report.empty', { threshold })} />
         ) : (
           <>
-            <p className="flex items-center gap-2 border-b px-4 py-3 text-sm font-medium">
-              <span className="tabular grid size-6 place-items-center rounded-full bg-destructive/10 font-record text-xs font-bold text-destructive">
-                {data.members.length}
-              </span>
-              {t('attendance.report.count', { count: data.members.length })}
-            </p>
+            <PrintHeader
+              title={t('attendance.report.title')}
+              details={[
+                range.from && range.to && t('print.period', { from: formatDate(range.from), to: formatDate(range.to) }),
+                kind ? t(`attendance.kinds.${kind}`) : t('attendance.filters.allKinds'),
+                t('attendance.report.rule', { threshold, minSessions }),
+                t('attendance.report.count', { count: data.members.length }),
+              ]}
+            />
+            <div className="flex items-center justify-between gap-2 border-b px-4 py-3 print:hidden">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <span className="tabular grid size-6 place-items-center rounded-full bg-destructive/10 font-record text-xs font-bold text-destructive">
+                  {data.members.length}
+                </span>
+                {t('attendance.report.count', { count: data.members.length })}
+              </p>
+              <PrintButton size="sm" />
+            </div>
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-4">{t('departments.roster.member')}</TableHead>
                   <TableHead className="text-right">{t('attendance.member.rate')}</TableHead>
-                  <TableHead className="hidden text-right md:table-cell">{t('attendance.statuses.PRESENT')}</TableHead>
-                  <TableHead className="hidden text-right md:table-cell">{t('attendance.statuses.LATE')}</TableHead>
+                  <TableHead className="hidden text-right md:table-cell print:table-cell">{t('attendance.statuses.PRESENT')}</TableHead>
+                  <TableHead className="hidden text-right md:table-cell print:table-cell">{t('attendance.statuses.LATE')}</TableHead>
                   <TableHead className="text-right">{t('attendance.statuses.ABSENT')}</TableHead>
-                  <TableHead className="hidden text-right md:table-cell">{t('attendance.statuses.EXCUSED')}</TableHead>
-                  <TableHead className="hidden lg:table-cell">{t('attendance.member.timeAttended')}</TableHead>
+                  <TableHead className="hidden text-right md:table-cell print:table-cell">{t('attendance.statuses.EXCUSED')}</TableHead>
+                  <TableHead className="hidden lg:table-cell print:table-cell">{t('attendance.member.timeAttended')}</TableHead>
                   <TableHead className="pr-4">{t('attendance.report.lastAttended')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -144,7 +158,7 @@ export function LowAttendanceReport() {
                   <TableRow key={r.member.id}>
                     <TableCell className="pl-4">
                       <MemberLink memberId={r.member.id} className="flex items-center gap-3">
-                        <MemberAvatar member={r.member} />
+                        <MemberAvatar member={r.member} className="print:hidden" />
                         <span>
                           <span className="block font-medium">{memberFullName(r.member)}</span>
                           <span className="block text-xs text-muted-foreground">
@@ -165,11 +179,11 @@ export function LowAttendanceReport() {
                         <span className="tabular w-10 font-semibold text-destructive">{r.rate}%</span>
                       </span>
                     </TableCell>
-                    <TableCell className="tabular hidden text-right md:table-cell">{r.present}</TableCell>
-                    <TableCell className="tabular hidden text-right md:table-cell">{r.late}</TableCell>
+                    <TableCell className="tabular hidden text-right md:table-cell print:table-cell">{r.present}</TableCell>
+                    <TableCell className="tabular hidden text-right md:table-cell print:table-cell">{r.late}</TableCell>
                     <TableCell className="tabular text-right">{r.absent}</TableCell>
-                    <TableCell className="tabular hidden text-right md:table-cell">{r.excused}</TableCell>
-                    <TableCell className="tabular hidden lg:table-cell">{formatDuration(r.minutesAttended, t)}</TableCell>
+                    <TableCell className="tabular hidden text-right md:table-cell print:table-cell">{r.excused}</TableCell>
+                    <TableCell className="tabular hidden lg:table-cell print:table-cell">{formatDuration(r.minutesAttended, t)}</TableCell>
                     <TableCell className="tabular pr-4 whitespace-nowrap text-muted-foreground">
                       {r.lastAttended ? sessionDate(r.lastAttended) : t('attendance.report.never')}
                     </TableCell>

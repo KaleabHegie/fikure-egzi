@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState, ErrorState } from '@/components/common/states'
+import { PrintButton } from '@/components/common/print'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -20,6 +21,7 @@ import { examsApi, useExamMutation, useExamSheet } from '../api'
 import { AddCandidatesDialog } from '../components/add-candidates-dialog'
 import { ExamDialog } from '../components/exam-dialog'
 import { ExamMarksSheet } from '../components/exam-marks-sheet'
+import { ExamPrintSheet } from '../components/exam-print-sheet'
 import { PartsDialog } from '../components/parts-dialog'
 import { fullyMarked, matchesFilter, type ExamFilter } from '../exam-filter'
 import type { ExamMember } from '../types'
@@ -104,205 +106,224 @@ export function ExamPage() {
   const until = formatDate(exam.editableUntil)
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        back={{ to: '/exams', label: t('exams.title') }}
-        title={title}
-        description={
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-medium text-foreground/80">
-              {name(exam.classType)} · {exam.classGrade ? gradeLabel(exam.classGrade) : t('exams.fields.allLevels')}
+    <>
+      <div className="space-y-5 print:hidden">
+        <PageHeader
+          back={{ to: '/exams', label: t('exams.title') }}
+          title={title}
+          description={
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-medium text-foreground/80">
+                {name(exam.classType)} · {exam.classGrade ? gradeLabel(exam.classGrade) : t('exams.fields.allLevels')}
+              </span>
+              <span>· {name(exam.department)}</span>
+              {exam.heldOn && <span>· {formatDate(exam.heldOn)}</span>}
+              <span>· {t('exams.passMarkIs', { mark: exam.passMark })}</span>
             </span>
-            <span>· {name(exam.department)}</span>
-            {exam.heldOn && <span>· {formatDate(exam.heldOn)}</span>}
-            <span>· {t('exams.passMarkIs', { mark: exam.passMark })}</span>
-          </span>
-        }
-        actions={
-          exam.canManage && (
+          }
+          actions={
             <>
-              <Button variant="outline" onClick={() => setEditing(true)}>
-                <Pencil />
-                {t('common.edit')}
-              </Button>
-              <Button variant="outline" onClick={() => setParting(true)}>
-                <ListChecks />
-                {t('exams.parts.title')}
-              </Button>
-              <Button onClick={() => setAdding(true)}>
-                <UserPlus />
-                {t('exams.candidates.addTitle')}
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => setDeleting(true)} aria-label={t('exams.delete.title')}>
-                <Trash2 />
-              </Button>
+              <PrintButton disabled={candidates.length === 0} />
+              {exam.canManage && (
+                <>
+                  <Button variant="outline" onClick={() => setEditing(true)}>
+                    <Pencil />
+                    {t('common.edit')}
+                  </Button>
+                  <Button variant="outline" onClick={() => setParting(true)}>
+                    <ListChecks />
+                    {t('exams.parts.title')}
+                  </Button>
+                  <Button onClick={() => setAdding(true)}>
+                    <UserPlus />
+                    {t('exams.candidates.addTitle')}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleting(true)} aria-label={t('exams.delete.title')}>
+                    <Trash2 />
+                  </Button>
+                </>
+              )}
             </>
-          )
-        }
-      />
+          }
+        />
 
-      {limited && (
-        <p className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          {exam.canManage ? <Clock className="size-4 shrink-0" /> : <Lock className="size-4 shrink-0" />}
-          {exam.canManage ? t('exams.lock.openUntil', { date: until }) : t('exams.lock.closed', { date: until })}
-        </p>
-      )}
-
-      {exam.description && <p className="max-w-3xl text-sm whitespace-pre-line text-muted-foreground">{exam.description}</p>}
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        {exam.parts.map((p) => (
-          <span key={p.id} className="tabular inline-flex h-7 items-center gap-1.5 rounded-full border bg-card px-3 text-sm">
-            {p.name} <span className="font-semibold text-brand">{p.weight}%</span>
-          </span>
-        ))}
-        {exam.parts.length > 0 && exam.totalWeight !== 100 && (
-          <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-warning/15 px-3 text-sm">
-            <TriangleAlert className="size-3.5" aria-hidden />
-            {t('exams.weightsIncomplete', { total: exam.totalWeight })}
-          </span>
+        {limited && (
+          <p className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+            {exam.canManage ? <Clock className="size-4 shrink-0" /> : <Lock className="size-4 shrink-0" />}
+            {exam.canManage ? t('exams.lock.openUntil', { date: until }) : t('exams.lock.closed', { date: until })}
+          </p>
         )}
-      </div>
 
-      <div role="group" aria-label={t('exams.figures.filter')} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <Figure
-          label={t('exams.figures.candidates')}
-          value={candidates.length}
-          hint={t('exams.figures.showAll')}
-          active={filter === 'all'}
-          onClick={() => setFilter('all')}
-          className="col-span-2 sm:col-span-1"
-        />
-        <Figure
-          label={t('exams.figures.unmarked')}
-          value={candidates.length - marked}
-          hint={t('exams.figures.needMarks')}
-          active={filter === 'unmarked'}
-          onClick={() => pick('unmarked')}
-        />
-        <Figure
-          label={t('exams.figures.marked')}
-          value={marked}
-          hint={t('exams.figures.ofCandidates', { count: candidates.length })}
-          active={filter === 'marked'}
-          onClick={() => pick('marked')}
-        />
-        <Figure
-          label={t('exams.figures.passed')}
-          value={passed}
-          hint={passRate === null ? undefined : t('exams.figures.rate', { rate: passRate })}
-          active={filter === 'passed'}
-          onClick={() => pick('passed')}
-        />
-        <Figure
-          label={t('exams.figures.failed')}
-          value={failed}
-          active={filter === 'failed'}
-          onClick={() => pick('failed')}
-        />
-      </div>
+        {exam.description && <p className="max-w-3xl text-sm whitespace-pre-line text-muted-foreground">{exam.description}</p>}
 
-      {exam.parts.length === 0 ? (
-        <EmptyState
-          icon={ListChecks}
-          title={t('exams.setPartsFirst')}
-          description={t('exams.setPartsFirstBody')}
-          className="rounded-xl border bg-card"
-          action={
-            exam.canManage && (
-              <Button onClick={() => setParting(true)}>
-                <ListChecks />
-                {t('exams.parts.title')}
-              </Button>
-            )
-          }
-        />
-      ) : candidates.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title={t('exams.noCandidates')}
-          description={t('exams.noCandidatesBody')}
-          className="rounded-xl border bg-card"
-          action={
-            exam.canManage && (
-              <Button onClick={() => setAdding(true)}>
-                <UserPlus />
-                {t('exams.candidates.addTitle')}
-              </Button>
-            )
-          }
-        />
-      ) : (
-        <ExamMarksSheet
-          sheet={sheet.data}
-          filter={filter}
-          editable={exam.canManage}
-          onSave={async (marks) => {
-            await setMarks.mutateAsync(marks)
+        <div className="flex flex-wrap items-center gap-1.5">
+          {exam.parts.map((p) => (
+            <span key={p.id} className="tabular inline-flex h-7 items-center gap-1.5 rounded-full border bg-card px-3 text-sm">
+              {p.name} <span className="font-semibold text-brand">{p.weight}%</span>
+            </span>
+          ))}
+          {exam.parts.length > 0 && exam.totalWeight !== 100 && (
+            <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-warning/15 px-3 text-sm">
+              <TriangleAlert className="size-3.5" aria-hidden />
+              {t('exams.weightsIncomplete', { total: exam.totalWeight })}
+            </span>
+          )}
+        </div>
+
+        <div role="group" aria-label={t('exams.figures.filter')} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <Figure
+            label={t('exams.figures.candidates')}
+            value={candidates.length}
+            hint={t('exams.figures.showAll')}
+            active={filter === 'all'}
+            onClick={() => setFilter('all')}
+            className="col-span-2 sm:col-span-1"
+          />
+          <Figure
+            label={t('exams.figures.unmarked')}
+            value={candidates.length - marked}
+            hint={t('exams.figures.needMarks')}
+            active={filter === 'unmarked'}
+            onClick={() => pick('unmarked')}
+          />
+          <Figure
+            label={t('exams.figures.marked')}
+            value={marked}
+            hint={t('exams.figures.ofCandidates', { count: candidates.length })}
+            active={filter === 'marked'}
+            onClick={() => pick('marked')}
+          />
+          <Figure
+            label={t('exams.figures.passed')}
+            value={passed}
+            hint={passRate === null ? undefined : t('exams.figures.rate', { rate: passRate })}
+            active={filter === 'passed'}
+            onClick={() => pick('passed')}
+          />
+          <Figure
+            label={t('exams.figures.failed')}
+            value={failed}
+            active={filter === 'failed'}
+            onClick={() => pick('failed')}
+          />
+        </div>
+
+        {exam.parts.length === 0 ? (
+          <EmptyState
+            icon={ListChecks}
+            title={t('exams.setPartsFirst')}
+            description={t('exams.setPartsFirstBody')}
+            className="rounded-xl border bg-card"
+            action={
+              exam.canManage && (
+                <Button onClick={() => setParting(true)}>
+                  <ListChecks />
+                  {t('exams.parts.title')}
+                </Button>
+              )
+            }
+          />
+        ) : candidates.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title={t('exams.noCandidates')}
+            description={t('exams.noCandidatesBody')}
+            className="rounded-xl border bg-card"
+            action={
+              exam.canManage && (
+                <Button onClick={() => setAdding(true)}>
+                  <UserPlus />
+                  {t('exams.candidates.addTitle')}
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <ExamMarksSheet
+            sheet={sheet.data}
+            filter={filter}
+            editable={exam.canManage}
+            onSave={async (marks) => {
+              await setMarks.mutateAsync(marks)
+            }}
+            onRemove={setRemoving}
+          />
+        )}
+
+        <ExamDialog
+          open={editing}
+          onOpenChange={setEditing}
+          exam={exam}
+          onSave={async (input) => {
+            await update.mutateAsync(input)
+            toast.success(t('exams.saved'))
           }}
-          onRemove={setRemoving}
         />
-      )}
-
-      <ExamDialog
-        open={editing}
-        onOpenChange={setEditing}
+        <PartsDialog
+          open={parting}
+          onOpenChange={setParting}
+          parts={exam.parts}
+          onSave={async (parts) => {
+            await setParts.mutateAsync(parts)
+            toast.success(t('exams.saved'))
+          }}
+        />
+        <AddCandidatesDialog
+          open={adding}
+          onOpenChange={setAdding}
+          examId={id}
+          classTypeId={exam.classTypeId}
+          onAdd={async (input) => (await addCandidates.mutateAsync(input)).added}
+        />
+        <ConfirmDialog
+          open={removing !== null}
+          onOpenChange={(open) => !open && setRemoving(null)}
+          title={t('exams.candidates.removeTitle')}
+          description={removing ? t('exams.candidates.removeBody', { name: memberFullName(removing) }) : ''}
+          confirmLabel={t('exams.candidates.remove')}
+          destructive
+          pending={removeCandidate.isPending}
+          onConfirm={() => {
+            if (!removing) return
+            removeCandidate.mutate(removing.id, {
+              onSuccess: () => setRemoving(null),
+              onError: (e) => toast.error(getErrorMessage(e)),
+            })
+          }}
+        />
+        <ConfirmDialog
+          open={deleting}
+          onOpenChange={setDeleting}
+          title={t('exams.delete.title')}
+          description={t('exams.delete.body', { name: exam.nameAm, count: exam.candidateCount })}
+          confirmLabel={t('exams.delete.confirm')}
+          destructive
+          pending={remove.isPending}
+          onConfirm={() =>
+            remove.mutate(undefined, {
+              onSuccess: () => {
+                toast.success(t('exams.delete.done'))
+                navigate('/exams', { replace: true })
+              },
+              onError: (e) => toast.error(getErrorMessage(e)),
+            })
+          }
+        />
+      </div>
+      <ExamPrintSheet
         exam={exam}
-        onSave={async (input) => {
-          await update.mutateAsync(input)
-          toast.success(t('exams.saved'))
-        }}
+        rows={candidates.filter((c) => matchesFilter(c, exam.parts, filter))}
+        filter={filter}
+        summary={[
+          `${t('exams.figures.candidates')} ${candidates.length}`,
+          `${t('exams.figures.marked')} ${marked}`,
+          `${t('exams.figures.passed')} ${passed}`,
+          `${t('exams.figures.failed')} ${failed}`,
+          passRate !== null && t('exams.figures.rate', { rate: passRate }),
+        ]
+          .filter(Boolean)
+          .join(' · ')}
       />
-      <PartsDialog
-        open={parting}
-        onOpenChange={setParting}
-        parts={exam.parts}
-        onSave={async (parts) => {
-          await setParts.mutateAsync(parts)
-          toast.success(t('exams.saved'))
-        }}
-      />
-      <AddCandidatesDialog
-        open={adding}
-        onOpenChange={setAdding}
-        examId={id}
-        classTypeId={exam.classTypeId}
-        onAdd={async (input) => (await addCandidates.mutateAsync(input)).added}
-      />
-      <ConfirmDialog
-        open={removing !== null}
-        onOpenChange={(open) => !open && setRemoving(null)}
-        title={t('exams.candidates.removeTitle')}
-        description={removing ? t('exams.candidates.removeBody', { name: memberFullName(removing) }) : ''}
-        confirmLabel={t('exams.candidates.remove')}
-        destructive
-        pending={removeCandidate.isPending}
-        onConfirm={() => {
-          if (!removing) return
-          removeCandidate.mutate(removing.id, {
-            onSuccess: () => setRemoving(null),
-            onError: (e) => toast.error(getErrorMessage(e)),
-          })
-        }}
-      />
-      <ConfirmDialog
-        open={deleting}
-        onOpenChange={setDeleting}
-        title={t('exams.delete.title')}
-        description={t('exams.delete.body', { name: exam.nameAm, count: exam.candidateCount })}
-        confirmLabel={t('exams.delete.confirm')}
-        destructive
-        pending={remove.isPending}
-        onConfirm={() =>
-          remove.mutate(undefined, {
-            onSuccess: () => {
-              toast.success(t('exams.delete.done'))
-              navigate('/exams', { replace: true })
-            },
-            onError: (e) => toast.error(getErrorMessage(e)),
-          })
-        }
-      />
-    </div>
+    </>
   )
 }

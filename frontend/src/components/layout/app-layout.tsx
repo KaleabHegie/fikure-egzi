@@ -25,13 +25,13 @@ function NativeLayout() {
   return (
     // --tabs-h: the bottom tab bar's height, so sticky footers (the marks sheet) stay above it.
     <div className="min-h-svh [--tabs-h:calc(4rem+env(safe-area-inset-bottom))]">
-      <div className="sticky top-0 z-30 bg-background pt-[env(safe-area-inset-top)]">
+      <div className="sticky top-0 z-30 bg-background pt-[env(safe-area-inset-top)] print:hidden">
         <Tibeb scale={0.75} />
       </div>
-      <header className="sticky top-[calc(12px+env(safe-area-inset-top))] z-20 flex h-14 items-center border-b bg-background/85 px-4 backdrop-blur">
+      <header className="sticky top-[calc(12px+env(safe-area-inset-top))] z-20 flex h-14 print:hidden items-center border-b bg-background/85 px-4 backdrop-blur">
         <BrandMark compact />
       </header>
-      <main className="mx-auto w-full max-w-7xl px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6">
+      <main className="mx-auto w-full max-w-7xl px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 print:max-w-none print:p-0">
         <div key={pathname} className="rise-in">
           <Outlet />
         </div>
@@ -49,11 +49,11 @@ function WebLayout() {
   return (
     <div className="min-h-svh">
       {/* ጥበብ: one woven band across the top of the whole app; the sidebar and header sit under it. */}
-      <div className="sticky top-0 z-30 bg-background">
+      <div className="sticky top-0 z-30 bg-background print:hidden">
         <Tibeb scale={0.75} />
       </div>
       <div className="flex min-h-[calc(100svh-12px)]">
-        <aside className="sticky top-3 hidden h-[calc(100svh-12px)] w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
+        <aside className="sticky top-3 hidden h-[calc(100svh-12px)] print:hidden! w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
           <SidebarPanel />
         </aside>
 
@@ -66,7 +66,7 @@ function WebLayout() {
         </Sheet>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-3 z-20 flex h-16 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur sm:px-6">
+          <header className="sticky top-3 z-20 flex h-16 items-center print:hidden gap-3 border-b bg-background/85 px-4 backdrop-blur sm:px-6">
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)} aria-label={t('nav.openNavigation')}>
               <Menu />
             </Button>
@@ -77,7 +77,7 @@ function WebLayout() {
               <UserMenu />
             </div>
           </header>
-          <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8 print:max-w-none print:p-0">
             {/* Keyed by path: every page rises in once on navigation. */}
             <div key={pathname} className="rise-in">
               <Outlet />

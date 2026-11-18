@@ -1,4 +1,4 @@
-import { Loader2, RotateCcw, Save, Search, UserMinus } from 'lucide-react'
+import { CopyCheck, Loader2, RotateCcw, Save, Search, UserMinus, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -17,7 +17,8 @@ const SCORE = /^\d{0,3}(\.\d{0,2})?$/
 /**
  * The exam's mark sheet: one row per candidate, one column per part, each part
  * marked out of its weight. Edits stay local until saved, so a whole column
- * can be filled first.
+ * can be filled first. Candidates examined as a group can be selected and given
+ * the same marks at once; anyone's mark can still be changed on its own after.
  */
 export function ExamMarksSheet({
   sheet,
@@ -35,6 +36,8 @@ export function ExamMarksSheet({
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
   const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<number>>(() => new Set())
+  const [group, setGroup] = useState<Record<number, string>>({})
 
   const saved = useMemo(() => {
     const map: Record<string, number> = {}
@@ -66,6 +69,45 @@ export function ExamMarksSheet({
       .toLocaleLowerCase()
       .includes(term)
   })
+
+  const shownIds = rows.map((c) => c.member.id)
+  const allShown = shownIds.length > 0 && shownIds.every((id) => selected.has(id))
+  const toggle = (id: number) =>
+    setSelected((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const toggleShown = () =>
+    setSelected((s) => {
+      const next = new Set(s)
+      for (const id of shownIds) {
+        if (allShown) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
+  const groupBad = (p: number) => {
+    const v = group[p]
+    return v !== undefined && v !== '' && Number(v) > (weight.get(p) ?? 0)
+  }
+  const groupFilled = parts.filter((p) => (group[p.id] ?? '') !== '')
+  const canApply = selected.size > 0 && groupFilled.length > 0 && !parts.some((p) => groupBad(p.id))
+  const clearSelection = () => {
+    setSelected(new Set())
+    setGroup({})
+  }
+  /** Fills the group's marks in for everyone selected; saving stays a separate step. */
+  const applyGroup = () => {
+    setDraft((d) => {
+      const next = { ...d }
+      for (const memberId of selected) for (const p of groupFilled) next[cell(p.id, memberId)] = group[p.id]!
+      return next
+    })
+    toast.success(t('exams.marks.group.applied', { count: selected.size }))
+    clearSelection()
+  }
 
   const save = async () => {
     setPending(true)
@@ -101,11 +143,65 @@ export function ExamMarksSheet({
         </div>
         <span className="text-xs text-muted-foreground">{t('exams.marks.showing', { shown: rows.length, total: sheet.candidates.length })}</span>
       </div>
+      {editable && selected.size > 0 && (
+        <div className="space-y-2 border-b bg-primary/5 px-3 py-3 sm:px-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium">{t('exams.marks.group.selected', { count: selected.size })}</p>
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              <X />
+              {t('exams.marks.group.clear')}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">{t('exams.marks.group.hint')}</p>
+          <div className="flex flex-wrap items-end gap-3">
+            {parts.map((p) => (
+              <label key={p.id} className="flex flex-col gap-1 text-xs text-muted-foreground">
+                <span>
+                  <span className="text-foreground">{p.name}</span> <span className="tabular">/ {p.weight}</span>
+                </span>
+                <input
+                  value={group[p.id] ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value.trim()
+                    if (SCORE.test(v)) setGroup((g) => ({ ...g, [p.id]: v }))
+                  }}
+                  inputMode="decimal"
+                  aria-invalid={groupBad(p.id) || undefined}
+                  className={cn(
+                    'tabular h-8 w-20 rounded-md border bg-background px-2 text-right text-sm text-foreground outline-none',
+                    'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40',
+                    groupBad(p.id) && 'border-destructive bg-destructive/5',
+                  )}
+                />
+              </label>
+            ))}
+            <Button size="sm" onClick={applyGroup} disabled={!canApply}>
+              <CopyCheck />
+              {t('exams.marks.group.apply', { count: selected.size })}
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full min-w-max text-sm">
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="sticky left-0 z-10 bg-card py-2.5 pr-3 pl-4 font-medium">{t('exams.marks.candidate')}</th>
+              <th className="sticky left-0 z-10 bg-card py-2.5 pr-3 pl-4 font-medium">
+                <div className="flex items-center gap-2.5">
+                  {editable && (
+                    <input
+                      type="checkbox"
+                      checked={allShown}
+                      onChange={toggleShown}
+                      disabled={rows.length === 0}
+                      aria-label={t('exams.marks.group.selectAll')}
+                      title={t('exams.marks.group.selectAll')}
+                      className="size-4 accent-primary"
+                    />
+                  )}
+                  {t('exams.marks.candidate')}
+                </div>
+              </th>
               {parts.map((p) => (
                 <th key={p.id} className="px-2 py-2.5 text-center font-medium">
                   <span className="block text-foreground">{p.name}</span>
@@ -122,9 +218,18 @@ export function ExamMarksSheet({
           </thead>
           <tbody>
             {rows.map((c) => (
-              <tr key={c.member.id} className="border-b last:border-0">
-                <td className="sticky left-0 z-10 bg-card py-2 pr-3 pl-4">
+              <tr key={c.member.id} className={cn('border-b last:border-0', selected.has(c.member.id) && 'bg-accent')}>
+                <td className={cn('sticky left-0 z-10 py-2 pr-3 pl-4', selected.has(c.member.id) ? 'bg-accent' : 'bg-card')}>
                   <div className="flex items-center gap-2.5">
+                    {editable && (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.member.id)}
+                        onChange={() => toggle(c.member.id)}
+                        aria-label={t('exams.marks.group.select', { name: memberFullName(c.member) })}
+                        className="size-4 shrink-0 accent-primary"
+                      />
+                    )}
                     <MemberAvatar member={c.member} />
                     <div className="min-w-0">
                       <p className="max-w-32 truncate font-medium sm:max-w-56">{memberFullName(c.member)}</p>

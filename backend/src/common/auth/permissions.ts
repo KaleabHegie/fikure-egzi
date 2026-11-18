@@ -10,6 +10,7 @@
  * Mirror any change in frontend/src/lib/permissions.ts.
  */
 export const PERMISSIONS = {
+  DASHBOARD_READ: 'dashboard.read',
   MEMBERS_READ: 'members.read',
   MEMBERS_CREATE: 'members.create',
   MEMBERS_UPDATE: 'members.update',
@@ -49,6 +50,11 @@ export interface PermissionDefinition {
 }
 
 export const PERMISSION_DEFINITIONS: readonly PermissionDefinition[] = [
+  {
+    code: PERMISSIONS.DASHBOARD_READ,
+    module: 'dashboard',
+    description: 'See the dashboard with the overall figures',
+  },
   {
     code: PERMISSIONS.MEMBERS_READ,
     module: 'members',
@@ -212,6 +218,13 @@ const SYSTEM_ONLY: readonly PermissionCode[] = [
   PERMISSIONS.AUDIT_READ,
 ];
 
+/** Looking at their own department's structure, members and classes, without changing them. */
+const DEPARTMENT_VIEW: readonly PermissionCode[] = [
+  PERMISSIONS.DEPARTMENTS_READ,
+  PERMISSIONS.MEMBERS_READ,
+  PERMISSIONS.CLASSES_READ,
+];
+
 /**
  * The kinds of user. Department-scoped roles see and act on only their
  * assigned departments: their rosters, and the attendance of the classes and
@@ -241,6 +254,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       'Runs their department(s): roster, classes and service groups, attendance, courses, attendance takers and teachers',
     departmentScoped: true,
     permissions: [
+      PERMISSIONS.DASHBOARD_READ,
       PERMISSIONS.MEMBERS_READ,
       PERMISSIONS.CLASSES_READ,
       PERMISSIONS.DEPARTMENTS_READ,
@@ -263,6 +277,30 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.AUDIT_READ,
     ],
+  },
+  {
+    code: 'ATTENDANCE_ADMIN',
+    name: 'Attendance admin',
+    description:
+      "Their department's attendance: sessions on any day, reports and late permissions; views (never changes) its departments, members and classes",
+    departmentScoped: true,
+    permissions: [
+      ...DEPARTMENT_VIEW,
+      PERMISSIONS.ATTENDANCE_READ,
+      PERMISSIONS.ATTENDANCE_TAKE,
+      PERMISSIONS.ATTENDANCE_MANAGE,
+      PERMISSIONS.ATTENDANCE_DELETE,
+      PERMISSIONS.ATTENDANCE_ANY_DAY,
+      PERMISSIONS.ATTENDANCE_PERMISSIONS,
+    ],
+  },
+  {
+    code: 'EXAM_TAKER',
+    name: 'Exam taker',
+    description:
+      "Their department's exams: creates them, chooses candidates and enters marks; views (never changes) its departments, members and classes",
+    departmentScoped: true,
+    permissions: [...DEPARTMENT_VIEW, PERMISSIONS.EXAMS_READ, PERMISSIONS.EXAMS_MANAGE],
   },
   {
     code: 'ATTENDANCE_TAKER',

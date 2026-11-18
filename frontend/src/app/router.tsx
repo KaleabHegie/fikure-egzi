@@ -188,7 +188,7 @@ export const router = createBrowserRouter([
             ...page(
               () => import('@/features/service-groups/pages/service-groups-page'),
               (m) => m.ServiceGroupsPage,
-              PERMISSIONS.CLASSES_READ,
+              PERMISSIONS.SERVICE_GROUPS_MANAGE,
             ),
           },
           {

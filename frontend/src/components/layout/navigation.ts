@@ -72,8 +72,8 @@ export interface NavSection {
 export const NAVIGATION: NavSection[] = [
   {
     items: [
-      // Attendance takers only get the attendance page, so the dashboard needs member access.
-      { key: 'dashboard', icon: LayoutDashboard, to: '/', permission: PERMISSIONS.MEMBERS_READ },
+      // Attendance takers and admins, exam takers and teachers only get their own pages.
+      { key: 'dashboard', icon: LayoutDashboard, to: '/', permission: PERMISSIONS.DASHBOARD_READ },
     ],
   },
   {
@@ -91,7 +91,8 @@ export const NAVIGATION: NavSection[] = [
         key: 'serviceGroups',
         icon: UsersRound,
         to: '/service-groups',
-        permission: PERMISSIONS.CLASSES_READ,
+        // Attendance admins and exam takers view classes but not service groups.
+        permission: PERMISSIONS.SERVICE_GROUPS_MANAGE,
       },
     ],
   },

@@ -533,8 +533,8 @@ export function DashboardPage() {
   const [now] = useState(() => new Date())
   const today = formatEth(now, 'date', i18n.language === 'am' ? 'am' : 'en')
 
-  // Attendance takers have no dashboard; send them to their first page (attendance).
-  if (!can(PERMISSIONS.MEMBERS_READ)) {
+  // Roles without a dashboard (attendance takers and admins, exam takers) go to their first page.
+  if (!can(PERMISSIONS.DASHBOARD_READ)) {
     const entries = NAVIGATION.flatMap((section) => section.items).flatMap(
       (item): { to?: string; permission?: PermissionCode }[] => (item.children ? [...item.children] : [item]),
     )

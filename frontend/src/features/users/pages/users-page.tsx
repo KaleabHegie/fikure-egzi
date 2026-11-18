@@ -33,6 +33,8 @@ const ROLE_STYLES: Record<string, string> = {
   SYSTEM_ADMIN: 'bg-primary text-primary-foreground',
   SUPER_ADMIN: 'bg-primary/12 text-primary',
   DEPARTMENT_ADMIN: 'bg-accent text-accent-foreground',
+  ATTENDANCE_ADMIN: 'bg-success/15 text-foreground',
+  EXAM_TAKER: 'bg-warning/15 text-foreground',
   ATTENDANCE_TAKER: 'bg-muted text-foreground/80',
   TEACHER: 'bg-gold/20 text-foreground',
 }

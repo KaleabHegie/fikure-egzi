@@ -3,6 +3,7 @@
  * gatekeeper; the UI uses these only to hide actions a user cannot perform.
  */
 export const PERMISSIONS = {
+  DASHBOARD_READ: 'dashboard.read',
   MEMBERS_READ: 'members.read',
   MEMBERS_CREATE: 'members.create',
   MEMBERS_UPDATE: 'members.update',

@@ -47,7 +47,7 @@ interface Tab {
 const under = (base: string) => (path: string) => path === base || path.startsWith(`${base}/`)
 
 const TABS: Tab[] = [
-  { key: 'home', to: '/', icon: House, permission: PERMISSIONS.MEMBERS_READ, match: (p) => p === '/' },
+  { key: 'home', to: '/', icon: House, permission: PERMISSIONS.DASHBOARD_READ, match: (p) => p === '/' },
   { key: 'members', to: '/members', icon: Users, permission: PERMISSIONS.MEMBERS_READ, match: under('/members') },
   {
     key: 'attendance',
@@ -59,7 +59,7 @@ const TABS: Tab[] = [
   },
 ]
 
-const KNOWN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_TAKER', 'TEACHER'] as const
+const KNOWN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_ADMIN', 'EXAM_TAKER', 'ATTENDANCE_TAKER', 'TEACHER'] as const
 type KnownRole = (typeof KNOWN_ROLES)[number]
 
 export function AppTabs() {

@@ -79,6 +79,8 @@ export const en = {
       SYSTEM_ADMIN: 'System admin',
       SUPER_ADMIN: 'Office admin',
       DEPARTMENT_ADMIN: 'Department admin',
+      ATTENDANCE_ADMIN: 'Attendance admin',
+      EXAM_TAKER: 'Exam taker',
       ATTENDANCE_TAKER: 'Attendance taker',
       TEACHER: 'Teacher',
     },
@@ -1079,6 +1081,10 @@ export const en = {
       SYSTEM_ADMIN: 'Runs the system: everything, plus system settings, deleting accounts, the audit log and other system administrators.',
       SUPER_ADMIN: 'ፅህፈት ቤት: every module and every department, and user accounts, but not system settings, deleting accounts or the audit log.',
       DEPARTMENT_ADMIN: "Manages their department's roster, attendance and courses, and creates its attendance takers and teachers.",
+      ATTENDANCE_ADMIN:
+        "Their department's attendance on any day, its reports and late permissions. Sees its departments, members and classes, but can't change them.",
+      EXAM_TAKER:
+        "Their department's exams: creates them, adds candidates and enters marks. Sees its departments, members and classes, but can't change them.",
       ATTENDANCE_TAKER: "Only the attendance page: creates, records, closes and deletes their department's attendance.",
       TEACHER: 'A member who teaches: sees only the courses they teach, sets their assessments and enters marks.',
     },

@@ -21,7 +21,7 @@ const isSystemAdmin = (actor: AuthenticatedUser) => actor.roles?.includes(SYSTEM
 const TAKER = 'ATTENDANCE_TAKER';
 export const TEACHER = 'TEACHER';
 /** The roles a department administrator may hand out. */
-const DEPARTMENT_GRANTABLE = [TAKER, TEACHER];
+const DEPARTMENT_GRANTABLE = [TAKER, 'ATTENDANCE_ADMIN', 'EXAM_TAKER', TEACHER];
 
 const USER_VIEW = {
   id: true,
@@ -57,7 +57,7 @@ const toView = ({ roles, departments, ...u }: UserRow) => ({
 /**
  * Users the actor may see and change ("under" them): everyone for office
  * administrators; for department administrators, the attendance takers and
- * teachers who work only in their departments.
+ * admins, exam takers and teachers who work only in their departments.
  */
 export function manageableUsersWhere(scope: DepartmentScope): Prisma.UserWhereInput {
   if (scope === null) return {};

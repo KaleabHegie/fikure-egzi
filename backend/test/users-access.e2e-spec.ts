@@ -111,10 +111,15 @@ describe('Users & department-scoped access (e2e)', () => {
       .data;
     expect(me.departmentIds).toEqual([mezmur.id]);
 
-    // Department admin: only attendance takers, only in their own department.
+    // Department admin: only attendance and exam roles and teachers, only in their own department.
     const roles = (await request(http).get('/api/v1/users/roles').set(as(deptAdmin)).expect(200))
       .body.data;
-    expect(roles.map((r: { code: string }) => r.code)).toEqual(['ATTENDANCE_TAKER', 'TEACHER']);
+    expect(roles.map((r: { code: string }) => r.code)).toEqual([
+      'ATTENDANCE_ADMIN',
+      'EXAM_TAKER',
+      'ATTENDANCE_TAKER',
+      'TEACHER',
+    ]);
     const newUser = (roleCode: string, departmentIds: number[], email: string) =>
       request(http)
         .post('/api/v1/users')

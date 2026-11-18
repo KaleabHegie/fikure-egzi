@@ -46,6 +46,7 @@ describe('AuthService', () => {
       fullName: 'Admin',
       isActive: true,
       passwordHash: await bcrypt.hash('correct-password', 4),
+      departments: [],
       roles: [
         {
           role: {

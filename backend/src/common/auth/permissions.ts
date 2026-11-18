@@ -27,6 +27,7 @@ export const PERMISSIONS = {
   ATTENDANCE_DELETE: 'attendance.delete',
   ATTENDANCE_ANY_DAY: 'attendance.any_day',
   ATTENDANCE_PERMISSIONS: 'attendance.permissions',
+  ATTENDANCE_OVERRIDE: 'attendance.override',
   ASSETS_READ: 'assets.read',
   ASSETS_MANAGE: 'assets.manage',
   COURSES_READ: 'courses.read',
@@ -34,6 +35,7 @@ export const PERMISSIONS = {
   COURSES_TEACH: 'courses.teach',
   EXAMS_READ: 'exams.read',
   EXAMS_MANAGE: 'exams.manage',
+  EXAMS_OVERRIDE: 'exams.override',
   USERS_MANAGE: 'users.manage',
   USERS_DELETE: 'users.delete',
   ROLES_MANAGE: 'roles.manage',
@@ -138,6 +140,12 @@ export const PERMISSION_DEFINITIONS: readonly PermissionDefinition[] = [
       "Give members late permissions for the department's class and service-group sessions",
   },
   {
+    code: PERMISSIONS.ATTENDANCE_OVERRIDE,
+    module: 'attendance',
+    description:
+      'Change attendance more than 5 days after its day (without it: up to the 5th day after)',
+  },
+  {
     code: PERMISSIONS.ASSETS_READ,
     module: 'assets',
     description: 'View assets and their photos',
@@ -171,6 +179,12 @@ export const PERMISSION_DEFINITIONS: readonly PermissionDefinition[] = [
     code: PERMISSIONS.EXAMS_MANAGE,
     module: 'exams',
     description: 'Create exams, set their parts and weights, choose candidates and enter marks',
+  },
+  {
+    code: PERMISSIONS.EXAMS_OVERRIDE,
+    module: 'exams',
+    description:
+      "Change any of the department's exams at any time, including ones others created and ones past their 5-day window",
   },
   {
     code: PERMISSIONS.USERS_MANAGE,
@@ -267,6 +281,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       PERMISSIONS.ATTENDANCE_DELETE,
       PERMISSIONS.ATTENDANCE_ANY_DAY,
       PERMISSIONS.ATTENDANCE_PERMISSIONS,
+      PERMISSIONS.ATTENDANCE_OVERRIDE,
       PERMISSIONS.ASSETS_READ,
       PERMISSIONS.ASSETS_MANAGE,
       PERMISSIONS.COURSES_READ,
@@ -274,6 +289,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       PERMISSIONS.COURSES_TEACH,
       PERMISSIONS.EXAMS_READ,
       PERMISSIONS.EXAMS_MANAGE,
+      PERMISSIONS.EXAMS_OVERRIDE,
       PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.AUDIT_READ,
     ],
@@ -282,7 +298,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
     code: 'ATTENDANCE_ADMIN',
     name: 'Attendance admin',
     description:
-      "Their department's attendance: sessions on any day, reports and late permissions; views (never changes) its departments, members and classes",
+      "Their department's attendance (each session until the 5th day after it), reports and late permissions; views (never changes) its departments, members and classes",
     departmentScoped: true,
     permissions: [
       ...DEPARTMENT_VIEW,
@@ -298,7 +314,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
     code: 'EXAM_TAKER',
     name: 'Exam taker',
     description:
-      "Their department's exams: creates them, chooses candidates and enters marks; views (never changes) its departments, members and classes",
+      "Their department's exams: creates them, chooses candidates and enters marks until the 5th day after the exam; views (never changes) its departments, members and classes",
     departmentScoped: true,
     permissions: [...DEPARTMENT_VIEW, PERMISSIONS.EXAMS_READ, PERMISSIONS.EXAMS_MANAGE],
   },

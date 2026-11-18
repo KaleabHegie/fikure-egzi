@@ -13,6 +13,8 @@ export interface AuthenticatedUser {
    * belonging to other departments.
    */
   departmentIds: number[] | null;
+  /** Assigned to the ፅህፈት ቤት (the secretariat), which oversees every department's work. */
+  inOffice: boolean;
 }
 
 export interface JwtPayload {

@@ -40,6 +40,7 @@ import { MemberLink } from '../components/member-link'
 import { SessionSheetDialog } from '../components/session-sheet-dialog'
 import { memberFullName } from '@/features/members/utils'
 import { getErrorMessage, toApiError } from '@/lib/api/errors'
+import { dayAccess, dayOpen } from '@/lib/edit-window'
 import { PERMISSIONS } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { attendanceApi, attendanceKeys, useAttendanceMutation, useRoster, useSession } from '../api'
@@ -76,7 +77,7 @@ export function SessionPage() {
   const id = Number(useParams().id)
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { can } = useAuth()
+  const { can, user } = useAuth()
   const canTake = can(PERMISSIONS.ATTENDANCE_TAKE)
   const canManage = can(PERMISSIONS.ATTENDANCE_MANAGE)
   const audienceLabel = useAudienceLabel()
@@ -213,8 +214,10 @@ export function SessionPage() {
 
   const s = session.data
   const open = s.status === 'OPEN'
-  // Attendance takers may only change today's sessions; other days are for department admins.
-  const dayOk = can(PERMISSIONS.ATTENDANCE_ANY_DAY) || addisDate(s.startsAt) === today
+  // Attendance takers change today's sessions only, attendance admins up to 5 days after;
+  // department heads, the ፅህፈት ቤት and office admins any day.
+  const access = dayAccess(user, can)
+  const dayOk = dayOpen(addisDate(s.startsAt), access, today)
   const editable = open && canTake && dayOk
   const marked = s.counts.present + s.counts.late + s.counts.absent + s.counts.excused
   // Gatherings and events only record who came.
@@ -359,7 +362,11 @@ export function SessionPage() {
       {(!open || !dayOk) && (
         <p className="mb-4 flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
           <Lock className="size-4" />
-          {dayOk ? t('attendance.closedNotice') : t('attendance.otherDayNotice')}
+          {dayOk
+            ? t('attendance.closedNotice')
+            : access === 'today'
+              ? t('attendance.otherDayNotice')
+              : t('attendance.windowClosedNotice')}
         </p>
       )}
 

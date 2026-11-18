@@ -5,6 +5,7 @@ import type { AuthenticatedUser } from '../../common/types/authenticated-user.js
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { manageableUsersWhere } from '../users/users.service.js';
+import { auditTargets } from './audit-targets.js';
 import type { QueryAuditDto } from './dto/query-audit.dto.js';
 
 /** Addis Ababa is UTC+3 all year: a day starts at 21:00 UTC the evening before. */
@@ -57,8 +58,13 @@ export class AuditLogService {
         take: q.pageSize,
       }),
     ]);
+    const targets = await auditTargets(this.prisma, rows);
     // BigInt ids don't serialise to JSON.
-    const items = rows.map((r) => ({ ...r, id: r.id.toString() }));
+    const items = rows.map((r) => ({
+      ...r,
+      id: r.id.toString(),
+      target: targets.get(`${r.entity}:${r.entityId}`) ?? null,
+    }));
     return Paginated.of(items, total, q.page, q.pageSize);
   }
 

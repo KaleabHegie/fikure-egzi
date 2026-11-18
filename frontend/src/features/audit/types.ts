@@ -14,7 +14,14 @@ export const AUDIT_ENTITIES = [
   'AttendanceSession',
   'AttendanceImport',
   'Asset',
+  'AssetCategory',
   'MemberPortal',
+  'LatePermission',
+  'ClassAgreement',
+  'Course',
+  'CourseOffering',
+  'Exam',
+  'Settings',
   'User',
 ] as const
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number]
@@ -25,6 +32,14 @@ export interface AuditUser {
   email: string
 }
 
+/** The record an entry is about, in words (missing once the record is deleted). */
+export interface AuditTarget {
+  am: string
+  en: string
+  /** Member ID, asset code, email or date that identifies it at a glance. */
+  code: string | null
+}
+
 export interface AuditEntry {
   id: string
   userId: number | null
@@ -32,6 +47,7 @@ export interface AuditEntry {
   action: AuditAction
   entity: string
   entityId: string | null
+  target: AuditTarget | null
   changes: unknown
   ipAddress: string | null
   createdAt: string

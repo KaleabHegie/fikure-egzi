@@ -17,6 +17,7 @@ import { useServiceGroups, useServiceTerms } from '@/features/service-groups/api
 import type { ServiceGroup } from '@/features/service-groups/types'
 import { msg, translateMessage } from '@/i18n'
 import { applyApiFieldErrors, getErrorMessage } from '@/lib/api/errors'
+import { dayAccess } from '@/lib/edit-window'
 import { formatEth, todayIso } from '@/lib/ethiopian-calendar'
 import { formatDate, formatTime } from '@/lib/format'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -369,7 +370,13 @@ export function SessionDialog({
               control={control}
               name="date"
               label={t('attendance.fields.date')}
-              description={anyDay ? undefined : t('attendance.fields.todayOnly')}
+              description={
+                !anyDay
+                  ? t('attendance.fields.todayOnly')
+                  : dayAccess(user, can) === 'recent'
+                    ? t('attendance.fields.fiveDaysBack')
+                    : undefined
+              }
               required
               disabled={!anyDay}
               className="sm:col-span-2"

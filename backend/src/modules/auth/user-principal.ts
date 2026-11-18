@@ -1,6 +1,7 @@
 import type { PermissionCode } from '../../common/auth/permissions.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
 import type { Prisma } from '../../generated/prisma/client.js';
+import { OFFICE_DEPARTMENT } from '../departments/default-departments.js';
 
 /** Prisma include that loads everything needed to build an AuthenticatedUser. */
 /** Sub-departments down to three levels below an assigned department (sections included). */
@@ -10,7 +11,7 @@ const CHILDREN = {
 
 export const USER_WITH_ACCESS = {
   departments: {
-    select: { departmentId: true, department: { select: { children: CHILDREN } } },
+    select: { departmentId: true, department: { select: { code: true, children: CHILDREN } } },
   },
   roles: {
     include: {
@@ -53,5 +54,6 @@ export function toAuthenticatedUser(user: UserWithAccess): AuthenticatedUser {
             ),
           ].sort((a, b) => a - b)
         : null,
+    inOffice: user.departments.some((d) => d.department?.code === OFFICE_DEPARTMENT.code),
   };
 }

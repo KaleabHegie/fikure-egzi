@@ -7,6 +7,7 @@ export type ImportIssueCode =
   | 'invalidDate'
   | 'dateAsNumber'
   | 'futureDate'
+  | 'closedDate'
   | 'invalidTime'
   | 'endBeforeStart'
   | 'unknownMember'

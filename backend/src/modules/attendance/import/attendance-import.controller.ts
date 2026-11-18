@@ -19,6 +19,7 @@ import { PERMISSIONS } from '../../../common/auth/permissions.js';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator.js';
 import { RequirePermissions } from '../../../common/decorators/require-permissions.decorator.js';
 import type { AuthenticatedUser } from '../../../common/types/authenticated-user.js';
+import { dayAccess } from '../attendance.service.js';
 import { AttendanceImportService, type Lang } from './attendance-import.service.js';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -100,7 +101,7 @@ export class AttendanceImportController {
       requireFile(file),
       user.id,
       user.departmentIds,
-      user.permissions.includes(PERMISSIONS.ATTENDANCE_ANY_DAY),
+      dayAccess(user),
     );
   }
 
@@ -132,7 +133,12 @@ export class AttendanceImportController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('lang') lang?: string,
   ) {
-    return this.importer.previewImport(requireFile(file), langOf(lang), user.departmentIds);
+    return this.importer.previewImport(
+      requireFile(file),
+      langOf(lang),
+      user.departmentIds,
+      dayAccess(user),
+    );
   }
 
   @Post('import')
@@ -151,6 +157,12 @@ export class AttendanceImportController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('lang') lang?: string,
   ) {
-    return this.importer.commitImport(requireFile(file), langOf(lang), user.id, user.departmentIds);
+    return this.importer.commitImport(
+      requireFile(file),
+      langOf(lang),
+      user.id,
+      user.departmentIds,
+      dayAccess(user),
+    );
   }
 }

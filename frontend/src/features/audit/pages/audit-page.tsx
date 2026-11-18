@@ -42,18 +42,30 @@ const ROUTES: Partial<Record<string, (id: string) => string>> = {
   Member: (id) => `/members/${id}`,
   Department: (id) => `/departments/${id}`,
   AttendanceSession: (id) => `/attendance/${id}`,
+  Exam: (id) => `/exams/${id}`,
+  Course: (id) => `/courses/${id}`,
+  Asset: (id) => `/assets/${id}`,
 }
 
 /** A short, readable summary of the recorded changes. */
 function useDetails() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  // "phone" → "ስልክ": the audit's own labels first, then the member form's, else the raw name.
+  const field = (key: string) =>
+    i18n.exists(`audit.fields.${key}`)
+      ? t(`audit.fields.${key}` as never)
+      : i18n.exists(`members.fields.${key}`)
+        ? t(`members.fields.${key}` as never)
+        : key
   return (changes: unknown): string => {
     if (!changes || typeof changes !== 'object') return ''
     return Object.entries(changes as Record<string, unknown>)
       .map(([key, value]) => {
-        if (key === 'fields' && Array.isArray(value)) return t('audit.changedFields', { fields: value.join(', ') })
+        if (key === 'fields' && Array.isArray(value)) {
+          return t('audit.changedFields', { fields: value.map((f) => field(String(f))).join('፣ ') })
+        }
         const shown = Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value)
-        return `${key}: ${shown}`
+        return `${field(key)}: ${shown}`
       })
       .join(' · ')
   }
@@ -91,7 +103,7 @@ function FilterSub({
 }
 
 export function AuditPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const scoped = user?.departmentIds != null
   const [query, setQuery] = useState<AuditQuery>({ page: 1, pageSize: 25 })
@@ -121,15 +133,30 @@ export function AuditPage() {
   }
   const entityLabel = (e: string) => (AUDIT_ENTITIES.includes(e as never) ? t(`audit.entities.${e as (typeof AUDIT_ENTITIES)[number]}`) : e)
 
+  // "ቃለአብ ህገ መንግስት" with "ተጠቃሚ · admin@gmail.com" under it, rather than "ተጠቃሚ #8".
   const target = (e: AuditEntry) => {
-    const label = `${entityLabel(e.entity)}${e.entityId ? ` #${e.entityId}` : ''}`
+    const kind = entityLabel(e.entity)
+    const name = e.target ? (i18n.language === 'en' ? e.target.en : e.target.am) : null
     const route = e.entityId && e.action !== 'DELETE' ? ROUTES[e.entity]?.(e.entityId) : undefined
-    return route ? (
-      <Link to={route} className="hover:underline">
-        {label}
-      </Link>
-    ) : (
-      label
+    const main = name ?? `${kind}${e.entityId ? ` #${e.entityId}` : ''}`
+    return (
+      <div className="min-w-0">
+        <div className="max-w-64 truncate font-medium">
+          {route ? (
+            <Link to={route} className="hover:underline">
+              {main}
+            </Link>
+          ) : (
+            main
+          )}
+        </div>
+        {name && (
+          <div className="text-xs text-muted-foreground">
+            {kind}
+            {e.target?.code && <span className="tabular"> · {e.target.code}</span>}
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -265,7 +292,7 @@ export function AuditPage() {
                         {AUDIT_ACTIONS.includes(e.action) ? t(`audit.actions.${e.action}`) : e.action}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">{target(e)}</TableCell>
+                    <TableCell className="text-sm">{target(e)}</TableCell>
                     <TableCell className="hidden max-w-md truncate text-xs text-muted-foreground lg:table-cell" title={details(e.changes)}>
                       {details(e.changes)}
                     </TableCell>

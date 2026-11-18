@@ -23,7 +23,7 @@ import { PERMISSIONS } from '../../common/auth/permissions.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
-import { AttendanceService } from './attendance.service.js';
+import { AttendanceService, dayAccess } from './attendance.service.js';
 import {
   CreateSessionDto,
   MarkDto,
@@ -34,10 +34,6 @@ import {
   ScanDto,
   UpdateSessionDto,
 } from './dto/attendance.dto.js';
-
-/** Whether the user may work on sessions of days other than today. */
-const anyDay = (user: AuthenticatedUser) =>
-  user.permissions.includes(PERMISSIONS.ATTENDANCE_ANY_DAY);
 
 @ApiTags('Attendance')
 @Controller({ path: 'attendance', version: '1' })
@@ -53,7 +49,7 @@ export class AttendanceController {
   @Post('sessions')
   @RequirePermissions(PERMISSIONS.ATTENDANCE_MANAGE)
   create(@Body() dto: CreateSessionDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.attendance.create(dto, user.id, user.departmentIds, anyDay(user));
+    return this.attendance.create(dto, user.id, user.departmentIds, dayAccess(user));
   }
 
   @Get('sessions/:id')
@@ -70,14 +66,14 @@ export class AttendanceController {
     @Body() dto: UpdateSessionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.attendance.update(id, dto, user.id, user.departmentIds, anyDay(user));
+    return this.attendance.update(id, dto, user.id, user.departmentIds, dayAccess(user));
   }
 
   @Delete('sessions/:id')
   @RequirePermissions(PERMISSIONS.ATTENDANCE_DELETE)
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-    return this.attendance.remove(id, user.id, user.departmentIds, anyDay(user));
+    return this.attendance.remove(id, user.id, user.departmentIds, dayAccess(user));
   }
 
   @Post('sessions/:id/close')
@@ -85,14 +81,14 @@ export class AttendanceController {
   @RequirePermissions(PERMISSIONS.ATTENDANCE_MANAGE)
   @ApiOkResponse({ description: 'Closed; unmarked roster members recorded as Absent' })
   close(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-    return this.attendance.close(id, user.id, user.departmentIds, anyDay(user));
+    return this.attendance.close(id, user.id, user.departmentIds, dayAccess(user));
   }
 
   @Post('sessions/:id/reopen')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(PERMISSIONS.ATTENDANCE_MANAGE)
   reopen(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
-    return this.attendance.reopen(id, user.id, user.departmentIds, anyDay(user));
+    return this.attendance.reopen(id, user.id, user.departmentIds, dayAccess(user));
   }
 
   // The roster is a member list: attendance takers (scanners) don't get it.
@@ -112,7 +108,7 @@ export class AttendanceController {
     @Body() dto: ScanDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.attendance.scan(id, dto.code, user.id, user.departmentIds, anyDay(user));
+    return this.attendance.scan(id, dto.code, user.id, user.departmentIds, dayAccess(user));
   }
 
   // Marking from the roster needs the roster; scanners record by scanning.
@@ -124,7 +120,7 @@ export class AttendanceController {
     @Body() dto: MarkDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.attendance.mark(id, memberId, dto, user.id, user.departmentIds, anyDay(user));
+    return this.attendance.mark(id, memberId, dto, user.id, user.departmentIds, dayAccess(user));
   }
 
   /** ልብሰ ስብሐት: note that a member took a vestment, or returned it (also after the session closes). */
@@ -147,7 +143,7 @@ export class AttendanceController {
     @Param('memberId', ParseIntPipe) memberId: number,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.attendance.unmark(id, memberId, user.departmentIds, anyDay(user));
+    return this.attendance.unmark(id, memberId, user.departmentIds, dayAccess(user));
   }
 
   @Get('reports/top-attendance')

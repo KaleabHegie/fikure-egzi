@@ -27,10 +27,12 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { addisDateTime, normalizeMemberCode } from '../attendance-math.js';
+import { withinEditWindow } from '../../../common/auth/edit-window.js';
 import {
   addisDateIso,
   AttendanceService,
   assertDay,
+  type DayAccess,
   isRegular,
   rosterWhere,
 } from '../attendance.service.js';
@@ -61,6 +63,7 @@ export type IssueCode =
   | 'invalidDate'
   | 'dateAsNumber'
   | 'futureDate'
+  | 'closedDate'
   | 'invalidTime'
   | 'endBeforeStart'
   | 'unknownMember'
@@ -241,10 +244,10 @@ export class AttendanceImportService {
     file: Buffer,
     userId: number,
     scope: DepartmentScope,
-    anyDay: boolean,
+    access: DayAccess,
   ) {
     const session = await this.attendance.findOne(sessionId, scope);
-    assertDay(addisDateIso(session.startsAt), anyDay);
+    assertDay(addisDateIso(session.startsAt), access);
     if (session.status !== AttendanceSessionStatus.OPEN) {
       throw new ConflictException({
         message: 'This session is closed. Reopen it to change attendance.',
@@ -510,8 +513,8 @@ export class AttendanceImportService {
     return Buffer.from(await wb.xlsx.writeBuffer());
   }
 
-  async previewImport(file: Buffer, lang: Lang, scope: DepartmentScope) {
-    const p = await this.parseImport(file, lang, scope);
+  async previewImport(file: Buffer, lang: Lang, scope: DepartmentScope, access: DayAccess = 'any') {
+    const p = await this.parseImport(file, lang, scope, access);
     return {
       totalRows: p.sessions.length + p.issues.length,
       errorRows: p.issues.length,
@@ -529,8 +532,14 @@ export class AttendanceImportService {
   }
 
   /** Creates the listed sessions in one go; if any row is invalid nothing is written. */
-  async commitImport(file: Buffer, lang: Lang, userId: number, scope: DepartmentScope) {
-    const p = await this.parseImport(file, lang, scope);
+  async commitImport(
+    file: Buffer,
+    lang: Lang,
+    userId: number,
+    scope: DepartmentScope,
+    access: DayAccess = 'any',
+  ) {
+    const p = await this.parseImport(file, lang, scope, access);
     if (p.sessions.length + p.issues.length === 0) {
       throw new UnprocessableEntityException('The file has no sessions.');
     }
@@ -571,6 +580,7 @@ export class AttendanceImportService {
     file: Buffer,
     lang: Lang,
     scope: DepartmentScope,
+    access: DayAccess,
   ): Promise<ParsedImport> {
     const wb = await loadWorkbook(file);
     if (!wb) throw new UnprocessableEntityException('Upload the .xlsx template (Excel workbook).');
@@ -650,6 +660,9 @@ export class AttendanceImportService {
         date = parseEcDate(text('date'));
         if (!date)
           errors.push({ column: 'date', code: 'invalidDate', params: { value: text('date') } });
+        // Attendance admins only add sessions up to 5 days back.
+        else if (access === 'recent' && !withinEditWindow(date))
+          errors.push({ column: 'date', code: 'closedDate', params: { value: text('date') } });
       }
       const [start, end] = (['start', 'end'] as const).map((k) => {
         if (!text(k)) {

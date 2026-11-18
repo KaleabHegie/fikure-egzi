@@ -13,6 +13,7 @@ export class AuthUserDto {
     description: 'Departments the user may act in; null = all (office administrators)',
   })
   departmentIds: number[] | null;
+  @ApiProperty({ description: 'Assigned to the ፅህፈት ቤት (secretariat)' }) inOffice: boolean;
 }
 
 export class AuthTokensDto {

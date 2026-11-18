@@ -5,12 +5,13 @@ import {
   inScope,
 } from '../../common/auth/department-scope.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import { editableUntil, withinEditWindow } from '../../common/auth/edit-window.js';
+import { PERMISSIONS } from '../../common/auth/permissions.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
-import { dateOnly } from '../../common/utils/dates.js';
+import { dateOnly, todayIso } from '../../common/utils/dates.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
-import { OFFICE_DEPARTMENT } from '../departments/default-departments.js';
 import type {
   AddCandidatesDto,
   CreateExamDto,
@@ -24,7 +25,19 @@ import type {
 const ENTITY = 'Exam';
 const OWN_DEPARTMENT = 'You can only manage the exams of the classes your department runs.';
 const OWNER_ONLY =
-  'Only the person who created this exam, an office administrator or the ፅህፈት ቤት can change it.';
+  'Only the person who created this exam, a department head, the ፅህፈት ቤት or an office administrator can change it.';
+const CLOSED =
+  'This exam closed for changes 5 days after its date. A department head, the ፅህፈት ቤት or an office administrator can still change it.';
+
+/** The exam's day: when it is held, or when it was created if it has no date. */
+const examDay = (exam: { heldOn: Date | null; createdAt: Date }) =>
+  exam.heldOn ? exam.heldOn.toISOString().slice(0, 10) : todayIso(exam.createdAt);
+
+/** Department heads, the ፅህፈት ቤት and office administrators change any exam at any time. */
+const oversees = (actor: AuthenticatedUser) =>
+  actor.departmentIds === null ||
+  actor.inOffice ||
+  actor.permissions.includes(PERMISSIONS.EXAMS_OVERRIDE);
 
 const MEMBER_NAME = {
   id: true,
@@ -96,9 +109,6 @@ const toExam = ({ _count, parts, classType: { department, ...classType }, ...e }
  */
 @Injectable()
 export class ExamsService {
-  /** Id of the ፅህፈት ቤት department, looked up once (null when it does not exist). */
-  private officeId?: Promise<number | null>;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -120,13 +130,13 @@ export class ExamsService {
       select: EXAM_SELECT,
     });
     const progress = await this.progress(exams.map(toExam));
-    const office = await this.inOffice(actor);
     return exams.map((row) => {
       const exam = toExam(row);
       return {
         ...exam,
         ...progress.get(exam.id),
-        canManage: inScope(scope, exam.departmentId) && this.mayEdit(exam, actor, office),
+        canManage: inScope(scope, exam.departmentId) && mayEdit(exam, actor),
+        editableUntil: editableUntil(examDay(exam)),
       };
     });
   }
@@ -137,9 +147,8 @@ export class ExamsService {
     return {
       ...exam,
       ...(await this.progress([exam])).get(exam.id),
-      canManage:
-        inScope(actor.departmentIds, exam.departmentId) &&
-        this.mayEdit(exam, actor, await this.inOffice(actor)),
+      canManage: inScope(actor.departmentIds, exam.departmentId) && mayEdit(exam, actor),
+      editableUntil: editableUntil(examDay(exam)),
     };
   }
 
@@ -590,33 +599,16 @@ export class ExamsService {
 
   /**
    * An exam the actor may change in any way (details, parts, candidates,
-   * marks) or delete: its creator, an office or system administrator, or
-   * someone assigned to the ፅህፈት ቤት. Others in its department only view it.
+   * marks) or delete: its creator until the 5th day after the exam, and
+   * department heads, the ፅህፈት ቤት and office administrators at any time.
+   * Others in its department only view it.
    */
   private async owned(id: number, actor: AuthenticatedUser) {
     const row = await this.managed(id, actor);
-    if (!this.mayEdit(row, actor, await this.inOffice(actor))) {
-      throw new ForbiddenException(OWNER_ONLY);
+    if (!mayEdit(row, actor)) {
+      throw new ForbiddenException(row.createdById === actor.id ? CLOSED : OWNER_ONLY);
     }
     return row;
-  }
-
-  private mayEdit(
-    exam: { createdById: number | null },
-    actor: AuthenticatedUser,
-    inOffice: boolean,
-  ): boolean {
-    return actor.departmentIds === null || exam.createdById === actor.id || inOffice;
-  }
-
-  /** Whether a department-scoped actor is assigned to the ፅህፈት ቤት itself. */
-  private async inOffice(actor: AuthenticatedUser): Promise<boolean> {
-    if (actor.departmentIds === null) return true;
-    this.officeId ??= this.prisma.department
-      .findUnique({ where: { code: OFFICE_DEPARTMENT.code }, select: { id: true } })
-      .then((d) => d?.id ?? null);
-    const officeId = await this.officeId;
-    return officeId !== null && actor.departmentIds.includes(officeId);
   }
 
   /** The class exists, the level (if any) is one of its levels, and the actor's department runs it. */
@@ -639,4 +631,11 @@ export class ExamsService {
       ]);
     }
   }
+}
+
+function mayEdit(
+  exam: { createdById: number | null; heldOn: Date | null; createdAt: Date },
+  actor: AuthenticatedUser,
+): boolean {
+  return oversees(actor) || (exam.createdById === actor.id && withinEditWindow(examDay(exam)));
 }

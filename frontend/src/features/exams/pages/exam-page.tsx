@@ -1,4 +1,4 @@
-import { ListChecks, Pencil, Trash2, TriangleAlert, UserPlus, Users } from 'lucide-react'
+import { Clock, ListChecks, Lock, Pencil, Trash2, TriangleAlert, UserPlus, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router'
@@ -11,7 +11,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { memberFullName } from '@/features/members/utils'
 import { getErrorMessage } from '@/lib/api/errors'
+import { useAuth } from '@/features/auth/use-auth'
+import { oversees } from '@/lib/edit-window'
 import { formatDate } from '@/lib/format'
+import { PERMISSIONS } from '@/lib/permissions'
 import { examsApi, useExamMutation, useExamSheet } from '../api'
 import { AddCandidatesDialog } from '../components/add-candidates-dialog'
 import { ExamDialog } from '../components/exam-dialog'
@@ -32,6 +35,7 @@ function Figure({ label, value, hint }: { label: string; value: React.ReactNode;
 /** One exam: its parts and weights, its candidates and the mark sheet. */
 export function ExamPage() {
   const { t, i18n } = useTranslation()
+  const { user, can } = useAuth()
   const name = useLocalizedName()
   const gradeLabel = useGradeLabel()
   const navigate = useNavigate()
@@ -62,6 +66,10 @@ export function ExamPage() {
   const { exam, candidates } = sheet.data
   const title = i18n.language === 'en' && exam.nameEn ? exam.nameEn : exam.nameAm
   const passRate = exam.markedCount > 0 ? Math.round((exam.passedCount / exam.markedCount) * 100) : null
+  // Exam takers change their own exams until the 5th day after; heads and the ፅህፈት ቤት any time.
+  const limited = can(PERMISSIONS.EXAMS_MANAGE) && !oversees(user, can, PERMISSIONS.EXAMS_OVERRIDE)
+  const mine = exam.createdById === user?.id
+  const until = formatDate(exam.editableUntil)
 
   return (
     <div className="space-y-5">
@@ -100,6 +108,17 @@ export function ExamPage() {
           )
         }
       />
+
+      {limited && (
+        <p className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+          {exam.canManage ? <Clock className="size-4 shrink-0" /> : <Lock className="size-4 shrink-0" />}
+          {exam.canManage
+            ? t('exams.lock.openUntil', { date: until })
+            : mine
+              ? t('exams.lock.closed', { date: until })
+              : t('exams.lock.notYours')}
+        </p>
+      )}
 
       {exam.description && <p className="max-w-3xl text-sm whitespace-pre-line text-muted-foreground">{exam.description}</p>}
 

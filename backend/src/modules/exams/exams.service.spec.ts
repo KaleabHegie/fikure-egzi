@@ -9,8 +9,17 @@ import { ExamsService } from './exams.service.js';
 // Untyped async mock: tests feed it partial Prisma payloads.
 const asyncMock = () => jest.fn<(...args: unknown[]) => Promise<unknown>>();
 
-const office = { id: 1, departmentIds: null } as unknown as AuthenticatedUser;
-const mezmurAdmin = { id: 2, departmentIds: [4] } as unknown as AuthenticatedUser;
+const actor = (id: number, departmentIds: number[] | null, more: object = {}) =>
+  ({
+    id,
+    departmentIds,
+    permissions: [],
+    inOffice: false,
+    ...more,
+  }) as unknown as AuthenticatedUser;
+const office = actor(1, null);
+/** Created the exams in these tests (as an exam taker would). */
+const mezmurAdmin = actor(2, [4]);
 
 /** An exam row as the service selects it: እንቅስቃሴ 40 / ዜማ 60, pass mark 60. */
 const examRow = (over: Record<string, unknown> = {}) => ({
@@ -64,7 +73,7 @@ describe('ExamsService', () => {
     member: { findMany: asyncMock() },
     examMark: { findMany: asyncMock(), count: asyncMock() },
     examCandidate: { findMany: asyncMock(), createMany: asyncMock() },
-    department: { count: asyncMock(), findUnique: asyncMock() },
+    department: { count: asyncMock() },
     $transaction: jest.fn<(arg: unknown) => unknown>(),
   };
   const audit = { record: asyncMock() };
@@ -77,8 +86,6 @@ describe('ExamsService', () => {
     jest.clearAllMocks();
     prisma.examMark.findMany.mockResolvedValue([]);
     prisma.department.count.mockResolvedValue(1);
-    // The ፅህፈት ቤት is department 1.
-    prisma.department.findUnique.mockResolvedValue({ id: 1 });
     // The Mezmur class (run by department 4) with its Geez and Ezel levels.
     prisma.classType.findUnique.mockResolvedValue({
       departmentId: 4,
@@ -218,32 +225,56 @@ describe('ExamsService', () => {
     ).rejects.toMatchObject({ details: [{ messages: ['exams.notCandidate'] }] });
   });
 
-  it('lets only the creator, office admins or the ፅህፈት ቤት change an exam', async () => {
-    // Created by user 2; user 3 also runs the Mezmur department.
-    const otherMezmurAdmin = { id: 3, departmentIds: [4] } as unknown as AuthenticatedUser;
-    const secretariat = { id: 5, departmentIds: [1, 4] } as unknown as AuthenticatedUser;
+  it('lets only the creator, department heads, the ፅህፈት ቤት or office admins change an exam', async () => {
+    // Created by user 2; user 3 also works in the Mezmur department.
+    const otherTaker = actor(3, [4]);
+    const head = actor(4, [4], { permissions: ['exams.override'] });
+    const secretariat = actor(5, [1, 4], { inOffice: true });
     prisma.exam.findFirst.mockResolvedValue(examRow());
     prisma.examMark.count.mockResolvedValue(0);
 
     const forbidden = [
-      service.update(9, { heldOn: '2026-11-20' }, otherMezmurAdmin),
-      service.remove(9, otherMezmurAdmin),
-      service.setParts(9, { parts: [{ name: 'ዜማ', weight: 100 }] }, otherMezmurAdmin),
-      service.addCandidates(9, { memberIds: [1] }, otherMezmurAdmin),
-      service.removeCandidate(9, 1, otherMezmurAdmin),
-      service.setMarks(9, { marks: [{ partId: 1, memberId: 1, score: 30 }] }, otherMezmurAdmin),
+      service.update(9, { heldOn: '2026-11-20' }, otherTaker),
+      service.remove(9, otherTaker),
+      service.setParts(9, { parts: [{ name: 'ዜማ', weight: 100 }] }, otherTaker),
+      service.addCandidates(9, { memberIds: [1] }, otherTaker),
+      service.removeCandidate(9, 1, otherTaker),
+      service.setMarks(9, { marks: [{ partId: 1, memberId: 1, score: 30 }] }, otherTaker),
     ];
     for (const call of forbidden) await expect(call).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.exam.update).not.toHaveBeenCalled();
     // They can still see it.
-    await expect(service.findOne(9, otherMezmurAdmin)).resolves.toMatchObject({
-      canManage: false,
-    });
+    await expect(service.findOne(9, otherTaker)).resolves.toMatchObject({ canManage: false });
 
-    for (const actor of [mezmurAdmin, office, secretariat]) {
-      await service.update(9, { heldOn: '2026-11-20' }, actor);
-      await expect(service.findOne(9, actor)).resolves.toMatchObject({ canManage: true });
+    for (const who of [mezmurAdmin, head, office, secretariat]) {
+      await service.update(9, { heldOn: '2026-11-20' }, who);
+      await expect(service.findOne(9, who)).resolves.toMatchObject({ canManage: true });
     }
-    expect(prisma.exam.update).toHaveBeenCalledTimes(3);
+    expect(prisma.exam.update).toHaveBeenCalledTimes(4);
+  });
+
+  it('closes an exam to its creator 5 days after its date, but not to heads or the ፅህፈት ቤት', async () => {
+    jest.useFakeTimers({ now: new Date('2026-11-24T09:00:00Z'), doNotFake: ['nextTick'] });
+    try {
+      const head = actor(4, [4], { permissions: ['exams.override'] });
+      const secretariat = actor(5, [1, 4], { inOffice: true });
+      // Held on 19 Nov: open through the 24th, closed from the 25th.
+      prisma.exam.findFirst.mockResolvedValue(examRow({ heldOn: new Date('2026-11-19') }));
+      await expect(service.findOne(9, mezmurAdmin)).resolves.toMatchObject({
+        canManage: true,
+        editableUntil: '2026-11-24',
+      });
+
+      jest.setSystemTime(new Date('2026-11-25T09:00:00Z'));
+      await expect(service.findOne(9, mezmurAdmin)).resolves.toMatchObject({ canManage: false });
+      await expect(service.update(9, { passMark: 50 }, mezmurAdmin)).rejects.toMatchObject({
+        message: expect.stringContaining('closed for changes'),
+      });
+      for (const who of [head, secretariat, office]) {
+        await expect(service.update(9, { passMark: 50 }, who)).resolves.toBeDefined();
+      }
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

@@ -12,7 +12,10 @@ import {
   type DepartmentScope,
   memberScopeWhere,
 } from '../../common/auth/department-scope.js';
+import { withinEditWindow } from '../../common/auth/edit-window.js';
+import { PERMISSIONS } from '../../common/auth/permissions.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
 import { Paginated } from '../../common/pagination/paginated.js';
 import { dateOnly, todayIso } from '../../common/utils/dates.js';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -275,8 +278,13 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     return this.withCounts(await this.findRow(id, scope));
   }
 
-  async create(dto: CreateSessionDto, userId: number, scope: DepartmentScope, anyDay = true) {
-    assertDay(dto.date, anyDay);
+  async create(
+    dto: CreateSessionDto,
+    userId: number,
+    scope: DepartmentScope,
+    access: DayAccess = 'any',
+  ) {
+    assertDay(dto.date, access);
     const data = await this.toSessionData(dto, dto.kind, scope);
     const session = await this.prisma.attendanceSession.create({
       // A session entered after it ended (catching up on the past) is closed by hand.
@@ -302,11 +310,11 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     dto: UpdateSessionDto,
     userId: number,
     scope: DepartmentScope,
-    anyDay = true,
+    access: DayAccess = 'any',
   ) {
     const current = await this.findRow(id, scope);
-    assertDay(addisDateIso(current.startsAt), anyDay);
-    if (dto.date) assertDay(dto.date, anyDay);
+    assertDay(addisDateIso(current.startsAt), access);
+    if (dto.date) assertDay(dto.date, access);
     const merged = {
       title: dto.title ?? current.title,
       date: dto.date ?? addisDateIso(current.startsAt),
@@ -347,8 +355,13 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     return this.withCounts(session);
   }
 
-  async remove(id: number, userId: number, scope: DepartmentScope, anyDay = true): Promise<void> {
-    assertDay(addisDateIso((await this.findRow(id, scope)).startsAt), anyDay);
+  async remove(
+    id: number,
+    userId: number,
+    scope: DepartmentScope,
+    access: DayAccess = 'any',
+  ): Promise<void> {
+    assertDay(addisDateIso((await this.findRow(id, scope)).startsAt), access);
     await this.prisma.attendanceSession.delete({ where: { id } });
     await this.audit.record({
       userId,
@@ -359,9 +372,9 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Closing fills in Absent for everyone on the roster who was not marked, so the record is complete. */
-  async close(id: number, userId: number, scope: DepartmentScope, anyDay = true) {
+  async close(id: number, userId: number, scope: DepartmentScope, access: DayAccess = 'any') {
     const session = await this.findRow(id, scope);
-    assertDay(addisDateIso(session.startsAt), anyDay);
+    assertDay(addisDateIso(session.startsAt), access);
     await this.closeRow(session, userId, false);
     return this.findOne(id, scope);
   }
@@ -435,8 +448,8 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  async reopen(id: number, userId: number, scope: DepartmentScope, anyDay = true) {
-    assertDay(addisDateIso((await this.findRow(id, scope)).startsAt), anyDay);
+  async reopen(id: number, userId: number, scope: DepartmentScope, access: DayAccess = 'any') {
+    assertDay(addisDateIso((await this.findRow(id, scope)).startsAt), access);
     await this.prisma.attendanceSession.update({
       where: { id },
       // Reopened to correct it: it stays open until someone closes it again.
@@ -511,9 +524,15 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
    * A QR scan (or typed / USB-scanner ID): marks Present, or Late after the
    * grace period. Scanning someone already marked present changes nothing.
    */
-  async scan(id: number, code: string, userId: number, scope: DepartmentScope, anyDay = true) {
+  async scan(
+    id: number,
+    code: string,
+    userId: number,
+    scope: DepartmentScope,
+    access: DayAccess = 'any',
+  ) {
     const session = await this.openSession(id, scope);
-    assertDay(addisDateIso(session.startsAt), anyDay);
+    assertDay(addisDateIso(session.startsAt), access);
     const memberCode = normalizeMemberCode(code);
     const member = await this.prisma.member.findFirst({
       where: { memberCode, deletedAt: null },
@@ -590,10 +609,10 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     dto: MarkDto,
     userId: number,
     scope: DepartmentScope,
-    anyDay = true,
+    access: DayAccess = 'any',
   ) {
     const session = await this.openSession(id, scope);
-    assertDay(addisDateIso(session.startsAt), anyDay);
+    assertDay(addisDateIso(session.startsAt), access);
     if (!isRegular(session.kind) && dto.status !== AttendanceStatus.PRESENT) {
       throw new ValidationFailedException([
         { field: 'status', messages: ['Gatherings and events only record who was present'] },
@@ -622,8 +641,13 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     return recordView(record);
   }
 
-  async unmark(id: number, memberId: number, scope: DepartmentScope, anyDay = true): Promise<void> {
-    assertDay(addisDateIso((await this.openSession(id, scope)).startsAt), anyDay);
+  async unmark(
+    id: number,
+    memberId: number,
+    scope: DepartmentScope,
+    access: DayAccess = 'any',
+  ): Promise<void> {
+    assertDay(addisDateIso((await this.openSession(id, scope)).startsAt), access);
     // Clearing the mark would lose the note that they still have a vestment.
     const out = await this.prisma.attendanceRecord.count({
       where: { sessionId: id, memberId, vestmentTakenAt: { not: null }, vestmentReturnedAt: null },
@@ -1230,15 +1254,33 @@ const addisParts = (d: Date) => new Date(d.getTime() + 3 * 3_600_000).toISOStrin
 export const addisDateIso = (d: Date) => addisParts(d).slice(0, 10);
 
 /**
- * Attendance takers work on today's sessions only (Addis Ababa date);
- * creating or changing any other day needs attendance.any_day (department
- * and office admins).
+ * Which days a user may create or change attendance for (Addis Ababa date):
+ * attendance takers only today; attendance admins up to the 5th day after a
+ * session; department heads, the ፅህፈት ቤት and office administrators any day.
  */
-export function assertDay(date: string, anyDay: boolean): void {
-  if (!anyDay && date !== todayIso()) {
+export type DayAccess = 'today' | 'recent' | 'any';
+
+export function dayAccess(user: AuthenticatedUser): DayAccess {
+  if (!user.permissions.includes(PERMISSIONS.ATTENDANCE_ANY_DAY)) return 'today';
+  return user.departmentIds === null ||
+    user.inOffice ||
+    user.permissions.includes(PERMISSIONS.ATTENDANCE_OVERRIDE)
+    ? 'any'
+    : 'recent';
+}
+
+export function assertDay(date: string, access: DayAccess): void {
+  if (access === 'today' && date !== todayIso()) {
     throw new ForbiddenException({
       message: "You can only work on today's attendance. A department admin can change other days.",
       code: 'notToday',
+    });
+  }
+  if (access === 'recent' && !withinEditWindow(date)) {
+    throw new ForbiddenException({
+      message:
+        'This attendance closed for changes 5 days after its day. A department head, the ፅህፈት ቤት or an office administrator can still change it.',
+      code: 'attendanceClosed',
     });
   }
 }

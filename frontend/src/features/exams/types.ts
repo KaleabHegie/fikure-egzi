@@ -42,9 +42,9 @@ export interface Exam {
   /** Candidates with every part marked. */
   markedCount: number
   passedCount: number
-  /** The actor may change it: its creator until editableUntil; heads, the ፅህፈት ቤት and office admins any time. */
+  /** The actor may change it: the department's exam takers until editableUntil; heads, the ፅህፈት ቤት and office admins any time. */
   canManage: boolean
-  /** The last day ('YYYY-MM-DD') its creator may change it: 5 days after the exam (or its creation). */
+  /** The last day ('YYYY-MM-DD') exam takers may change it: 5 days after the exam (or its creation). */
   editableUntil: string
   createdById: number | null
   createdAt: string

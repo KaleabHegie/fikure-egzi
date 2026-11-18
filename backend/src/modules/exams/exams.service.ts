@@ -24,8 +24,6 @@ import type {
 
 const ENTITY = 'Exam';
 const OWN_DEPARTMENT = 'You can only manage the exams of the classes your department runs.';
-const OWNER_ONLY =
-  'Only the person who created this exam, a department head, the ፅህፈት ቤት or an office administrator can change it.';
 const CLOSED =
   'This exam closed for changes 5 days after its date. A department head, the ፅህፈት ቤት or an office administrator can still change it.';
 
@@ -103,9 +101,10 @@ const toExam = ({ _count, parts, classType: { department, ...classType }, ...e }
 /**
  * A class's own exams and assessments outside its courses (e.g. the Mezmur
  * class's St. John wereb assessment): free parts with weights, candidates
- * from the class's levels, and a mark per candidate per part. Department
- * admins see the exams of the classes their departments run; only an exam's
- * creator, office administrators and the ፅህፈት ቤት change it.
+ * from the class's levels, and a mark per candidate per part. A department's
+ * exam takers and heads manage the exams of the classes their departments run;
+ * exam takers until the 5th day after the exam, heads, the ፅህፈት ቤት and
+ * office administrators at any time.
  */
 @Injectable()
 export class ExamsService {
@@ -599,14 +598,14 @@ export class ExamsService {
 
   /**
    * An exam the actor may change in any way (details, parts, candidates,
-   * marks) or delete: its creator until the 5th day after the exam, and
-   * department heads, the ፅህፈት ቤት and office administrators at any time.
-   * Others in its department only view it.
+   * marks) or delete: anyone who manages its department's exams (e.g. its
+   * exam takers) until the 5th day after the exam, and department heads, the
+   * ፅህፈት ቤት and office administrators at any time.
    */
   private async owned(id: number, actor: AuthenticatedUser) {
     const row = await this.managed(id, actor);
     if (!mayEdit(row, actor)) {
-      throw new ForbiddenException(row.createdById === actor.id ? CLOSED : OWNER_ONLY);
+      throw new ForbiddenException(CLOSED);
     }
     return row;
   }
@@ -634,8 +633,8 @@ export class ExamsService {
 }
 
 function mayEdit(
-  exam: { createdById: number | null; heldOn: Date | null; createdAt: Date },
+  exam: { heldOn: Date | null; createdAt: Date },
   actor: AuthenticatedUser,
 ): boolean {
-  return oversees(actor) || (exam.createdById === actor.id && withinEditWindow(examDay(exam)));
+  return oversees(actor) || withinEditWindow(examDay(exam));
 }

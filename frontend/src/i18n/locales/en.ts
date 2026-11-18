@@ -1247,7 +1247,6 @@ export const en = {
     lock: {
       openUntil: 'You can change this exam until {{date}}. After that only a department head, the ፅህፈት ቤት or an office admin can.',
       closed: 'This exam could be changed until {{date}}, 5 days after it, and is now closed. A department head, the ፅህፈት ቤት or an office admin can still change it.',
-      notYours: 'Only the person who created this exam, a department head, the ፅህፈት ቤት or an office admin can change it.',
     },
     passMarkIs: 'pass mark {{mark}}',
     passMarkInvalid: 'A whole number from 1 to 100',

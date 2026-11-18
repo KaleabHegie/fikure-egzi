@@ -66,9 +66,8 @@ export function ExamPage() {
   const { exam, candidates } = sheet.data
   const title = i18n.language === 'en' && exam.nameEn ? exam.nameEn : exam.nameAm
   const passRate = exam.markedCount > 0 ? Math.round((exam.passedCount / exam.markedCount) * 100) : null
-  // Exam takers change their own exams until the 5th day after; heads and the ፅህፈት ቤት any time.
+  // Exam takers change the department's exams until the 5th day after; heads and the ፅህፈት ቤት any time.
   const limited = can(PERMISSIONS.EXAMS_MANAGE) && !oversees(user, can, PERMISSIONS.EXAMS_OVERRIDE)
-  const mine = exam.createdById === user?.id
   const until = formatDate(exam.editableUntil)
 
   return (
@@ -112,11 +111,7 @@ export function ExamPage() {
       {limited && (
         <p className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
           {exam.canManage ? <Clock className="size-4 shrink-0" /> : <Lock className="size-4 shrink-0" />}
-          {exam.canManage
-            ? t('exams.lock.openUntil', { date: until })
-            : mine
-              ? t('exams.lock.closed', { date: until })
-              : t('exams.lock.notYours')}
+          {exam.canManage ? t('exams.lock.openUntil', { date: until }) : t('exams.lock.closed', { date: until })}
         </p>
       )}
 

@@ -183,8 +183,7 @@ export const PERMISSION_DEFINITIONS: readonly PermissionDefinition[] = [
   {
     code: PERMISSIONS.EXAMS_OVERRIDE,
     module: 'exams',
-    description:
-      "Change any of the department's exams at any time, including ones others created and ones past their 5-day window",
+    description: "Change the department's exams at any time, also after their 5-day window",
   },
   {
     code: PERMISSIONS.USERS_MANAGE,

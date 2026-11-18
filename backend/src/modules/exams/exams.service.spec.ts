@@ -225,35 +225,27 @@ describe('ExamsService', () => {
     ).rejects.toMatchObject({ details: [{ messages: ['exams.notCandidate'] }] });
   });
 
-  it('lets only the creator, department heads, the ፅህፈት ቤት or office admins change an exam', async () => {
-    // Created by user 2; user 3 also works in the Mezmur department.
+  it("lets any of the department's exam takers, heads, the ፅህፈት ቤት or office admins change an exam", async () => {
+    // Created by user 2; user 3 is another exam taker of the Mezmur department.
     const otherTaker = actor(3, [4]);
     const head = actor(4, [4], { permissions: ['exams.override'] });
     const secretariat = actor(5, [1, 4], { inOffice: true });
     prisma.exam.findFirst.mockResolvedValue(examRow());
-    prisma.examMark.count.mockResolvedValue(0);
 
-    const forbidden = [
-      service.update(9, { heldOn: '2026-11-20' }, otherTaker),
-      service.remove(9, otherTaker),
-      service.setParts(9, { parts: [{ name: 'ዜማ', weight: 100 }] }, otherTaker),
-      service.addCandidates(9, { memberIds: [1] }, otherTaker),
-      service.removeCandidate(9, 1, otherTaker),
-      service.setMarks(9, { marks: [{ partId: 1, memberId: 1, score: 30 }] }, otherTaker),
-    ];
-    for (const call of forbidden) await expect(call).rejects.toBeInstanceOf(ForbiddenException);
-    expect(prisma.exam.update).not.toHaveBeenCalled();
-    // They can still see it.
-    await expect(service.findOne(9, otherTaker)).resolves.toMatchObject({ canManage: false });
-
-    for (const who of [mezmurAdmin, head, office, secretariat]) {
+    for (const who of [mezmurAdmin, otherTaker, head, office, secretariat]) {
       await service.update(9, { heldOn: '2026-11-20' }, who);
       await expect(service.findOne(9, who)).resolves.toMatchObject({ canManage: true });
     }
-    expect(prisma.exam.update).toHaveBeenCalledTimes(4);
+    expect(prisma.exam.update).toHaveBeenCalledTimes(5);
+
+    // Another department's exam taker doesn't even find it.
+    prisma.exam.findFirst.mockResolvedValue(null);
+    await expect(service.update(9, { passMark: 50 }, actor(6, [2]))).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
-  it('closes an exam to its creator 5 days after its date, but not to heads or the ፅህፈት ቤት', async () => {
+  it('closes an exam to exam takers 5 days after its date, but not to heads or the ፅህፈት ቤት', async () => {
     jest.useFakeTimers({ now: new Date('2026-11-24T09:00:00Z'), doNotFake: ['nextTick'] });
     try {
       const head = actor(4, [4], { permissions: ['exams.override'] });
@@ -267,9 +259,11 @@ describe('ExamsService', () => {
 
       jest.setSystemTime(new Date('2026-11-25T09:00:00Z'));
       await expect(service.findOne(9, mezmurAdmin)).resolves.toMatchObject({ canManage: false });
-      await expect(service.update(9, { passMark: 50 }, mezmurAdmin)).rejects.toMatchObject({
-        message: expect.stringContaining('closed for changes'),
-      });
+      for (const taker of [mezmurAdmin, actor(3, [4])]) {
+        await expect(service.update(9, { passMark: 50 }, taker)).rejects.toMatchObject({
+          message: expect.stringContaining('closed for changes'),
+        });
+      }
       for (const who of [head, secretariat, office]) {
         await expect(service.update(9, { passMark: 50 }, who)).resolves.toBeDefined();
       }

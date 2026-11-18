@@ -123,7 +123,7 @@ export function ExamPage() {
           }
           actions={
             <>
-              <PrintButton disabled={candidates.length === 0} />
+              <PrintButton disabled={candidates.length === 0} name={title} />
               {exam.canManage && (
                 <>
                   <Button variant="outline" onClick={() => setEditing(true)}>

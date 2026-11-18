@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { useClassTypes } from '@/features/classes/api'
+import { formatDate } from '@/lib/format'
 import { useDepartments } from '@/features/departments/api'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { useMemberLabels } from '../labels'
@@ -30,6 +31,8 @@ const SEARCH_DEBOUNCE_MS = 300
 /** One active filter, shown as a removable chip. */
 interface Chip {
   param: keyof MemberListParams
+  /** Other params cleared with it (a date range is one chip). */
+  also?: (keyof MemberListParams)[]
   category: string
   value: string
 }
@@ -94,6 +97,40 @@ export function MemberFilters({
     })
   }
 
+  // Filters reached by clicking a number (dashboard, classes, departments).
+  const classType = classTypes?.find((type) => String(type.id) === String(params.classTypeId))
+  if (classType) chips.push({ param: 'classTypeId', category: t('members.table.classes'), value: localName(classType) })
+  if (params.placed !== undefined) {
+    chips.push({
+      param: 'placed',
+      category: t('members.table.classes'),
+      value: params.placed ? t('members.filters.placed') : t('members.filters.notPlaced'),
+    })
+  }
+  if (params.inDepartment !== undefined) {
+    chips.push({
+      param: 'inDepartment',
+      category: t('nav.departments'),
+      value: params.inDepartment ? t('members.filters.inDepartment') : t('members.filters.noDepartment'),
+    })
+  }
+  if (params.joinedFrom || params.joinedTo) {
+    chips.push({
+      param: 'joinedFrom',
+      also: ['joinedTo'],
+      category: t('members.filters.joined'),
+      value: `${params.joinedFrom ? formatDate(params.joinedFrom) : '…'} – ${params.joinedTo ? formatDate(params.joinedTo) : '…'}`,
+    })
+  }
+
+  if (params.completion) {
+    chips.push({
+      param: 'completion',
+      category: t('members.completion.label'),
+      value: params.completion === 'complete' ? t('dashboard.completionComplete') : t('dashboard.completionUnderHalf'),
+    })
+  }
+
   const set = (param: keyof MemberListParams, v: string | undefined) =>
     onChange({ [param]: v } as Partial<Record<keyof MemberListParams, string | undefined>>)
   const radio = (param: keyof MemberListParams) => ({
@@ -120,7 +157,9 @@ export function MemberFilters({
           key={chip.param}
           category={chip.category}
           value={chip.value}
-          onClear={() => set(chip.param, undefined)}
+          onClear={() =>
+            onChange(Object.fromEntries([chip.param, ...(chip.also ?? [])].map((p) => [p, undefined])))
+          }
         />
       ))}
 

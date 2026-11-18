@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { ecMonthName } from '@/lib/ethiopian-calendar'
 import { cn } from '@/lib/utils'
-import { type Bucket, bucketByEcMonth } from './ec-buckets'
+import { type Bucket, bucketByEcMonth, joinedInLink } from './ec-buckets'
 
 
 /** Single-series column chart: one hue (chart-1), thin rounded columns, hover tooltip, table for screen readers. */
@@ -38,8 +39,11 @@ export function JoinedChart({ days }: { days: { date: string; count: number }[] 
             const pct = (b.count / top) * 100
             const showValue = i === peak || i === buckets.length - 1
             return (
-              <div
+              // Each column opens the members who joined that month.
+              <Link
                 key={b.key}
+                to={joinedInLink(b)}
+                aria-label={`${label(b)}: ${b.count}`}
                 className="group relative flex h-full flex-1 items-end justify-center"
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
@@ -65,7 +69,7 @@ export function JoinedChart({ days }: { days: { date: string; count: number }[] 
                     </div>
                   </div>
                 )}
-              </div>
+              </Link>
             )
           })}
         </div>

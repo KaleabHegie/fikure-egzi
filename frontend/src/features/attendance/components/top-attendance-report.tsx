@@ -287,7 +287,7 @@ export function TopAttendanceReport() {
                   </p>
                 </div>
               </div>
-              <PrintButton size="sm" />
+              <PrintButton size="sm" name={t('attendance.top.title')} />
             </header>
             <div className="overflow-x-auto">
               <Table>

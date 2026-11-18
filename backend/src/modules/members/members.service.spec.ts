@@ -73,6 +73,35 @@ describe('MembersService', () => {
     });
   });
 
+  describe('buildWhere filters behind the dashboard numbers', () => {
+    it('class type, placed, in a department and joined between', () => {
+      const where = service.buildWhere(
+        makeQuery({
+          classTypeId: 3,
+          placed: true,
+          inDepartment: false,
+          joinedFrom: '2026-09-11',
+          joinedTo: '2026-10-10',
+        }),
+      );
+      expect(where.AND).toEqual([
+        { classEnrollments: { some: { classGrade: { classTypeId: 3 } } } },
+        { classEnrollments: { some: {} } },
+      ]);
+      expect(where.departmentRoles).toEqual({ none: {} });
+      expect(where.joinedAt).toEqual({
+        gte: new Date('2026-09-11T00:00:00.000Z'),
+        lte: new Date('2026-10-10T00:00:00.000Z'),
+      });
+    });
+
+    it('keeps search words alongside the class conditions', () => {
+      const where = service.buildWhere(makeQuery({ placed: false, search: 'Abebe' }));
+      expect(where.AND).toHaveLength(2);
+      expect((where.AND as unknown[])[0]).toEqual({ classEnrollments: { none: {} } });
+    });
+  });
+
   describe('findAll', () => {
     it('returns a paginated result', async () => {
       prisma.member.count.mockResolvedValue(45);
@@ -89,6 +118,42 @@ describe('MembersService', () => {
         total: 45,
         totalPages: 3,
       });
+    });
+  });
+
+  describe('findAll by completion', () => {
+    it('keeps only members whose record is complete, scored like the dashboard', async () => {
+      const full = {
+        grandfatherName: 'A',
+        christianName: 'B',
+        dateOfBirth: new Date(),
+        placeOfBirth: 'C',
+        maritalStatus: 'SINGLE',
+        spiritualFatherName: 'D',
+        phone: '0911',
+        city: 'E',
+        subCity: 'F',
+        woreda: '1',
+        houseNumber: '2',
+        educationLevel: 'PRIMARY',
+        occupation: 'G',
+        emergencyContactName: 'H',
+        emergencyContactRelation: 'I',
+        emergencyContactPhone: '0912',
+        photoPath: 'p.jpg',
+      };
+      prisma.member.findMany
+        .mockResolvedValueOnce([
+          { id: 1, ...full },
+          { id: 2, ...full, phone: null },
+        ])
+        .mockResolvedValueOnce([]);
+      prisma.member.count.mockResolvedValue(1);
+
+      await service.findAll(makeQuery({ page: 1, pageSize: 20, completion: 'complete' }));
+
+      const listed = prisma.member.findMany.mock.calls[1][0] as { where: { AND: unknown[] } };
+      expect(listed.where.AND[1]).toEqual({ id: { in: [1] } });
     });
   });
 

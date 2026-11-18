@@ -200,6 +200,11 @@ export const am: Translations = {
       allPhotos: 'ሁሉም',
       withPhoto: 'ፎቶ ያላቸው',
       withoutPhoto: 'ፎቶ የሌላቸው',
+      placed: 'በክፍል የተመደቡ',
+      notPlaced: 'በክፍል ያልተመደቡ',
+      inDepartment: 'በአገልግሎት ክፍል የሚያገለግሉ',
+      noDepartment: 'በአገልግሎት ክፍል የማያገለግሉ',
+      joined: 'የተቀላቀሉበት',
     },
     completion: {
       label: 'የመረጃ ሙሉነት',
@@ -333,6 +338,15 @@ export const am: Translations = {
       period: '{{from}} – {{to}}',
       noClasses: 'እስካሁን የክፍል ታሪክ የለም።',
       noDepartments: 'እስካሁን የአገልግሎት ታሪክ የለም።',
+    },
+    listPrint: {
+      button: 'ዝርዝሩን አትም',
+      title: 'የአባላት ዝርዝር',
+      count_one: '{{count}} አባል',
+      count_other: '{{count}} አባላት',
+      loading: 'ዝርዝሩን በማዘጋጀት ላይ…',
+      search: 'ፍለጋ፦ «{{q}}»',
+      filtered: 'በዝርዝሩ ማጣሪያ መሠረት',
     },
     qr: {
       title: 'QR ኮድ',

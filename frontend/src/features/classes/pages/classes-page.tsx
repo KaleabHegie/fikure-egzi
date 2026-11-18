@@ -128,7 +128,10 @@ function ClassTypeCard({
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
           <p className="text-xs text-muted-foreground">
             <span className="font-mono">{type.code}</span> · {t('classes.grades', { count: type.grades.length })} ·{' '}
-            {t('classes.members', { count: type.memberCount })} ·{' '}
+            <Link to={`/members?classTypeId=${type.id}`} className="underline-offset-2 hover:text-foreground hover:underline">
+              {t('classes.members', { count: type.memberCount })}
+            </Link>{' '}
+            ·{' '}
             {t('classes.runBy', { name: name(type.department) })}
           </p>
         </div>

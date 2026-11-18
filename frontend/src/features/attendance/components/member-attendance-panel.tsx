@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { attendanceApi, attendanceKeys } from '../api'
 import { STATUS_STYLES } from '../status-styles'
 import { addisEthTime, formatDuration, sessionDate, sessionTimes } from '../time'
-import { ATTENDANCE_STATUSES, type MemberAttendanceSummary } from '../types'
+import { ATTENDANCE_STATUSES, type AttendanceStatus, type MemberAttendanceSummary } from '../types'
 import { AttendanceStatusBadge } from './status-badge'
 
 type Preset = 'month' | 'quarter' | 'year' | 'all' | 'custom'
@@ -62,6 +62,8 @@ export function MemberAttendancePanel({
   const [range, setRange] = useState(() => presetRange('year'))
   // 'all', or a running department id (0 = the office).
   const [deptFilter, setDeptFilter] = useState<'all' | number>('all')
+  // Pressing a status count shows only those sessions.
+  const [statusFilter, setStatusFilter] = useState<'all' | AttendanceStatus>('all')
   const period = { from: range.from || undefined, to: range.to || undefined }
   const { data, isPending, isError, isFetching } = useQuery({
     queryKey: [...attendanceKeys.member(memberId), load ? 'portal' : 'staff', period],
@@ -87,7 +89,11 @@ export function MemberAttendancePanel({
       ? data
       : (selected ?? { sessions: 0, rate: null, minutesAttended: 0, present: 0, late: 0, absent: 0, excused: 0 }))
   const shownRecords =
-    data?.records.filter((r) => deptFilter === 'all' || (r.department?.id ?? 0) === deptFilter) ?? []
+    data?.records.filter(
+      (r) =>
+        (deptFilter === 'all' || (r.department?.id ?? 0) === deptFilter) &&
+        (statusFilter === 'all' || r.status === statusFilter),
+    ) ?? []
 
   return (
     <section className="rounded-xl border bg-card p-5 lg:col-span-2">
@@ -188,13 +194,31 @@ export function MemberAttendancePanel({
               </p>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full border px-2 py-0.5 text-xs font-medium">
+              <button
+                type="button"
+                aria-pressed={statusFilter === 'all'}
+                onClick={() => setStatusFilter('all')}
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-xs font-medium transition-shadow',
+                  statusFilter === 'all' && 'ring-2 ring-primary ring-offset-1 ring-offset-card',
+                )}
+              >
                 {t('attendance.member.sessions', { count: shown!.sessions })}
-              </span>
+              </button>
               {ATTENDANCE_STATUSES.map((st) => (
-                <span key={st} className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[st]}`}>
+                <button
+                  key={st}
+                  type="button"
+                  aria-pressed={statusFilter === st}
+                  onClick={() => setStatusFilter((now) => (now === st ? 'all' : st))}
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-xs font-medium transition-shadow',
+                    STATUS_STYLES[st],
+                    statusFilter === st && 'ring-2 ring-primary ring-offset-1 ring-offset-card',
+                  )}
+                >
                   {t(`attendance.statuses.${st}`)} {shown![st.toLowerCase() as 'present']}
-                </span>
+                </button>
               ))}
             </div>
           </div>

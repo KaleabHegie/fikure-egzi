@@ -1,10 +1,17 @@
-import { ecToday, gcToEc } from '@/lib/ethiopian-calendar'
+import { ecMonthBounds, ecToday, gcToEc } from '@/lib/ethiopian-calendar'
 
 export interface Bucket {
   key: string
   year: number
   month: number
   count: number
+}
+
+/** The members list showing who joined in this month (Nehase includes Pagume, as in the chart). */
+export function joinedInLink(b: Pick<Bucket, 'year' | 'month'>): string {
+  const from = ecMonthBounds(b.year, b.month).start
+  const to = ecMonthBounds(b.year, b.month === 12 ? 13 : b.month).end
+  return `/members?joinedFrom=${from}&joinedTo=${to}`
 }
 
 /**

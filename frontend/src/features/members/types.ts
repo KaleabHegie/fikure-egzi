@@ -108,6 +108,17 @@ export interface MemberListParams {
   selfRegistered?: boolean
   /** true: only members with a photo; false: only those without. */
   hasPhoto?: boolean
+  /** Some level of this class. */
+  classTypeId?: number
+  /** true: in at least one class; false: in none. */
+  placed?: boolean
+  /** true: serving in at least one department; false: in none. */
+  inDepartment?: boolean
+  /** Joined between these days (YYYY-MM-DD, inclusive). */
+  joinedFrom?: string
+  joinedTo?: string
+  /** Record completeness, as on the dashboard. */
+  completion?: 'complete' | 'underHalf'
   sortBy?: MemberSortField
   sortOrder?: SortOrder
 }

@@ -34,7 +34,7 @@ import { formatDate } from '@/lib/format'
 import { NAVIGATION } from '@/components/layout/navigation'
 import { PERMISSIONS, type PermissionCode } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { bucketByEcMonth } from '../components/ec-buckets'
+import { bucketByEcMonth, joinedInLink } from '../components/ec-buckets'
 import { JoinedChart } from '../components/joined-chart'
 
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0)
@@ -118,11 +118,17 @@ function KpiTile({
   icon: Icon,
   meter,
   delay,
+  to,
+  hintTo,
 }: {
   label: string
   value: number
   hint: string
   icon: LucideIcon
+  /** The members list this number counts. */
+  to?: string
+  /** A different list for the hint's number. */
+  hintTo?: string
   /** 0–100: optional thin progress meter under the number. */
   meter?: number
   /** Entrance stagger in ms. */
@@ -131,12 +137,22 @@ function KpiTile({
   const shown = useCountUp(value)
   return (
     <div
-      className="rise-in card-lift flex flex-col rounded-xl border bg-card p-5"
+      className={cn(
+        'rise-in card-lift relative flex flex-col rounded-xl border bg-card p-5',
+        to && 'transition-colors hover:border-primary/40 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring/40',
+      )}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium tracking-wide text-muted-foreground">{label}</p>
+          {to ? (
+            // The whole tile is the link (its ::after covers the tile); the hint can still be its own.
+            <Link to={to} className="block truncate text-xs font-medium tracking-wide text-muted-foreground outline-none after:absolute after:inset-0 after:rounded-xl">
+              {label}
+            </Link>
+          ) : (
+            <p className="truncate text-xs font-medium tracking-wide text-muted-foreground">{label}</p>
+          )}
           <p className="tabular mt-2.5 font-record text-[2.6rem] leading-none font-semibold">{shown.toLocaleString()}</p>
         </div>
         <span
@@ -156,10 +172,21 @@ function KpiTile({
             />
           </div>
         )}
-        <p className="text-xs text-muted-foreground">{hint}</p>
+        {hintTo ? (
+          <Link to={hintTo} className="relative z-10 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+            {hint}
+          </Link>
+        ) : (
+          <p className="text-xs text-muted-foreground">{hint}</p>
+        )}
       </div>
     </div>
   )
+}
+
+/** A row that opens a filtered list when it has somewhere to go. */
+function LinkOrDiv({ to, ...props }: { to?: string } & React.HTMLAttributes<HTMLElement>) {
+  return to ? <Link to={to} {...props} /> : <div {...props} />
 }
 
 const DONUT_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
@@ -169,7 +196,18 @@ const DONUT_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var
  * The legend carries every label and count as text, so identity is never
  * color alone; hovering a legend row lights up its slice.
  */
-function Donut<K extends string>({ rows, label, total }: { rows: CountByKey<K>[]; label: (k: K) => string; total: number }) {
+function Donut<K extends string>({
+  rows,
+  label,
+  total,
+  to,
+}: {
+  rows: CountByKey<K>[]
+  label: (k: K) => string
+  total: number
+  /** The members list for one slice. */
+  to?: (k: K) => string
+}) {
   const { t } = useTranslation()
   const [hovered, setHovered] = useState<K | null>(null)
   const sorted = [...rows].filter((r) => r.count > 0).sort((a, b) => b.count - a.count)
@@ -224,7 +262,8 @@ function Donut<K extends string>({ rows, label, total }: { rows: CountByKey<K>[]
       <ul className="min-w-0 flex-1 space-y-1">
         {segments.map(({ row, color }) => (
           <li key={row.key}>
-            <div
+            <LinkOrDiv
+              to={to?.(row.key)}
               className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-muted/60"
               onMouseEnter={() => setHovered(row.key)}
               onMouseLeave={() => setHovered(null)}
@@ -235,7 +274,8 @@ function Donut<K extends string>({ rows, label, total }: { rows: CountByKey<K>[]
               <span className="tabular w-10 shrink-0 text-right text-xs text-muted-foreground">
                 {pct(row.count, total)}%
               </span>
-            </div>
+              {to && <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+            </LinkOrDiv>
           </li>
         ))}
       </ul>
@@ -270,10 +310,18 @@ function DepartmentsOverview() {
       <ul className="space-y-2.5">
         {departments.map((d) => (
           <li key={d.id}>
-            <Link to={`/departments/${d.id}`} className="group block">
+            <div className="block">
               <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="truncate font-medium group-hover:underline">{name(d)}</span>
-                <span className="tabular shrink-0 text-xs text-muted-foreground">{d.memberCount}</span>
+                <Link to={`/departments/${d.id}`} className="truncate font-medium hover:underline">
+                  {name(d)}
+                </Link>
+                <Link
+                  to={`/members?departmentId=${d.id}`}
+                  aria-label={`${name(d)}: ${t('classes.members', { count: d.memberCount })}`}
+                  className="tabular shrink-0 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  {d.memberCount}
+                </Link>
               </div>
               <div className="mt-1 flex items-center gap-3">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
@@ -284,7 +332,7 @@ function DepartmentsOverview() {
                   <span className="truncate">{d.head ? memberFullName(d.head) : t('dashboard.noHead')}</span>
                 </span>
               </div>
-            </Link>
+            </div>
           </li>
         ))}
       </ul>
@@ -308,9 +356,12 @@ function ClassesOverview() {
             <div key={type.id}>
               <div className="mb-2 flex items-baseline justify-between text-sm">
                 <span className="font-medium">{name(type)}</span>
-                <span className="tabular text-xs text-muted-foreground">
+                <Link
+                  to={`/members?classTypeId=${type.id}`}
+                  className="tabular rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
                   {t('classes.members', { count: type.memberCount })}
-                </span>
+                </Link>
               </div>
               <div className="flex h-24 items-end gap-[2px]">
                 {type.grades.map((g) => (
@@ -350,13 +401,18 @@ function ClassesOverview() {
 const share = (part: number, whole: number) =>
   part === 0 || part === whole ? pct(part, whole) : Math.min(Math.max(pct(part, whole), 1), 99)
 
-/** How complete members' records are; the photo counts open the members list filtered by photo. */
+/** How complete members' records are; every count opens the members list it counts. */
 function CompletionOverview({ total, completion }: { total: number; completion: MemberStats['completion'] }) {
   const { t } = useTranslation()
   const shown = useCountUp(completion.average)
   const rows: { label: string; count: number; to?: string; tone: string }[] = [
-    { label: t('dashboard.completionComplete'), count: completion.complete, tone: 'bg-primary' },
-    { label: t('dashboard.completionUnderHalf'), count: completion.underHalf, tone: 'bg-destructive' },
+    { label: t('dashboard.completionComplete'), count: completion.complete, to: '/members?completion=complete', tone: 'bg-primary' },
+    {
+      label: t('dashboard.completionUnderHalf'),
+      count: completion.underHalf,
+      to: '/members?completion=underHalf',
+      tone: 'bg-destructive',
+    },
     { label: t('dashboard.completionWithPhoto'), count: completion.withPhoto, to: '/members?hasPhoto=true', tone: 'bg-chart-1' },
     {
       label: t('dashboard.completionWithoutPhoto'),
@@ -466,6 +522,8 @@ function Overview() {
           label={t('dashboard.registered')}
           value={data.total}
           icon={Users}
+          to="/members"
+          hintTo={joinedInLink(ecToday())}
           hint={t('dashboard.joinedThisMonth', {
             count: thisMonth,
             month: ecMonthName(Math.min(ecToday().month, 12), lang),
@@ -475,6 +533,7 @@ function Overview() {
           label={t('dashboard.active')}
           value={active}
           icon={UserCheck}
+          to="/members?status=ACTIVE"
           delay={60}
           meter={pct(active, data.total)}
           hint={t('dashboard.share', { pct: pct(active, data.total) })}
@@ -484,6 +543,7 @@ function Overview() {
             label={t('dashboard.serving')}
             value={data.servingInDepartments}
             icon={Building2}
+            to="/members?inDepartment=true"
             delay={120}
             meter={pct(data.servingInDepartments, data.total)}
             hint={t('dashboard.share', { pct: pct(data.servingInDepartments, data.total) })}
@@ -494,6 +554,8 @@ function Overview() {
             label={t('dashboard.placed')}
             value={data.placedInClasses}
             icon={BookOpen}
+            to="/members?placed=true"
+            hintTo="/members?placed=false"
             delay={180}
             meter={pct(data.placedInClasses, data.total)}
             hint={t('dashboard.notPlaced', { count: notPlaced })}
@@ -507,7 +569,7 @@ function Overview() {
           <JoinedChart days={data.joinedByDay} />
         </Card>
         <Card title={t('dashboard.byGender')} delay={280}>
-          <Donut rows={data.byGender} label={labels.gender} total={data.total} />
+          <Donut rows={data.byGender} label={labels.gender} total={data.total} to={(g) => `/members?gender=${g}`} />
         </Card>
       </div>
 
@@ -518,7 +580,7 @@ function Overview() {
           <CompletionOverview total={data.total} completion={data.completion} />
           <RecentMembers />
           <Card title={t('dashboard.byStatus')}>
-            <Donut rows={data.byStatus} label={labels.status} total={data.total} />
+            <Donut rows={data.byStatus} label={labels.status} total={data.total} to={(s) => `/members?status=${s}`} />
           </Card>
         </div>
       </div>

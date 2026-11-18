@@ -5,27 +5,36 @@ import logoUrl from '@/assets/logo.png'
 import { AMHARIC_NAME } from '@/components/layout/brand-mark'
 import { Button } from '@/components/ui/button'
 import { formatEth } from '@/lib/ethiopian-calendar'
-import { isNativeApp } from '@/lib/native'
+import { printPage } from '@/lib/print'
 import { cn } from '@/lib/utils'
 
 /**
- * Prints the page. Hidden in the Android app, whose web view cannot print;
- * reports are printed from the website.
+ * Prints the page, or saves it as a PDF (a choice in every print screen): the
+ * browser's print dialog, or Android's print screen inside the app.
+ * `name` becomes the PDF's file name.
  */
 export function PrintButton({
   className,
   disabled,
   size = 'default',
+  variant = 'outline',
+  name,
 }: {
   className?: string
   disabled?: boolean
-  size?: 'default' | 'sm'
+  size?: 'default' | 'sm' | 'lg'
+  variant?: 'outline' | 'default'
+  name?: string
 }) {
   const { t } = useTranslation()
-  const [native] = useState(isNativeApp)
-  if (native) return null
   return (
-    <Button variant="outline" size={size} onClick={() => window.print()} disabled={disabled} className={cn('print:hidden', className)}>
+    <Button
+      variant={variant}
+      size={size}
+      onClick={() => void printPage(name)}
+      disabled={disabled}
+      className={cn('print:hidden', className)}
+    >
       <Printer />
       {t('print.print')}
     </Button>
@@ -36,7 +45,16 @@ export function PrintButton({
  * The top of a printed report: the seal and school name, what the report is, the
  * filters it was printed with, and when. Only shows on paper.
  */
-export function PrintHeader({ title, details }: { title: string; details?: (string | null | false | undefined)[] }) {
+export function PrintHeader({
+  title,
+  details,
+  screen,
+}: {
+  title: string
+  details?: (string | null | false | undefined)[]
+  /** Also show it on screen (print preview pages). */
+  screen?: boolean
+}) {
   const { t, i18n } = useTranslation()
   const lines = (details ?? []).filter(Boolean) as string[]
   // The time printed is when the print dialog opens, not when the page loaded.
@@ -48,7 +66,7 @@ export function PrintHeader({ title, details }: { title: string; details?: (stri
   }, [])
   const printed = formatEth(now, 'datetime', i18n.language === 'am' ? 'am' : 'en')
   return (
-    <header className="mb-4 hidden border-b-2 border-black pb-3 text-black print:block">
+    <header className={cn('mb-4 border-b-2 border-black pb-3 text-black', screen ? 'block' : 'hidden print:block')}>
       <div className="flex items-center gap-3">
         <img src={logoUrl} alt="" className="size-14 rounded-full" />
         <div className="min-w-0 flex-1">

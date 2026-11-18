@@ -15,7 +15,7 @@ import {
 import { FileStorageService } from '../storage/file-storage.service.js';
 import { dateOnly, today, todayIso } from '../../common/utils/dates.js';
 import { CreateMemberDto } from './dto/create-member.dto.js';
-import { QueryMembersDto } from './dto/query-members.dto.js';
+import { type MemberCompletionFilter, QueryMembersDto } from './dto/query-members.dto.js';
 import { UpdateMemberDto } from './dto/update-member.dto.js';
 import { formatMemberCode } from './member-code.js';
 import { COMPLETION_SELECT, memberCompletion, type MemberCompletion } from './member-completion.js';
@@ -184,9 +184,10 @@ export class MembersService {
     query: QueryMembersDto,
     scope: DepartmentScope = null,
   ): Promise<Paginated<MemberRecord>> {
-    const where: Prisma.MemberWhereInput = {
+    const base: Prisma.MemberWhereInput = {
       AND: [this.buildWhere(query), memberScopeWhere(scope)],
     };
+    const where = query.completion ? await this.withCompletion(base, query.completion) : base;
     const orderBy: Prisma.MemberOrderByWithRelationInput[] = [
       { [query.sortBy]: query.sortOrder },
       { id: query.sortOrder },
@@ -724,8 +725,37 @@ export class MembersService {
    * "Abebe Kebede" finds first name Abebe + father's name Kebede.
    * MySQL's default *_ci collation makes `contains` case-insensitive.
    */
+  /**
+   * Completion is scored from the record's fields (not stored), so the members
+   * matching it are found the way the dashboard counts them: score each one.
+   */
+  private async withCompletion(
+    where: Prisma.MemberWhereInput,
+    completion: MemberCompletionFilter,
+  ): Promise<Prisma.MemberWhereInput> {
+    const rows = await this.prisma.member.findMany({
+      where,
+      select: { id: true, ...COMPLETION_SELECT },
+    });
+    const ids = rows
+      .filter((m) => {
+        const percent = memberCompletion(m).percent;
+        return completion === 'complete' ? percent === 100 : percent < 50;
+      })
+      .map((m) => m.id);
+    return { AND: [where, { id: { in: ids } }] };
+  }
+
   buildWhere(query: QueryMembersDto): Prisma.MemberWhereInput {
     const terms = (query.search ?? '').split(' ').filter(Boolean).slice(0, 5);
+    const classConditions: Prisma.MemberWhereInput[] = [
+      ...(query.classTypeId
+        ? [{ classEnrollments: { some: { classGrade: { classTypeId: query.classTypeId } } } }]
+        : []),
+      ...(query.placed !== undefined
+        ? [{ classEnrollments: query.placed ? { some: {} } : { none: {} } }]
+        : []),
+    ];
     return {
       deletedAt: null,
       ...(query.gender && { gender: query.gender }),
@@ -741,8 +771,20 @@ export class MembersService {
       ...(query.departmentId && {
         departmentRoles: { some: { departmentId: query.departmentId } },
       }),
-      ...(terms.length > 0 && {
-        AND: terms.map((term) => memberSearchWhere(term)),
+      ...(query.inDepartment !== undefined && {
+        departmentRoles: query.inDepartment ? { some: {} } : { none: {} },
+      }),
+      ...(query.joinedFrom || query.joinedTo
+        ? {
+            joinedAt: {
+              ...(query.joinedFrom && { gte: dateOnly(query.joinedFrom) }),
+              ...(query.joinedTo && { lte: dateOnly(query.joinedTo) }),
+            },
+          }
+        : {}),
+      // Class filters can combine (a type and "placed"), so each is its own condition, next to the search words.
+      ...(classConditions.length + terms.length > 0 && {
+        AND: [...classConditions, ...terms.map((term) => memberSearchWhere(term))],
       }),
     };
   }

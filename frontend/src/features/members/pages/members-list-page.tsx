@@ -1,4 +1,4 @@
-import { FileSpreadsheet, IdCard, QrCode, UserPlus, Users } from 'lucide-react'
+import { FileSpreadsheet, IdCard, Printer, QrCode, UserPlus, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router'
@@ -60,6 +60,16 @@ export function MembersListPage() {
     </Button>
   )
 
+  // Same filters as the list; in the same tab, so it also works in the app.
+  const printListButton = (
+    <Button asChild size="lg" variant="outline">
+      <Link to={`/members/print${search}`}>
+        <Printer />
+        {t('members.listPrint.button')}
+      </Link>
+    </Button>
+  )
+
   const registerButton = (
     <Can permission={PERMISSIONS.MEMBERS_CREATE}>
       <Button size="lg" variant="outline" onClick={() => setImportOpen(true)}>
@@ -82,6 +92,7 @@ export function MembersListPage() {
         description={data ? t('members.count', { count: data.meta.total.toLocaleString() }) : t('members.description')}
         actions={
           <>
+            {printListButton}
             {printCardsButton}
             {printIdCardsButton}
             {registerButton}

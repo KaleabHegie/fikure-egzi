@@ -138,7 +138,7 @@ export function LowAttendanceReport() {
                 </span>
                 {t('attendance.report.count', { count: data.members.length })}
               </p>
-              <PrintButton size="sm" />
+              <PrintButton size="sm" name={t('attendance.report.title')} />
             </div>
             <Table>
               <TableHeader>

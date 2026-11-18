@@ -201,6 +201,11 @@ export const en = {
       allPhotos: 'All',
       withPhoto: 'With photo',
       withoutPhoto: 'Without photo',
+      placed: 'Placed in a class',
+      notPlaced: 'Not in any class',
+      inDepartment: 'Serving in a department',
+      noDepartment: 'Not in any department',
+      joined: 'Joined',
     },
     completion: {
       label: 'Information complete',
@@ -334,6 +339,15 @@ export const en = {
       period: '{{from}} – {{to}}',
       noClasses: 'No class history yet.',
       noDepartments: 'No department history yet.',
+    },
+    listPrint: {
+      button: 'Print list',
+      title: 'Member list',
+      count_one: '{{count}} member',
+      count_other: '{{count}} members',
+      loading: 'Preparing the list…',
+      search: 'Search: “{{q}}”',
+      filtered: 'Filtered as on the member list',
     },
     qr: {
       title: 'QR code',

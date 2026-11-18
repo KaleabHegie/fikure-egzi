@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { ErrorState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
+import { printPage } from '@/lib/print'
 import { QrTile } from '../components/qr-tile'
 import { usePrintMembers } from '../use-print-members'
 
@@ -34,7 +35,7 @@ export function MemberCardsPage() {
             {isPending ? t('members.qr.loadingCards') : t('members.qr.cardsCount', { count: data.length })}
           </p>
         </div>
-        <Button onClick={() => window.print()} disabled={isPending || data.length === 0}>
+        <Button onClick={() => void printPage()} disabled={isPending || data.length === 0}>
           {isPending ? <Loader2 className="animate-spin" /> : <Printer />}
           {t('members.qr.print')}
         </Button>

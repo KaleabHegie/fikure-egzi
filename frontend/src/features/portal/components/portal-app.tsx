@@ -11,6 +11,7 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
 import logoUrl from '@/assets/logo.png'
@@ -19,6 +20,7 @@ import { LanguageSwitch } from '@/components/layout/preferences'
 import { useAndroidBack } from '@/components/layout/use-android-back'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { MemberAttendancePanel } from '@/features/attendance/components/member-attendance-panel'
+import { presetRange } from '@/features/attendance/components/period-filter'
 import { useGradeLabel } from '@/features/classes/use-localized'
 import { MemberCoursesPanel } from '@/features/courses/components/member-courses-panel'
 import { useMemberExams } from '@/features/exams/api'
@@ -165,7 +167,12 @@ function HomeTab({
   const { t } = useTranslation()
   const gradeLabel = useGradeLabel()
   const exams = useMemberExams(m.id, portalApi.exams)
-  const attendance = useQuery({ queryKey: ['portal', 'attendance-all'], queryFn: () => portalApi.attendance({}) })
+  // Same period the attendance tab opens on (this year), so the numbers match when tapped through.
+  const [year] = useState(() => presetRange('year'))
+  const attendance = useQuery({
+    queryKey: ['portal', 'attendance-year', year.from, year.to],
+    queryFn: () => portalApi.attendance({ from: year.from || undefined, to: year.to || undefined }),
+  })
   const passed = exams.data?.filter((e) => e.result === 'PASS').length ?? 0
   const firstClass = m.classes[0]
 

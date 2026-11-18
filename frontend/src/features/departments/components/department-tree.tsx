@@ -158,13 +158,15 @@ function TreeRow({
             {t('departments.administers', { count: node.children.length })}
           </span>
         )}
-        <span
-          className="tabular inline-flex h-6 shrink-0 items-center gap-1 rounded-full border bg-background px-2 text-xs text-muted-foreground"
+        <Link
+          to={`/members?departmentId=${node.id}`}
+          className="tabular inline-flex h-6 shrink-0 items-center gap-1 rounded-full border bg-background px-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground"
           title={t('departments.members', { count: node.memberCount })}
+          aria-label={t('departments.members', { count: node.memberCount })}
         >
           <Users className="size-3" aria-hidden />
           {node.memberCount}
-        </span>
+        </Link>
         {canManage && (
           <DepartmentMenu department={node} isFirst={index === 0} isLast={index === siblings - 1} actions={actions} />
         )}

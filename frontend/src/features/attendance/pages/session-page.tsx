@@ -18,7 +18,7 @@ import {
   FileSpreadsheet,
   ChevronLeft,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -63,12 +63,41 @@ interface Feed {
   error?: string
 }
 
-function Stat({ label, value, className }: { label: string; value: number | string; className?: string }) {
+/** A total above the roster; pressing it shows only those members in the roster. */
+function Stat({
+  label,
+  value,
+  className,
+  active,
+  onClick,
+}: {
+  label: string
+  value: number | string
+  className?: string
+  active?: boolean
+  onClick?: () => void
+}) {
+  const body = (
+    <>
+      <span className="block truncate text-[11px] text-muted-foreground sm:text-xs">{label}</span>
+      <span className={cn('tabular block font-record text-base font-semibold sm:text-xl', className)}>{value}</span>
+    </>
+  )
+  const box = 'rounded-lg border bg-card px-2 py-1.5 text-left sm:px-3 sm:py-2'
+  if (!onClick) return <div className={box}>{body}</div>
   return (
-    <div className="rounded-lg border bg-card px-2 py-1.5 sm:px-3 sm:py-2">
-      <p className="truncate text-[11px] text-muted-foreground sm:text-xs">{label}</p>
-      <p className={cn('tabular font-record text-base font-semibold sm:text-xl', className)}>{value}</p>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        box,
+        'transition-colors hover:border-primary/40 active:bg-accent',
+        active && 'border-primary bg-primary/8 ring-1 ring-primary',
+      )}
+    >
+      {body}
+    </button>
   )
 }
 
@@ -88,6 +117,13 @@ export function SessionPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('ALL')
   const [limit, setLimit] = useState(PAGE)
+  const rosterRef = useRef<HTMLElement>(null)
+  /** From the totals: show only those members, and bring the roster into view. */
+  const showOnly = (f: Filter) => {
+    setFilter((now) => (now === f && f !== 'ALL' ? 'ALL' : f))
+    setLimit(PAGE)
+    rosterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   const [feed, setFeed] = useState<Feed[]>([])
   const [today] = useState(() => addisDate(new Date().toISOString()))
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -327,16 +363,23 @@ export function SessionPage() {
       {/* Totals are for those who see the roster; scanners just scan. */}
       {showRoster && (
         <div className="mb-4 grid grid-cols-4 gap-1.5 sm:gap-2 lg:grid-cols-7">
-          <Stat label={t('attendance.audience')} value={s.rosterSize} />
+          <Stat label={t('attendance.audience')} value={s.rosterSize} active={filter === 'ALL'} onClick={() => showOnly('ALL')} />
           {ATTENDANCE_STATUSES.map((st) => (
             <Stat
               key={st}
               label={t(`attendance.statuses.${st}`)}
               value={s.counts[st.toLowerCase() as keyof typeof s.counts]}
               className={STATUS_STYLES[st].split(' ').find((c) => c.startsWith('text-'))}
+              active={filter === st}
+              onClick={() => showOnly(st)}
             />
           ))}
-          <Stat label={t('attendance.roster.unmarked')} value={s.unmarked} />
+          <Stat
+            label={t('attendance.roster.unmarked')}
+            value={s.unmarked}
+            active={filter === 'UNMARKED'}
+            onClick={() => showOnly('UNMARKED')}
+          />
           {/* Turnout against the expected roster — not the rate among the few already marked. */}
           <Stat
             label={t('attendance.member.rate')}
@@ -473,7 +516,7 @@ export function SessionPage() {
         )}
 
         {showRoster && (
-          <section className="rounded-xl border bg-card">
+          <section ref={rosterRef} className="scroll-mt-24 rounded-xl border bg-card">
             <header className="space-y-3 border-b p-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">{t('attendance.roster.title')}</h2>

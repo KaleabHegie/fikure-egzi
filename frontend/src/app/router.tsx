@@ -52,6 +52,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: 'members/print',
+        ...page(
+          () => import('@/features/members/pages/member-list-print-page'),
+          (m) => m.MemberListPrintPage,
+          PERMISSIONS.MEMBERS_READ,
+        ),
+      },
+      {
         path: 'members/id-cards',
         ...page(
           () => import('@/features/members/pages/member-id-cards-page'),

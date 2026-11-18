@@ -16,6 +16,9 @@ function pick<T extends string>(value: string | null, allowed: readonly T[]): T 
   return allowed.includes(value as T) ? (value as T) : undefined
 }
 
+const yesNo = (value: string | null) => (value === 'true' ? true : value === 'false' ? false : undefined)
+const isoDay = (value: string | null) => (value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined)
+
 function positiveInt(value: string | null, fallback: number): number {
   const n = Number(value)
   return Number.isInteger(n) && n > 0 ? n : fallback
@@ -39,7 +42,13 @@ export function useMemberListParams() {
       classGradeId: searchParams.get('classGradeId') ? positiveInt(searchParams.get('classGradeId'), 0) || undefined : undefined,
       departmentId: searchParams.get('departmentId') ? positiveInt(searchParams.get('departmentId'), 0) || undefined : undefined,
       selfRegistered: searchParams.get('selfRegistered') === 'true' || undefined,
-      hasPhoto: searchParams.get('hasPhoto') === 'true' ? true : searchParams.get('hasPhoto') === 'false' ? false : undefined,
+      hasPhoto: yesNo(searchParams.get('hasPhoto')),
+      classTypeId: searchParams.get('classTypeId') ? positiveInt(searchParams.get('classTypeId'), 0) || undefined : undefined,
+      placed: yesNo(searchParams.get('placed')),
+      inDepartment: yesNo(searchParams.get('inDepartment')),
+      joinedFrom: isoDay(searchParams.get('joinedFrom')),
+      joinedTo: isoDay(searchParams.get('joinedTo')),
+      completion: pick(searchParams.get('completion'), ['complete', 'underHalf'] as const),
     }),
     [searchParams],
   )
@@ -64,7 +73,8 @@ export function useMemberListParams() {
   )
 
   const hasFilters = Boolean(
-    params.search || params.gender || params.status || params.educationLevel || params.classGradeId || params.departmentId || params.selfRegistered || params.hasPhoto !== undefined,
+    params.search || params.gender || params.status || params.educationLevel || params.classGradeId || params.departmentId || params.selfRegistered || params.hasPhoto !== undefined ||
+      params.classTypeId || params.placed !== undefined || params.inDepartment !== undefined || params.joinedFrom || params.joinedTo || params.completion,
   )
   const reset = useCallback(() => setSearchParams({}, { replace: true }), [setSearchParams])
 

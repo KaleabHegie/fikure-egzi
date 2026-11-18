@@ -229,7 +229,6 @@ const SYSTEM_ONLY: readonly PermissionCode[] = [
   PERMISSIONS.USERS_DELETE,
   PERMISSIONS.ROLES_MANAGE,
   PERMISSIONS.SETTINGS_MANAGE,
-  PERMISSIONS.AUDIT_READ,
 ];
 
 /** Looking at their own department's structure, members and classes, without changing them. */
@@ -257,7 +256,7 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
     code: 'SUPER_ADMIN',
     name: 'Office administrator',
     description:
-      'ፅህፈት ቤት — every module and every department, but not system settings, deleting accounts or the audit log',
+      'ፅህፈት ቤት — every module and every department, including the audit log, but not system settings or deleting accounts',
     departmentScoped: false,
     permissions: ALL_PERMISSIONS.filter((p) => !SYSTEM_ONLY.includes(p)),
   },

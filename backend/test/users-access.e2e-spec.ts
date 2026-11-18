@@ -368,21 +368,32 @@ describe('Users & department-scoped access (e2e)', () => {
     // The taker runs the group's attendance, since the group's class belongs to Mezmur.
     await session({ kind: 'SERVICE_GROUP', serviceGroupId: mezmurGroup.id }, taker).expect(201);
 
-    // Audit: the department admin sees their own actions and their takers'; takers have none.
+    // Audit: the department admin sees their own and their takers' actions, and others' changes
+    // to Mezmur's records — never another department's; takers have none.
     const adminId = (await get('/auth/me', admin)).data.id as number;
     const auditUsers = (await get('/audit/users')).data.map((u: { id: number }) => u.id);
     const audit = (await get('/audit?pageSize=100')).data as {
-      user: { id: number };
+      user: { id: number } | null;
       entity: string;
+      entityId: string | null;
     }[];
     expect(audit.length).toBeGreaterThan(0);
-    expect(audit.every((e) => auditUsers.includes(e.user.id))).toBe(true);
-    expect(audit.some((e) => e.user.id === takerUser.id && e.entity === 'AttendanceSession')).toBe(
+    expect(audit.every((e) => !e.user || auditUsers.includes(e.user.id))).toBe(true);
+    expect(audit.some((e) => e.user?.id === takerUser.id && e.entity === 'AttendanceSession')).toBe(
       true,
     );
-    // Themselves and the takers under them (earlier runs' Mezmur takers count too) — never the office admin.
     expect(auditUsers).toEqual(expect.arrayContaining([deptAdminUser.id, takerUser.id]));
-    expect(auditUsers).not.toContain(adminId);
+    // The office admin shows up only through Mezmur's records (here: the member they enrolled).
+    expect(
+      audit
+        .filter((e) => e.user?.id === adminId)
+        .every((e) => e.entity !== 'ClassGrade' || e.entityId !== String(educationGrade.id)),
+    ).toBe(true);
+    expect(
+      (await get(`/audit?entity=ClassGrade&search=${educationGrade.id}`)).data.some(
+        (e: { entityId: string }) => e.entityId === String(educationGrade.id),
+      ),
+    ).toBe(false);
     await request(http).get('/api/v1/audit').set(as(taker)).expect(403);
     const officeView = (await get(`/audit?userId=${takerUser.id}`, admin)).data;
     expect(officeView.length).toBeGreaterThan(0);

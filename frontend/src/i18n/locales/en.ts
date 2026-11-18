@@ -1083,7 +1083,7 @@ export const en = {
     },
     roleHints: {
       SYSTEM_ADMIN: 'Runs the system: everything, plus system settings, deleting accounts, the audit log and other system administrators.',
-      SUPER_ADMIN: 'ፅህፈት ቤት: every module and every department, and user accounts, but not system settings, deleting accounts or the audit log.',
+      SUPER_ADMIN: 'ፅህፈት ቤት: every module and every department, user accounts and the audit log, but not system settings or deleting accounts.',
       DEPARTMENT_ADMIN: "Manages their department's roster, attendance and courses, and creates its attendance takers and teachers.",
       ATTENDANCE_ADMIN:
         "Their department's attendance on any day, its reports and late permissions. Sees its departments, members and classes, but can't change them.",
@@ -1125,7 +1125,7 @@ export const en = {
   audit: {
     title: 'Audit log',
     description: 'Every change made in the system: who did what, and when.',
-    descriptionScoped: 'Changes made by you and the attendance takers of your department(s).',
+    descriptionScoped: "What happened in your department(s): your staff's actions and every change to your members, sessions, exams and classes.",
     when: 'When',
     who: 'Who',
     action: 'Action',

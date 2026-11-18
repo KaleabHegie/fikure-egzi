@@ -957,6 +957,7 @@ model Exam {
   classGrade ClassGrade?     @relation(fields: [classGradeId], references: [id], onDelete: SetNull)
   parts      ExamPart[]
   candidates ExamCandidate[]
+  groups     ExamGroup[]
 
   @@index([classTypeId, heldOn])
   @@index([classGradeId])
@@ -987,13 +988,31 @@ model ExamCandidate {
   memberId  Int      @map("member_id")
   addedById Int?     @map("added_by_id")
   addedAt   DateTime @default(now()) @map("added_at")
+  /// The group they were examined and marked with, if any (the latest one).
+  groupId   Int?     @map("group_id")
 
-  exam   Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
-  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  exam   Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  member Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  group  ExamGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@id([examId, memberId])
   @@index([memberId])
+  @@index([groupId])
   @@map("exam_candidates")
+}
+
+/// Candidates examined together and given the same marks at once on the mark sheet.
+model ExamGroup {
+  id          Int      @id @default(autoincrement())
+  examId      Int      @map("exam_id")
+  createdById Int?     @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  exam    Exam            @relation(fields: [examId], references: [id], onDelete: Cascade)
+  members ExamCandidate[]
+
+  @@index([examId])
+  @@map("exam_groups")
 }
 
 model ExamMark {

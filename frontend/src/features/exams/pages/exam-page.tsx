@@ -76,12 +76,14 @@ export function ExamPage() {
   const [deleting, setDeleting] = useState(false)
   const [removing, setRemoving] = useState<ExamMember | null>(null)
   const [filter, setFilter] = useState<ExamFilter>('all')
+  /** Only one group marked together (picked on the mark sheet). */
+  const [group, setGroup] = useState<number | null>(null)
 
   const update = useExamMutation((input: Parameters<typeof examsApi.update>[1]) => examsApi.update(id, input))
   const setParts = useExamMutation((parts: Parameters<typeof examsApi.setParts>[1]) => examsApi.setParts(id, parts))
   const addCandidates = useExamMutation((input: Parameters<typeof examsApi.addCandidates>[1]) => examsApi.addCandidates(id, input))
   const removeCandidate = useExamMutation((memberId: number) => examsApi.removeCandidate(id, memberId))
-  const setMarks = useExamMutation((marks: Parameters<typeof examsApi.setMarks>[1]) => examsApi.setMarks(id, marks))
+  const setMarks = useExamMutation((input: Parameters<typeof examsApi.setMarks>[1]) => examsApi.setMarks(id, input))
   const remove = useExamMutation(() => examsApi.remove(id))
 
   if (sheet.isError) return <ErrorState error={sheet.error} onRetry={() => void sheet.refetch()} />
@@ -100,7 +102,10 @@ export function ExamPage() {
   const passed = count('passed')
   const failed = count('failed')
   const passRate = passed + failed > 0 ? Math.round((passed / (passed + failed)) * 100) : null
-  const pick = (f: ExamFilter) => setFilter((now) => (now === f ? 'all' : f))
+  const pick = (f: ExamFilter) => {
+    setGroup(null)
+    setFilter((now) => (now === f ? 'all' : f))
+  }
   // Exam takers change the department's exams until the 5th day after; heads and the ፅህፈት ቤት any time.
   const limited = can(PERMISSIONS.EXAMS_MANAGE) && !oversees(user, can, PERMISSIONS.EXAMS_OVERRIDE)
   const until = formatDate(exam.editableUntil)
@@ -175,8 +180,11 @@ export function ExamPage() {
             label={t('exams.figures.candidates')}
             value={candidates.length}
             hint={t('exams.figures.showAll')}
-            active={filter === 'all'}
-            onClick={() => setFilter('all')}
+            active={filter === 'all' && group === null}
+            onClick={() => {
+              setGroup(null)
+              setFilter('all')
+            }}
             className="col-span-2 sm:col-span-1"
           />
           <Figure
@@ -242,9 +250,14 @@ export function ExamPage() {
           <ExamMarksSheet
             sheet={sheet.data}
             filter={filter}
+            group={group}
+            onGroup={(g) => {
+              setGroup(g)
+              if (g !== null) setFilter('all')
+            }}
             editable={exam.canManage}
-            onSave={async (marks) => {
-              await setMarks.mutateAsync(marks)
+            onSave={async (marks, groups) => {
+              await setMarks.mutateAsync({ marks, groups })
             }}
             onRemove={setRemoving}
           />
@@ -312,7 +325,7 @@ export function ExamPage() {
       </div>
       <ExamPrintSheet
         exam={exam}
-        rows={candidates.filter((c) => matchesFilter(c, exam.parts, filter))}
+        rows={candidates.filter((c) => matchesFilter(c, exam.parts, filter) && (group === null || c.groupId === group))}
         filter={filter}
         summary={[
           `${t('exams.figures.candidates')} ${candidates.length}`,

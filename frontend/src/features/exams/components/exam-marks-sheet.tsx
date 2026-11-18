@@ -1,4 +1,4 @@
-import { CopyCheck, Loader2, RotateCcw, Save, Search, UserMinus, X } from 'lucide-react'
+import { CopyCheck, Loader2, RotateCcw, Save, Search, UserMinus, Users, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input'
 import { MemberAvatar } from '@/features/members/components/member-avatar'
 import { memberFullName } from '@/features/members/utils'
 import { getErrorMessage } from '@/lib/api/errors'
+import { formatDate } from '@/lib/format'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 import { matchesFilter, type ExamFilter } from '../exam-filter'
-import type { ExamCandidateRow, ExamMarkInput, ExamMember, ExamSheet } from '../types'
+import type { ExamCandidateRow, ExamGroup, ExamMarkInput, ExamMember, ExamSheet } from '../types'
 import { ExamResultBadge } from './exam-result-badge'
 
 const cell = (partId: number, memberId: number) => `${partId}:${memberId}`
@@ -19,8 +20,10 @@ const SCORE = /^\d{0,3}(\.\d{0,2})?$/
 /**
  * The exam's mark sheet: one row per candidate, one column per part, each part
  * marked out of its weight. Edits stay local until saved, so a whole column
- * can be filled first. Candidates examined as a group can be selected and given
- * the same marks at once; anyone's mark can still be changed on its own after.
+ * can be filled first. Candidates examined as a group can be selected (they move
+ * to the top, and stay shown while searching for the next one) and given the same
+ * marks at once; anyone's mark can still be changed on its own after. Saved, they
+ * are kept as a group "marked together", which can be looked at again later.
  */
 export function ExamMarksSheet({
   sheet,
@@ -28,12 +31,17 @@ export function ExamMarksSheet({
   onSave,
   onRemove,
   filter = 'all',
+  group = null,
+  onGroup,
 }: {
   sheet: ExamSheet
   /** Narrows the rows, e.g. only candidates still missing marks (chosen from the figures). */
   filter?: ExamFilter
+  /** Only the candidates of this group (marked together). */
+  group?: number | null
+  onGroup: (groupId: number | null) => void
   editable: boolean
-  onSave: (marks: ExamMarkInput[]) => Promise<void>
+  onSave: (marks: ExamMarkInput[], groups: { memberIds: number[] }[]) => Promise<void>
   onRemove: (member: ExamMember) => void
 }) {
   const { t } = useTranslation()
@@ -44,7 +52,9 @@ export function ExamMarksSheet({
   const [pending, setPending] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<number>>(() => new Set())
-  const [group, setGroup] = useState<Record<number, string>>({})
+  const [groupMarks, setGroupMarks] = useState<Record<number, string>>({})
+  /** Groups given the same marks since the last save; saved with the marks. */
+  const [newGroups, setNewGroups] = useState<number[][]>([])
 
   const saved = useMemo(() => {
     const map: Record<string, number> = {}
@@ -66,9 +76,12 @@ export function ExamMarksSheet({
     const [p, m] = key.split(':').map(Number) as [number, number]
     return invalid(p, m)
   })
+  const groupById = useMemo(() => new Map(sheet.groups.map((g) => [g.id, g])), [sheet.groups])
+  const shownGroup = group === null ? undefined : groupById.get(group)
   const term = search.trim().toLocaleLowerCase()
-  const rows = sheet.candidates.filter((c: ExamCandidateRow) => {
+  const matches = (c: ExamCandidateRow) => {
     if (!matchesFilter(c, parts, filter)) return false
+    if (shownGroup && c.groupId !== shownGroup.id) return false
     if (!term) return true
     const m = c.member
     return [m.memberCode, m.firstName, m.fatherName, m.grandfatherName, m.christianName]
@@ -76,7 +89,12 @@ export function ExamMarksSheet({
       .join(' ')
       .toLocaleLowerCase()
       .includes(term)
-  })
+  }
+  // The selected come first and stay shown while searching for the next one to add.
+  const rows = [
+    ...sheet.candidates.filter((c) => selected.has(c.member.id)),
+    ...sheet.candidates.filter((c) => !selected.has(c.member.id) && matches(c)),
+  ]
 
   const shownIds = rows.map((c) => c.member.id)
   const allShown = shownIds.length > 0 && shownIds.every((id) => selected.has(id))
@@ -97,24 +115,35 @@ export function ExamMarksSheet({
       return next
     })
   const groupBad = (p: number) => {
-    const v = group[p]
+    const v = groupMarks[p]
     return v !== undefined && v !== '' && Number(v) > (weight.get(p) ?? 0)
   }
-  const groupFilled = parts.filter((p) => (group[p.id] ?? '') !== '')
+  const groupFilled = parts.filter((p) => (groupMarks[p.id] ?? '') !== '')
   const canApply = selected.size > 0 && groupFilled.length > 0 && !parts.some((p) => groupBad(p.id))
   const clearSelection = () => {
     setSelected(new Set())
-    setGroup({})
+    setGroupMarks({})
   }
   /** Fills the group's marks in for everyone selected; saving stays a separate step. */
   const applyGroup = () => {
+    if (selected.size > 1) setNewGroups((g) => [...g, [...selected]])
     setDraft((d) => {
       const next = { ...d }
-      for (const memberId of selected) for (const p of groupFilled) next[cell(p.id, memberId)] = group[p.id]!
+      for (const memberId of selected) for (const p of groupFilled) next[cell(p.id, memberId)] = groupMarks[p.id]!
       return next
     })
     toast.success(t('exams.marks.group.applied', { count: selected.size }))
     clearSelection()
+  }
+
+  const candidateIds = new Set(sheet.candidates.map((c) => c.member.id))
+  const groupsToSave = newGroups
+    .map((ids) => ids.filter((id) => candidateIds.has(id)))
+    .filter((ids) => ids.length > 1)
+    .map((memberIds) => ({ memberIds }))
+  const discard = () => {
+    setDraft({})
+    setNewGroups([])
   }
 
   const save = async () => {
@@ -125,8 +154,9 @@ export function ExamMarksSheet({
           const [partId, memberId] = key.split(':').map(Number) as [number, number]
           return { partId, memberId, score: v === '' ? null : Number(v) }
         }),
+        groupsToSave,
       )
-      setDraft({})
+      discard()
       toast.success(t('exams.marks.saved', { count: changes.length }))
     } catch (error) {
       toast.error(getErrorMessage(error))
@@ -156,6 +186,23 @@ export function ExamMarksSheet({
           className,
         )}
       />
+    )
+  }
+
+  /** "Group 2" on a candidate: shows everyone marked together with them. */
+  const groupChip = (c: ExamCandidateRow) => {
+    const g = c.groupId === null ? undefined : groupById.get(c.groupId)
+    if (!g) return null
+    return (
+      <button
+        type="button"
+        onClick={() => onGroup(shownGroup?.id === g.id ? null : g.id)}
+        title={t('exams.marks.groups.open', { number: g.number })}
+        className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-1.5 font-sans text-[11px] font-medium text-brand hover:bg-brand/20"
+      >
+        <Users className="size-3" aria-hidden />
+        {t('exams.marks.groups.name', { number: g.number })}
+      </button>
     )
   }
 
@@ -200,7 +247,10 @@ export function ExamMarksSheet({
             <MemberAvatar member={c.member} />
             <div className="min-w-0 flex-1">
               <p className="leading-snug font-medium">{memberFullName(c.member)}</p>
-              <p className="font-mono text-xs text-muted-foreground">{c.member.memberCode}</p>
+              <p className="flex flex-wrap items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                {c.member.memberCode}
+                {groupChip(c)}
+              </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               <span className="tabular text-base font-semibold">
@@ -248,6 +298,39 @@ export function ExamMarksSheet({
         </div>
         <span className="text-xs text-muted-foreground">{t('exams.marks.showing', { shown: rows.length, total: sheet.candidates.length })}</span>
       </div>
+      {sheet.groups.length > 0 && (
+        <div className="border-b px-3 py-2 sm:px-4">
+          <div role="group" aria-label={t('exams.marks.groups.show')} className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5">
+            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+              <Users className="size-3.5" aria-hidden />
+              {t('exams.marks.groups.show')}
+            </span>
+            {[null, ...sheet.groups].map((g) => {
+              const on = (shownGroup?.id ?? null) === (g?.id ?? null)
+              return (
+                <button
+                  key={g?.id ?? 'all'}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onGroup(g && !on ? g.id : null)}
+                  className={cn(
+                    'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors',
+                    on ? 'border-primary bg-primary text-primary-foreground' : 'bg-card hover:border-primary/40',
+                  )}
+                >
+                  {g ? t('exams.marks.groups.name', { number: g.number }) : t('exams.marks.groups.all')}
+                  {g && <span className={cn('tabular', on ? 'opacity-80' : 'text-muted-foreground')}>{g.memberIds.length}</span>}
+                </button>
+              )
+            })}
+          </div>
+          {shownGroup && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              <GroupLine group={shownGroup} />
+            </p>
+          )}
+        </div>
+      )}
       {editable && selected.size > 0 && (
         <div className="space-y-2 border-b bg-primary/5 px-3 py-3 sm:px-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -265,10 +348,10 @@ export function ExamMarksSheet({
                   <span className="text-foreground">{p.name}</span> <span className="tabular">/ {p.weight}</span>
                 </span>
                 <input
-                  value={group[p.id] ?? ''}
+                  value={groupMarks[p.id] ?? ''}
                   onChange={(e) => {
                     const v = e.target.value.trim()
-                    if (SCORE.test(v)) setGroup((g) => ({ ...g, [p.id]: v }))
+                    if (SCORE.test(v)) setGroupMarks((g) => ({ ...g, [p.id]: v }))
                   }}
                   inputMode="decimal"
                   aria-invalid={groupBad(p.id) || undefined}
@@ -339,7 +422,10 @@ export function ExamMarksSheet({
                     <MemberAvatar member={c.member} />
                     <div className="min-w-0">
                       <p className="max-w-32 truncate font-medium sm:max-w-56">{memberFullName(c.member)}</p>
-                      <p className="font-mono text-xs text-muted-foreground">{c.member.memberCode}</p>
+                      <p className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                        {c.member.memberCode}
+                        {groupChip(c)}
+                      </p>
                     </div>
                   </div>
                 </td>
@@ -378,15 +464,18 @@ export function ExamMarksSheet({
               : changes.length > 0
                 ? t('exams.marks.unsaved', { count: changes.length })
                 : t('exams.marks.passMark', { mark: passMark })}
+            {!hasInvalid && groupsToSave.length > 0 && (
+              <span className="block text-xs text-brand">{t('exams.marks.groups.newGroup', { count: groupsToSave.length })}</span>
+            )}
           </p>
           <div className="flex gap-2">
-            {Object.keys(draft).length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => setDraft({})} disabled={pending}>
+            {(Object.keys(draft).length > 0 || newGroups.length > 0) && (
+              <Button variant="ghost" size="sm" onClick={discard} disabled={pending}>
                 <RotateCcw />
                 {t('exams.marks.discard')}
               </Button>
             )}
-            <Button size="sm" onClick={() => void save()} disabled={pending || hasInvalid || changes.length === 0}>
+            <Button size="sm" onClick={() => void save()} disabled={pending || hasInvalid || (changes.length === 0 && groupsToSave.length === 0)}>
               {pending ? <Loader2 className="animate-spin" /> : <Save />}
               {t('exams.marks.save')}
             </Button>
@@ -394,5 +483,19 @@ export function ExamMarksSheet({
         </div>
       )}
     </div>
+  )
+}
+
+/** "5 members · Marked 9 Hidar 2019 by Abebe" */
+function GroupLine({ group }: { group: ExamGroup }) {
+  const { t } = useTranslation()
+  const date = formatDate(group.createdAt)
+  return (
+    <>
+      {t('exams.marks.groups.members', { count: group.memberIds.length })} ·{' '}
+      {group.createdBy
+        ? t('exams.marks.groups.markedBy', { date, name: group.createdBy })
+        : t('exams.marks.groups.marked', { date })}
+    </>
   )
 }

@@ -71,8 +71,10 @@ describe('ExamsService', () => {
     },
     classType: { findUnique: asyncMock() },
     member: { findMany: asyncMock() },
-    examMark: { findMany: asyncMock(), count: asyncMock() },
-    examCandidate: { findMany: asyncMock(), createMany: asyncMock() },
+    examMark: { findMany: asyncMock(), count: asyncMock(), upsert: asyncMock() },
+    examCandidate: { findMany: asyncMock(), createMany: asyncMock(), updateMany: asyncMock() },
+    examGroup: { findMany: asyncMock(), create: asyncMock(), deleteMany: asyncMock() },
+    user: { findMany: asyncMock() },
     department: { count: asyncMock() },
     $transaction: jest.fn<(arg: unknown) => unknown>(),
   };
@@ -85,6 +87,8 @@ describe('ExamsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.examMark.findMany.mockResolvedValue([]);
+    prisma.examGroup.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValue([]);
     prisma.department.count.mockResolvedValue(1);
     // The Mezmur class (run by department 4) with its Geez and Ezel levels.
     prisma.classType.findUnique.mockResolvedValue({
@@ -92,7 +96,9 @@ describe('ExamsService', () => {
       grades: [{ id: 11 }, { id: 12 }],
     });
     prisma.$transaction.mockImplementation((arg) =>
-      Array.isArray(arg) ? Promise.all(arg as Promise<unknown>[]) : (arg as () => unknown)(),
+      Array.isArray(arg)
+        ? Promise.all(arg as Promise<unknown>[])
+        : (arg as (tx: unknown) => unknown)(prisma),
     );
   });
 
@@ -212,6 +218,49 @@ describe('ExamsService', () => {
     prisma.examMark.findMany.mockResolvedValue([{ partId: 1, memberId: 1, score: 40 }]);
     const { candidates } = await service.sheet(9, office);
     expect(candidates[0]).toMatchObject({ total: 40, result: null });
+  });
+
+  it('numbers the groups marked together in order, leaving out ones nobody is in any more', async () => {
+    prisma.exam.findFirst.mockResolvedValue(examRow());
+    prisma.examCandidate.findMany.mockResolvedValue([
+      { groupId: 30, member: member(1, 'Abebe') },
+      { groupId: 30, member: member(2, 'Bereket') },
+      { groupId: null, member: member(3, 'Chaltu') },
+    ]);
+    const at = new Date('2026-11-18T08:00:00Z');
+    prisma.examGroup.findMany.mockResolvedValue([
+      { id: 20, createdAt: at, createdById: 2 },
+      { id: 30, createdAt: at, createdById: 2 },
+    ]);
+    prisma.user.findMany.mockResolvedValue([{ id: 2, fullName: 'Exam Taker' }]);
+    const { candidates, groups } = await service.sheet(9, office);
+    expect(groups).toEqual([
+      { id: 30, number: 1, createdAt: at, createdBy: 'Exam Taker', memberIds: [1, 2] },
+    ]);
+    expect(candidates.map((c) => c.groupId)).toEqual([30, 30, null]);
+  });
+
+  it('records a group marked together, and refuses one with someone not sitting the exam', async () => {
+    prisma.exam.findFirst.mockResolvedValue(examRow());
+    prisma.examCandidate.findMany.mockResolvedValueOnce([{ memberId: 1 }]);
+    await expect(
+      service.setMarks(9, { marks: [], groups: [{ memberIds: [1, 7] }] }, office),
+    ).rejects.toMatchObject({ details: [{ messages: ['exams.notCandidate'] }] });
+
+    prisma.examCandidate.findMany.mockResolvedValueOnce([{ memberId: 1 }, { memberId: 2 }]);
+    prisma.examGroup.create.mockResolvedValue({ id: 40 });
+    await service.setMarks(
+      9,
+      { marks: [{ partId: 1, memberId: 1, score: 30 }], groups: [{ memberIds: [1, 2] }] },
+      office,
+    );
+    expect(prisma.examCandidate.updateMany).toHaveBeenCalledWith({
+      where: { examId: 9, memberId: { in: [1, 2] } },
+      data: { groupId: 40 },
+    });
+    expect(prisma.examGroup.deleteMany).toHaveBeenCalledWith({
+      where: { examId: 9, members: { none: {} } },
+    });
   });
 
   it("refuses a mark above the part's weight, or for someone not sitting the exam", async () => {

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsInt,
@@ -171,6 +172,16 @@ export class ExamMarkDto {
   score: number | null;
 }
 
+/** Candidates examined together and given the same marks at once. */
+export class ExamGroupDto {
+  @ApiProperty({ type: [Number] })
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(1000)
+  @IsInt({ each: true })
+  memberIds: number[];
+}
+
 export class SetExamMarksDto {
   @ApiProperty({ type: [ExamMarkDto] })
   @IsArray()
@@ -178,4 +189,12 @@ export class SetExamMarksDto {
   @ValidateNested({ each: true })
   @Type(() => ExamMarkDto)
   marks: ExamMarkDto[];
+
+  @ApiPropertyOptional({ type: [ExamGroupDto], description: 'Groups marked together in this save' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => ExamGroupDto)
+  groups?: ExamGroupDto[];
 }

@@ -310,14 +310,19 @@ export class ExamsService {
   async sheet(id: number, actor: AuthenticatedUser) {
     const exam = await this.findOne(id, actor);
     const partIds = exam.parts.map((p) => p.id);
-    const [candidates, marks] = await this.prisma.$transaction([
+    const [candidates, marks, groupRows] = await this.prisma.$transaction([
       this.prisma.examCandidate.findMany({
         where: { examId: id, member: { deletedAt: null } },
-        select: { member: { select: MEMBER_NAME } },
+        select: { groupId: true, member: { select: MEMBER_NAME } },
       }),
       this.prisma.examMark.findMany({
         where: { partId: { in: partIds } },
         select: { partId: true, memberId: true, score: true },
+      }),
+      this.prisma.examGroup.findMany({
+        where: { examId: id },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { id: true, createdAt: true, createdById: true },
       }),
     ]);
     const byMember = new Map<number, Record<number, number>>();
@@ -327,16 +332,48 @@ export class ExamsService {
       byMember.set(m.memberId, row);
     }
     const rows = candidates
-      .map(({ member }) => {
+      .map(({ member, groupId }) => {
         const given = byMember.get(member.id) ?? {};
-        return { member: toMember(member), marks: given, ...this.result(exam, given) };
+        return { member: toMember(member), groupId, marks: given, ...this.result(exam, given) };
       })
       .sort((a, b) =>
         `${a.member.firstName} ${a.member.fatherName}`.localeCompare(
           `${b.member.firstName} ${b.member.fatherName}`,
         ),
       );
-    return { exam, candidates: rows };
+    return { exam, candidates: rows, groups: await this.groups(groupRows, rows) };
+  }
+
+  /**
+   * The exam's groups that still have candidates, numbered 1, 2, 3… in the order
+   * they were marked, with who marked them.
+   */
+  private async groups(
+    groups: { id: number; createdAt: Date; createdById: number | null }[],
+    rows: { member: { id: number }; groupId: number | null }[],
+  ) {
+    const members = new Map<number, number[]>();
+    for (const r of rows) {
+      if (r.groupId !== null)
+        members.set(r.groupId, [...(members.get(r.groupId) ?? []), r.member.id]);
+    }
+    const kept = groups.filter((g) => members.has(g.id));
+    const userIds = [...new Set(kept.map((g) => g.createdById).filter((u) => u !== null))];
+    const users = new Map(
+      (
+        await this.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, fullName: true },
+        })
+      ).map((u) => [u.id, u.fullName]),
+    );
+    return kept.map((g, i) => ({
+      id: g.id,
+      number: i + 1,
+      createdAt: g.createdAt,
+      createdBy: g.createdById === null ? null : (users.get(g.createdById) ?? null),
+      memberIds: members.get(g.id)!,
+    }));
   }
 
   /** Adds individual members, everyone in one of the class's levels, or the whole class. */
@@ -433,7 +470,10 @@ export class ExamsService {
   async setMarks(id: number, dto: SetExamMarksDto, actor: AuthenticatedUser) {
     const exam = await this.owned(id, actor);
     const weight = new Map(exam.parts.map((p) => [p.id, Number(p.weight)]));
-    const memberIds = [...new Set(dto.marks.map((m) => m.memberId))];
+    const groups = dto.groups ?? [];
+    const memberIds = [
+      ...new Set([...dto.marks.map((m) => m.memberId), ...groups.flatMap((g) => g.memberIds)]),
+    ];
     const candidates = new Set(
       (
         await this.prisma.examCandidate.findMany({
@@ -450,6 +490,9 @@ export class ExamsService {
       else if (m.score !== null && m.score > max) {
         problems.push(`exams.scoreOverWeight|${JSON.stringify({ max })}`);
       }
+    }
+    if (groups.some((g) => g.memberIds.some((m) => !candidates.has(m)))) {
+      problems.push('exams.notCandidate');
     }
     if (problems.length > 0) {
       throw new ValidationFailedException([{ field: 'marks', messages: [...new Set(problems)] }]);
@@ -470,14 +513,36 @@ export class ExamsService {
             }),
       ),
     );
+    if (groups.length > 0) await this.saveGroups(id, groups, actor);
     await this.audit.record({
       userId: actor.id,
       action: 'UPDATE',
       entity: ENTITY,
       entityId: id,
-      changes: { marks: dto.marks.length },
+      changes: { marks: dto.marks.length, ...(groups.length > 0 && { groups: groups.length }) },
     });
     return this.sheet(id, actor);
+  }
+
+  /** Records who was marked together; a member is in the group they were last marked with. */
+  private async saveGroups(
+    examId: number,
+    groups: { memberIds: number[] }[],
+    actor: AuthenticatedUser,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      for (const g of groups) {
+        const group = await tx.examGroup.create({
+          data: { examId, createdById: actor.id },
+          select: { id: true },
+        });
+        await tx.examCandidate.updateMany({
+          where: { examId, memberId: { in: [...new Set(g.memberIds)] } },
+          data: { groupId: group.id },
+        });
+      }
+      await tx.examGroup.deleteMany({ where: { examId, members: { none: {} } } });
+    });
   }
 
   /** A member's exams and results (member page), limited to what the actor may see. */

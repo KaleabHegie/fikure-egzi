@@ -31,7 +31,9 @@ export const examsApi = {
   removeCandidate: (id: number, memberId: number) => api.delete(`/exams/${id}/candidates/${memberId}`),
   candidateSearch: (id: number, search: string) =>
     api.get<CandidateSearchResult[]>(`/exams/${id}/candidate-search`, { params: { search } }),
-  setMarks: (id: number, marks: ExamMarkInput[]) => api.put<ExamSheet>(`/exams/${id}/marks`, { marks }),
+  /** groups: candidates given the same marks at once in this save (kept as "marked together"). */
+  setMarks: (id: number, input: { marks: ExamMarkInput[]; groups?: { memberIds: number[] }[] }) =>
+    api.put<ExamSheet>(`/exams/${id}/marks`, input),
   member: (memberId: number) => api.get<MemberExam[]>(`/exams/member/${memberId}`),
 }
 

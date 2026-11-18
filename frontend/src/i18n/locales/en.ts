@@ -1360,6 +1360,18 @@ export const en = {
       save: 'Save marks',
       saved: '{{count}} marks saved',
       pending: 'Pending',
+      groups: {
+        show: 'Marked together',
+        all: 'All',
+        name: 'Group {{number}}',
+        open: 'Show group {{number}}',
+        members_one: '{{count}} member',
+        members_other: '{{count}} members',
+        marked: 'Marked {{date}}',
+        markedBy: 'Marked {{date}} by {{name}}',
+        newGroup_one: '{{count}} new group — saved with the marks',
+        newGroup_other: '{{count}} new groups — saved with the marks',
+      },
       group: {
         selectAll: 'Select everyone shown',
         select: 'Select {{name}}',

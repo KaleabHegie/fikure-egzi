@@ -80,15 +80,29 @@ export interface ExamMember {
 
 export interface ExamCandidateRow {
   member: ExamMember
+  /** The group they were last marked together with, if any. */
+  groupId: number | null
   /** partId → mark */
   marks: Record<number, number>
   total: number | null
   result: ExamResult | null
 }
 
+/** Candidates examined together and given the same marks at once. */
+export interface ExamGroup {
+  id: number
+  /** 1, 2, 3… in the order the groups were marked. */
+  number: number
+  createdAt: string
+  /** Who marked them (a user's name). */
+  createdBy: string | null
+  memberIds: number[]
+}
+
 export interface ExamSheet {
   exam: Exam
   candidates: ExamCandidateRow[]
+  groups: ExamGroup[]
 }
 
 export interface ExamMarkInput {

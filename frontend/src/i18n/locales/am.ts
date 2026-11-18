@@ -1359,6 +1359,18 @@ export const am: Translations = {
       save: 'ውጤቶችን አስቀምጥ',
       saved: '{{count}} ውጤቶች ተቀምጠዋል',
       pending: 'ያልተጠናቀቀ',
+      groups: {
+        show: 'አብረው የታረሙ',
+        all: 'ሁሉም',
+        name: 'ቡድን {{number}}',
+        open: 'ቡድን {{number}}ን አሳይ',
+        members_one: '{{count}} አባል',
+        members_other: '{{count}} አባላት',
+        marked: '{{date}} የታረመ',
+        markedBy: '{{date}} በ{{name}} የታረመ',
+        newGroup_one: '{{count}} አዲስ ቡድን — ከውጤቶቹ ጋር ይቀመጣል',
+        newGroup_other: '{{count}} አዲስ ቡድኖች — ከውጤቶቹ ጋር ይቀመጣሉ',
+      },
       group: {
         selectAll: 'የሚታዩትን ሁሉ ምረጥ',
         select: 'ምረጥ፦ {{name}}',

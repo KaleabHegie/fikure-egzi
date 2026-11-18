@@ -1607,6 +1607,7 @@ export const en = {
     showAtCheckIn: 'Show at check-in',
     noClasses: 'Not placed in a class yet.',
     noDepartments: 'Not serving in a department yet.',
+    noExams: 'No exams recorded for you yet.',
   },
   enums: {
     gender: { MALE: 'Male', FEMALE: 'Female' },

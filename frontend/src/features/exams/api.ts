@@ -56,8 +56,12 @@ export function useCandidateSearch(id: number, search: string, enabled: boolean)
   })
 }
 
-export function useMemberExams(memberId: number, enabled = true) {
-  return useQuery({ queryKey: examKeys.member(memberId), queryFn: () => examsApi.member(memberId), enabled })
+/** `load` swaps in another source (the member portal) under its own cache key. */
+export function useMemberExams(memberId: number, load?: () => Promise<MemberExam[]>) {
+  return useQuery({
+    queryKey: load ? ['portal', 'exams', memberId] : examKeys.member(memberId),
+    queryFn: load ?? (() => examsApi.member(memberId)),
+  })
 }
 
 /** Wraps an exam mutation so every exam view (list, sheet, member pages) refreshes. */

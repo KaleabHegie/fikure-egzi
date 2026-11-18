@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   CalendarCheck,
   ChevronRight,
+  ClipboardCheck,
   Ellipsis,
   House,
   Loader2,
@@ -37,7 +38,7 @@ import { LanguageSwitch } from './preferences'
  */
 
 interface Tab {
-  key: 'home' | 'members' | 'attendance'
+  key: 'home' | 'members' | 'attendance' | 'exams'
   to: string
   icon: LucideIcon
   permission: PermissionCode
@@ -57,6 +58,8 @@ const TABS: Tab[] = [
     // Reports and permissions live in «More»; the tab is the sessions list and a session.
     match: (p) => under('/attendance')(p) && !under('/attendance/reports')(p) && !under('/attendance/permissions')(p),
   },
+  // Only gets a tab when there is room (exam takers); otherwise it stays in «More».
+  { key: 'exams', to: '/exams', icon: ClipboardCheck, permission: PERMISSIONS.EXAMS_READ, match: under('/exams') },
 ]
 
 const KNOWN_ROLES = ['SYSTEM_ADMIN', 'SUPER_ADMIN', 'DEPARTMENT_ADMIN', 'ATTENDANCE_ADMIN', 'EXAM_TAKER', 'ATTENDANCE_TAKER', 'TEACHER'] as const
@@ -72,8 +75,9 @@ export function AppTabs() {
   const [picking, setPicking] = useState<AttendanceSession[] | null>(null)
   const [finding, setFinding] = useState(false)
 
-  const tabs = TABS.filter((tab) => can(tab.permission))
   const canScan = can(PERMISSIONS.ATTENDANCE_TAKE)
+  // Five places at most: the scanner takes one of them, «More» another.
+  const tabs = TABS.filter((tab) => can(tab.permission)).slice(0, canScan ? 3 : 4)
   const onTab = tabs.some((tab) => tab.match(pathname))
 
   /** The scan button goes to today's open session, asks which one when there are several. */

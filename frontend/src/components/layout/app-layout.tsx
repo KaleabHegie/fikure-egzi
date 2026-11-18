@@ -23,7 +23,8 @@ function NativeLayout() {
   const { pathname } = useLocation()
   useAndroidBack()
   return (
-    <div className="min-h-svh">
+    // --tabs-h: the bottom tab bar's height, so sticky footers (the marks sheet) stay above it.
+    <div className="min-h-svh [--tabs-h:calc(4rem+env(safe-area-inset-bottom))]">
       <div className="sticky top-0 z-30 bg-background pt-[env(safe-area-inset-top)]">
         <Tibeb scale={0.75} />
       </div>

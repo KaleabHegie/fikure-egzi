@@ -9,6 +9,7 @@ import { LanguageSwitch, ThemeToggle } from '@/components/layout/preferences'
 import { Button } from '@/components/ui/button'
 import { MemberAttendancePanel } from '@/features/attendance/components/member-attendance-panel'
 import { MemberCoursesPanel } from '@/features/courses/components/member-courses-panel'
+import { MemberExamsPanel } from '@/features/exams/components/member-exams-panel'
 import { useGradeLabel, useLocalizedName } from '@/features/classes/use-localized'
 import { RoleBadge } from '@/features/departments/components/role-badge'
 import { useMemberLabels } from '@/features/members/labels'
@@ -17,12 +18,13 @@ import { toApiError } from '@/lib/api/errors'
 import { ageFrom, formatDate } from '@/lib/format'
 import { formatPhone } from '@/lib/phone'
 import { memberQrPayload, useQrDataUrl } from '@/lib/qr'
+import { cn } from '@/lib/utils'
 import { portalApi, portalSession, usePortalMember, usePortalPhoto } from '../api'
 
 function Card({ title, icon: Icon, children }: { title: string; icon?: React.ElementType; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border bg-card p-5">
-      <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+    <section className="rounded-xl border bg-card p-4 sm:p-5">
+      <h2 className="mb-3 sm:mb-4 flex items-center gap-2 text-sm font-semibold">
         {Icon && <Icon className="size-4 text-muted-foreground" />}
         {title}
       </h2>
@@ -31,9 +33,9 @@ function Card({ title, icon: Icon, children }: { title: string; icon?: React.Ele
   )
 }
 
-function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+function Detail({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div>
+    <div className={cn('min-w-0 break-words', wide && 'col-span-2')}>
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 text-sm">{children || '—'}</dd>
     </div>
@@ -82,10 +84,11 @@ export function PortalHomePage() {
 
   return (
     <div className="min-h-svh bg-background">
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <BrandMark />
-          <div className="flex items-center gap-2">
+      <header className="sticky top-0 z-10 border-b bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-2.5 sm:py-3">
+          <BrandMark compact className="sm:hidden" />
+          <BrandMark className="hidden sm:flex" />
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <LanguageSwitch />
             <ThemeToggle />
             <Button variant="outline" size="sm" onClick={signOut}>
@@ -96,51 +99,26 @@ export function PortalHomePage() {
         </div>
       </header>
 
-      <main className="rise-in mx-auto max-w-5xl space-y-4 px-4 py-6">
-        <section className="flex flex-col items-center gap-4 rounded-xl border bg-card p-5 text-center sm:flex-row sm:text-left">
-          <div className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-full bg-accent text-2xl font-semibold text-accent-foreground">
+      <main className="rise-in mx-auto max-w-5xl space-y-3 px-3 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:space-y-4 sm:px-4 sm:py-6">
+        <section className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-4 rounded-xl border bg-card p-4 sm:flex sm:p-5">
+          <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-accent text-xl font-semibold text-accent-foreground sm:size-24 sm:text-2xl">
             {photo ? <img src={photo} alt={memberFullName(m)} className="size-full object-cover" /> : `${m.firstName[0]}${m.fatherName[0]}`}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm text-muted-foreground">{t('portal.welcome')}</p>
-            <h1 className="text-2xl font-semibold">{memberFullName(m)}</h1>
+            <h1 className="text-xl leading-snug font-semibold sm:text-2xl">{memberFullName(m)}</h1>
             {m.christianName && <p className="text-sm text-muted-foreground">{m.christianName}</p>}
             <p className="mt-1 font-mono text-sm font-semibold text-primary">{m.memberCode}</p>
           </div>
           {qr && (
-            <div className="flex flex-col items-center gap-1 rounded-lg border bg-white p-2">
-              <img src={qr} alt={`QR ${m.memberCode}`} className="size-32" />
+            <div className="col-span-2 flex flex-col items-center gap-1 justify-self-center rounded-lg border bg-white p-2">
+              <img src={qr} alt={`QR ${m.memberCode}`} className="size-36 sm:size-32" />
               <span className="text-[11px] text-neutral-600">{t('portal.showAtCheckIn')}</span>
             </div>
           )}
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card title={t('members.sections.personal.title')}>
-            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-              <Detail label={t('members.fields.gender')}>{labels.gender(m.gender)}</Detail>
-              <Detail label={t('members.fields.dateOfBirth')}>
-                {m.dateOfBirth && `${formatDate(m.dateOfBirth)}${age !== null ? ` · ${t('common.years', { count: age })}` : ''}`}
-              </Detail>
-              <Detail label={t('members.fields.joinedAt')}>{formatDate(m.joinedAt)}</Detail>
-              <Detail label={t('members.table.status')}>{labels.status(m.status)}</Detail>
-              <Detail label={t('members.fields.spiritualFather')}>{m.spiritualFatherName}</Detail>
-              <Detail label={t('members.fields.occupation')}>{m.occupation}</Detail>
-            </dl>
-          </Card>
-          <Card title={t('members.sections.contact.title')}>
-            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-              <Detail label={t('members.fields.phone')}>{formatPhone(m.phone)}</Detail>
-              <Detail label={t('members.fields.alternatePhone')}>{formatPhone(m.alternatePhone)}</Detail>
-              <Detail label={t('members.fields.email')}>{m.email}</Detail>
-              <Detail label={t('members.fields.address')}>{address}</Detail>
-              <Detail label={t('members.sections.emergency.title')}>
-                {m.emergencyContactName}
-                {m.emergencyContactRelation && ` (${m.emergencyContactRelation})`}
-              </Detail>
-              <Detail label={`${t('members.sections.emergency.title')} · ${t('members.fields.emergencyPhone')}`}>{formatPhone(m.emergencyContactPhone)}</Detail>
-            </dl>
-          </Card>
+        <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
           <Card title={t('members.sections.classes.title')} icon={BookOpen}>
             {m.classes.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t('portal.noClasses')}</p>
@@ -183,8 +161,34 @@ export function PortalHomePage() {
               </ul>
             )}
           </Card>
-          <MemberCoursesPanel memberId={m.id} load={portalApi.courses} linkRuns={false} />
+          <MemberExamsPanel memberId={m.id} load={portalApi.exams} linkExams={false} emptyText={t('portal.noExams')} />
           <MemberAttendancePanel memberId={m.id} load={portalApi.attendance} linkSessions={false} />
+          <MemberCoursesPanel memberId={m.id} load={portalApi.courses} linkRuns={false} />
+          <Card title={t('members.sections.personal.title')}>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4">
+              <Detail label={t('members.fields.gender')}>{labels.gender(m.gender)}</Detail>
+              <Detail label={t('members.fields.dateOfBirth')}>
+                {m.dateOfBirth && `${formatDate(m.dateOfBirth)}${age !== null ? ` · ${t('common.years', { count: age })}` : ''}`}
+              </Detail>
+              <Detail label={t('members.fields.joinedAt')}>{formatDate(m.joinedAt)}</Detail>
+              <Detail label={t('members.table.status')}>{labels.status(m.status)}</Detail>
+              <Detail label={t('members.fields.spiritualFather')}>{m.spiritualFatherName}</Detail>
+              <Detail label={t('members.fields.occupation')}>{m.occupation}</Detail>
+            </dl>
+          </Card>
+          <Card title={t('members.sections.contact.title')}>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 sm:gap-y-4">
+              <Detail label={t('members.fields.phone')}>{formatPhone(m.phone)}</Detail>
+              <Detail label={t('members.fields.alternatePhone')}>{formatPhone(m.alternatePhone)}</Detail>
+              <Detail label={t('members.fields.email')} wide>{m.email}</Detail>
+              <Detail label={t('members.fields.address')} wide>{address}</Detail>
+              <Detail label={t('members.sections.emergency.title')}>
+                {m.emergencyContactName}
+                {m.emergencyContactRelation && ` (${m.emergencyContactRelation})`}
+              </Detail>
+              <Detail label={`${t('members.sections.emergency.title')} · ${t('members.fields.emergencyPhone')}`}>{formatPhone(m.emergencyContactPhone)}</Detail>
+            </dl>
+          </Card>
         </div>
       </main>
     </div>

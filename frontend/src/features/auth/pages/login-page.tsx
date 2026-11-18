@@ -70,8 +70,8 @@ export function LoginPage() {
         <p className="relative text-sm text-brand-foreground/60">{t('common.appName')}</p>
       </aside>
 
-      <main className="relative flex items-center justify-center p-6 sm:p-10">
-        <div className="absolute top-4 right-4 flex items-center gap-2 sm:top-6 sm:right-6">
+      <main className="relative flex items-center justify-center p-6 pt-[calc(4.5rem+env(safe-area-inset-top))] sm:p-10">
+        <div className="absolute top-[calc(1rem+env(safe-area-inset-top))] right-4 flex items-center gap-2 sm:top-6 sm:right-6">
           <LanguageSwitch />
           <ThemeToggle />
         </div>

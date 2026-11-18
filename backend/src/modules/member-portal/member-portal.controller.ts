@@ -16,6 +16,7 @@ import { Public } from '../../common/decorators/public.decorator.js';
 import { ReqMeta, type RequestMeta } from '../../common/decorators/request-meta.decorator.js';
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator.js';
 import { CoursesService } from '../courses/courses.service.js';
+import { ExamsService } from '../exams/exams.service.js';
 import { MemberPortalGuard, type PortalRequest } from './member-portal.guard.js';
 import { MemberPortalService } from './member-portal.service.js';
 
@@ -43,6 +44,7 @@ export class MemberPortalController {
   constructor(
     private readonly portal: MemberPortalService,
     private readonly courses: CoursesService,
+    private readonly exams: ExamsService,
   ) {}
 
   @Post('login')
@@ -75,6 +77,14 @@ export class MemberPortalController {
   @ApiBearerAuth()
   courseList(@Req() req: PortalRequest) {
     return this.courses.memberCourses(req.portalMemberId!);
+  }
+
+  /** The member's exams with each part's mark, the total and the result (as in the bot). */
+  @Get('me/exams')
+  @UseGuards(MemberPortalGuard)
+  @ApiBearerAuth()
+  examList(@Req() req: PortalRequest) {
+    return this.exams.memberExams(req.portalMemberId!, null);
   }
 
   @Get('me/photo')

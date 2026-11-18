@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react'
 import { env } from '@/config/env'
 import type { MemberAttendanceSummary } from '@/features/attendance/types'
 import type { MemberCourses } from '@/features/courses/types'
+import type { MemberExam } from '@/features/exams/types'
 import type { Member } from '@/features/members/types'
 import type { ApiEnvelope } from '@/lib/api/types'
 
@@ -62,6 +63,7 @@ export const portalApi = {
       .then((r) => r.data.data),
   photo: () => portalHttp.get<Blob>('/portal/me/photo', { responseType: 'blob' }).then((r) => r.data),
   courses: () => portalHttp.get<ApiEnvelope<MemberCourses>>('/portal/me/courses').then((r) => r.data.data),
+  exams: () => portalHttp.get<ApiEnvelope<MemberExam[]>>('/portal/me/exams').then((r) => r.data.data),
 }
 
 export function usePortalMember() {

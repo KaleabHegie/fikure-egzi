@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { MemberAvatar } from '@/features/members/components/member-avatar'
 import { memberFullName } from '@/features/members/utils'
 import { getErrorMessage } from '@/lib/api/errors'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 import type { ExamCandidateRow, ExamMarkInput, ExamMember, ExamSheet } from '../types'
 import { ExamResultBadge } from './exam-result-badge'
@@ -33,6 +34,8 @@ export function ExamMarksSheet({
 }) {
   const { t } = useTranslation()
   const { parts, passMark, totalWeight } = sheet.exam
+  // Phones get one card per candidate instead of a table that scrolls sideways.
+  const phone = useMediaQuery('(max-width: 639px)')
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
   const [search, setSearch] = useState('')
@@ -127,6 +130,103 @@ export function ExamMarksSheet({
     }
   }
 
+  const scoreInput = (c: ExamCandidateRow, p: (typeof parts)[number], className: string) => {
+    const key = cell(p.id, c.member.id)
+    const bad = invalid(p.id, c.member.id)
+    return (
+      <input
+        value={valueOf(p.id, c.member.id)}
+        onChange={(e) => {
+          const v = e.target.value.trim()
+          if (SCORE.test(v)) setDraft((d) => ({ ...d, [key]: v }))
+        }}
+        inputMode="decimal"
+        aria-label={t('exams.marks.cellLabel', { name: memberFullName(c.member), part: p.name })}
+        aria-invalid={bad || undefined}
+        className={cn(
+          'tabular rounded-md border bg-background px-2 text-right outline-none transition-colors',
+          'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40',
+          key in draft && !bad && 'border-primary/50 bg-primary/5',
+          bad && 'border-destructive bg-destructive/5',
+          className,
+        )}
+      />
+    )
+  }
+
+  const removeButton = (c: ExamCandidateRow) => (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      onClick={() => onRemove(c.member)}
+      aria-label={t('exams.candidates.removeName', { name: memberFullName(c.member) })}
+      title={t('exams.candidates.remove')}
+    >
+      <UserMinus className="size-4" />
+    </Button>
+  )
+
+  const cards = (
+    <ul className="divide-y">
+      {editable && rows.length > 0 && (
+        <li className="flex items-center gap-2.5 px-3 py-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={allShown}
+            onChange={toggleShown}
+            aria-label={t('exams.marks.group.selectAll')}
+            className="size-5 accent-primary"
+          />
+          {t('exams.marks.group.selectAll')}
+        </li>
+      )}
+      {rows.map((c) => (
+        <li key={c.member.id} className={cn('space-y-3 px-3 py-3', selected.has(c.member.id) && 'bg-accent')}>
+          <div className="flex items-center gap-2.5">
+            {editable && (
+              <input
+                type="checkbox"
+                checked={selected.has(c.member.id)}
+                onChange={() => toggle(c.member.id)}
+                aria-label={t('exams.marks.group.select', { name: memberFullName(c.member) })}
+                className="size-5 shrink-0 accent-primary"
+              />
+            )}
+            <MemberAvatar member={c.member} />
+            <div className="min-w-0 flex-1">
+              <p className="leading-snug font-medium">{memberFullName(c.member)}</p>
+              <p className="font-mono text-xs text-muted-foreground">{c.member.memberCode}</p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span className="tabular text-base font-semibold">
+                {c.total ?? '—'}
+                <span className="text-xs font-normal text-muted-foreground">/{totalWeight}</span>
+              </span>
+              <ExamResultBadge result={c.result} />
+            </div>
+            {editable && removeButton(c)}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {parts.map((p) => (
+              <label key={p.id} className="flex items-center justify-between gap-2 rounded-lg border bg-background/60 px-2.5 py-1.5">
+                <span className="min-w-0 text-xs">
+                  <span className="block truncate">{p.name}</span>
+                  <span className="tabular text-muted-foreground">/ {p.weight}</span>
+                </span>
+                {editable ? (
+                  scoreInput(c, p, 'h-10 w-16 shrink-0 text-base')
+                ) : (
+                  <span className="tabular font-medium">{valueOf(p.id, c.member.id) || '—'}</span>
+                )}
+              </label>
+            ))}
+          </div>
+        </li>
+      ))}
+      {rows.length === 0 && <li className="px-4 py-8 text-center text-sm text-muted-foreground">{t('exams.marks.noMatch')}</li>}
+    </ul>
+  )
+
   return (
     <div className="rounded-xl border bg-card">
       <div className="flex flex-wrap items-center gap-2 border-b p-3 sm:p-4">
@@ -168,7 +268,7 @@ export function ExamMarksSheet({
                   inputMode="decimal"
                   aria-invalid={groupBad(p.id) || undefined}
                   className={cn(
-                    'tabular h-8 w-20 rounded-md border bg-background px-2 text-right text-sm text-foreground outline-none',
+                    'tabular h-10 w-20 rounded-md border bg-background px-2 text-right text-base text-foreground outline-none sm:h-8 sm:text-sm',
                     'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40',
                     groupBad(p.id) && 'border-destructive bg-destructive/5',
                   )}
@@ -182,6 +282,7 @@ export function ExamMarksSheet({
           </div>
         </div>
       )}
+      {phone ? cards : (
       <div className="overflow-x-auto">
         <table className="w-full min-w-max text-sm">
           <thead>
@@ -237,51 +338,20 @@ export function ExamMarksSheet({
                     </div>
                   </div>
                 </td>
-                {parts.map((p) => {
-                  const key = cell(p.id, c.member.id)
-                  const bad = invalid(p.id, c.member.id)
-                  return (
-                    <td key={p.id} className="px-2 py-2 text-center">
-                      {editable ? (
-                        <input
-                          value={valueOf(p.id, c.member.id)}
-                          onChange={(e) => {
-                            const v = e.target.value.trim()
-                            if (SCORE.test(v)) setDraft((d) => ({ ...d, [key]: v }))
-                          }}
-                          inputMode="decimal"
-                          aria-label={t('exams.marks.cellLabel', { name: memberFullName(c.member), part: p.name })}
-                          aria-invalid={bad || undefined}
-                          className={cn(
-                            'tabular h-8 w-16 rounded-md border bg-background px-2 text-right outline-none transition-colors',
-                            'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40',
-                            key in draft && !bad && 'border-primary/50 bg-primary/5',
-                            bad && 'border-destructive bg-destructive/5',
-                          )}
-                        />
-                      ) : (
-                        <span className="tabular">{valueOf(p.id, c.member.id) || '—'}</span>
-                      )}
-                    </td>
-                  )
-                })}
+                {parts.map((p) => (
+                  <td key={p.id} className="px-2 py-2 text-center">
+                    {editable ? (
+                      scoreInput(c, p, 'h-8 w-16')
+                    ) : (
+                      <span className="tabular">{valueOf(p.id, c.member.id) || '—'}</span>
+                    )}
+                  </td>
+                ))}
                 <td className="tabular px-3 py-2 text-right font-semibold">{c.total ?? '—'}</td>
                 <td className="py-2 pr-2 pl-2">
                   <ExamResultBadge result={c.result} />
                 </td>
-                {editable && (
-                  <td className="py-2 pr-3">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => onRemove(c.member)}
-                      aria-label={t('exams.candidates.removeName', { name: memberFullName(c.member) })}
-                      title={t('exams.candidates.remove')}
-                    >
-                      <UserMinus className="size-4" />
-                    </Button>
-                  </td>
-                )}
+                {editable && <td className="py-2 pr-3">{removeButton(c)}</td>}
               </tr>
             ))}
             {rows.length === 0 && (
@@ -294,8 +364,9 @@ export function ExamMarksSheet({
           </tbody>
         </table>
       </div>
+      )}
       {editable && (
-        <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t bg-card/95 px-4 py-3 backdrop-blur">
+        <div className="sticky bottom-[var(--tabs-h,0px)] z-20 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t bg-card/95 px-4 py-3 backdrop-blur">
           <p className="text-sm text-muted-foreground">
             {hasInvalid
               ? t('exams.marks.fixInvalid')

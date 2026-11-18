@@ -1606,6 +1606,7 @@ export const am: Translations = {
     showAtCheckIn: 'ሲገቡ ያሳዩ',
     noClasses: 'ገና በክፍል አልተመደቡም።',
     noDepartments: 'ገና በአገልግሎት ክፍል አያገለግሉም።',
+    noExams: 'ገና የተመዘገበ ፈተና የለዎትም።',
   },
   enums: {
     gender: { MALE: 'ወንድ', FEMALE: 'ሴት' },

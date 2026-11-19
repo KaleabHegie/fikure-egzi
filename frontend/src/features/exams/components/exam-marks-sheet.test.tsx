@@ -89,6 +89,21 @@ describe('ExamMarksSheet group marks', () => {
     expect(onSave.mock.calls[0]![1]).toEqual([{ memberIds: [1, 2] }])
   })
 
+  it('keeps the ticked as a group when saving, even with marks typed one by one', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn<OnSave>().mockResolvedValue()
+    renderSheet(onSave)
+
+    await user.click(screen.getByLabelText('Select Abebe Kebede'))
+    await user.click(screen.getByLabelText('Select Chaltu Kebede'))
+    await user.type(screen.getByLabelText('Abebe Kebede — Movement'), '30')
+    await user.type(screen.getByLabelText('Chaltu Kebede — Movement'), '25')
+    await user.click(screen.getByRole('button', { name: 'Save marks' }))
+
+    expect(onSave.mock.calls[0]![1]).toEqual([{ memberIds: [1, 3] }])
+    expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
+  })
+
   it('puts the selected on top and keeps them shown while searching for the next one', async () => {
     const user = userEvent.setup()
     renderSheet(vi.fn<OnSave>().mockResolvedValue())

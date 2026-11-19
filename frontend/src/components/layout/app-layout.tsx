@@ -9,6 +9,7 @@ import { isNativeApp } from '@/lib/native'
 import { AppTabs } from './app-tabs'
 import { useAndroidBack } from './use-android-back'
 import { BrandMark } from './brand-mark'
+import { PullToRefresh } from './pull-to-refresh'
 import { LanguageSwitch, ThemeToggle } from './preferences'
 import { SidebarPanel } from './sidebar-nav'
 import { UserMenu } from './user-menu'
@@ -37,6 +38,7 @@ function NativeLayout() {
         </div>
       </main>
       <AppTabs />
+      <PullToRefresh />
     </div>
   )
 }

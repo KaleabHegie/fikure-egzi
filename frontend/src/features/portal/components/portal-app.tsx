@@ -17,6 +17,7 @@ import { useSearchParams } from 'react-router'
 import logoUrl from '@/assets/logo.png'
 import { Tibeb } from '@/components/brand/tibeb'
 import { LanguageSwitch } from '@/components/layout/preferences'
+import { PullToRefresh } from '@/components/layout/pull-to-refresh'
 import { useAndroidBack } from '@/components/layout/use-android-back'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { MemberAttendancePanel } from '@/features/attendance/components/member-attendance-panel'
@@ -26,6 +27,7 @@ import { MemberCoursesPanel } from '@/features/courses/components/member-courses
 import { useMemberExams } from '@/features/exams/api'
 import { MemberExamsPanel } from '@/features/exams/components/member-exams-panel'
 import { memberFullName } from '@/features/members/utils'
+import { isNativeApp } from '@/lib/native'
 import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { portalApi, type PortalMember } from '../api'
@@ -60,6 +62,8 @@ export function PortalApp({
   const raw = params.get('tab')
   const tab: TabKey = TABS.some((x) => x.key === raw) ? (raw as TabKey) : 'home'
   const qrOpen = params.get('qr') === '1'
+  // Browsers have their own pull-to-refresh; the app gets one here.
+  const [native] = useState(isNativeApp)
 
   // Tabs and the QR sheet live in the URL, so the phone's back button steps back through them.
   const go = (next: TabKey) => {
@@ -98,6 +102,7 @@ export function PortalApp({
         </header>
       </div>
 
+      {native && <PullToRefresh />}
       <main key={tab} className="rise-in space-y-3 px-3 pt-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
         {tab === 'home' && <HomeTab m={m} photo={photo} onQr={() => showQr(true)} onGo={go} />}
         {tab === 'exams' && (

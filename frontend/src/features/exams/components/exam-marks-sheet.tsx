@@ -137,7 +137,8 @@ export function ExamMarksSheet({
   }
 
   const candidateIds = new Set(sheet.candidates.map((c) => c.member.id))
-  const groupsToSave = newGroups
+  // Those still ticked when saving were marked together too, even with marks typed one by one.
+  const groupsToSave = [...newGroups, ...(selected.size > 1 ? [[...selected]] : [])]
     .map((ids) => ids.filter((id) => candidateIds.has(id)))
     .filter((ids) => ids.length > 1)
     .map((memberIds) => ({ memberIds }))
@@ -157,6 +158,7 @@ export function ExamMarksSheet({
         groupsToSave,
       )
       discard()
+      clearSelection()
       toast.success(t('exams.marks.saved', { count: changes.length }))
     } catch (error) {
       toast.error(getErrorMessage(error))

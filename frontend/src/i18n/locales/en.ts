@@ -10,6 +10,7 @@ export const en = {
     showing: 'Showing: {{filter}}',
   },
   common: {
+    refreshing: 'Refreshing…',
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     minutes: 'Minutes',
@@ -1376,7 +1377,7 @@ export const en = {
         selectAll: 'Select everyone shown',
         select: 'Select {{name}}',
         selected: '{{count}} selected',
-        hint: 'Same marks for a group: fill in the parts and give them to everyone selected. You can still change anyone’s mark on its own afterwards.',
+        hint: 'Fill in the parts and give them to everyone selected, or type each one’s marks. When you save, the selected are kept as one group.',
         apply: 'Give to the {{count}} selected',
         clear: 'Clear selection',
         applied: 'Marks filled in for {{count}} candidates — check them and save.',

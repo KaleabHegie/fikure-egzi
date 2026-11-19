@@ -9,6 +9,7 @@ export const am: Translations = {
     showing: 'የሚታዩት፦ {{filter}}',
   },
   common: {
+    refreshing: 'በማደስ ላይ…',
     showPassword: 'የይለፍ ቃሉን አሳይ',
     hidePassword: 'የይለፍ ቃሉን ደብቅ',
     minutes: 'ደቂቃ',
@@ -1375,7 +1376,7 @@ export const am: Translations = {
         selectAll: 'የሚታዩትን ሁሉ ምረጥ',
         select: 'ምረጥ፦ {{name}}',
         selected: '{{count}} ተመርጠዋል',
-        hint: 'ለቡድን አንድ ዓይነት ውጤት፦ መመዘኛዎቹን ሞልተው ለተመረጡት ሁሉ ይስጡ። ከዚያም የማንኛውንም ሰው ውጤት ለብቻው መቀየር ይችላሉ።',
+        hint: 'መመዘኛዎቹን ሞልተው ለተመረጡት ሁሉ ይስጡ፣ ወይም የእያንዳንዱን ውጤት ለብቻው ያስገቡ። ሲያስቀምጡ የተመረጡት እንደ አንድ ቡድን ይያዛሉ።',
         apply: 'ለተመረጡት {{count}} ስጥ',
         clear: 'ምርጫውን አጽዳ',
         applied: 'ለ{{count}} ተፈታኞች ውጤት ተሞልቷል — አረጋግጠው ያስቀምጡ።',

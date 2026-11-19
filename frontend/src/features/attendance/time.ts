@@ -10,6 +10,16 @@ const addis = (iso: string) => new Date(new Date(iso).getTime() + ADDIS_MS).toIS
 
 /** Gregorian 'YYYY-MM-DD' of the instant in Addis Ababa. */
 export const addisDate = (iso: string) => addis(iso).slice(0, 10)
+/** Today in Addis Ababa, where the sessions are held. */
+export const addisToday = () => addisDate(new Date().toISOString())
+
+/** The Gregorian 'YYYY-MM-DD' `n` days after `iso` (before, if negative). */
+export const shiftDay = (iso: string, n: number) =>
+  new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
+
+/** Days shown on each side of the chosen day in the sessions' day strip. */
+export const SIDE_DAYS = 3
+
 /** 'HH:mm' (24h) of the instant in Addis Ababa. */
 export const addisTime = (iso: string) => addis(iso).slice(11, 16)
 

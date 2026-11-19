@@ -1,7 +1,7 @@
-import { CalendarCheck, ChevronRight, Clock, FileSpreadsheet, ListFilter, Plus, Search, Users } from 'lucide-react'
+import { CalendarCheck, CalendarDays, CalendarRange, ChevronRight, Clock, FileSpreadsheet, ListFilter, Plus, Search, Users } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { PaginationBar } from '@/components/common/pagination-bar'
 import { EmptyState, ErrorState } from '@/components/common/states'
@@ -26,10 +26,12 @@ import { cn } from '@/lib/utils'
 import { attendanceApi, useAttendanceMutation, useSessions } from '../api'
 import { useAudienceLabel } from '../audience'
 import { AttendanceImportDialog } from '../components/attendance-import-dialog'
+import { DayStrip } from '../components/day-strip'
 import { SessionDialog } from '../components/session-dialog'
 import { ecMonthName, formatEth, gcToEc } from '@/lib/ethiopian-calendar'
 import { STATUS_STYLES } from '../status-styles'
-import { addisDate, sessionDate, sessionTimes } from '../time'
+import { addisDate, addisToday, sessionDate, sessionTimes, shiftDay, SIDE_DAYS } from '../time'
+import { formatDate } from '@/lib/format'
 import { ATTENDANCE_STATUSES, type AttendanceSession, SESSION_KINDS, type SessionKind, type SessionStatus } from '../types'
 
 const ALL = '__all__'
@@ -121,13 +123,32 @@ function SessionsList() {
   const [query, setQuery] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
+  // The day shown (today unless chosen) lives in the URL, so coming back from a session keeps it.
+  const [params, setParams] = useSearchParams()
+  const raw = params.get('day')
+  const allDays = raw === 'all'
+  const day = raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : addisToday()
+  const showDay = (next: string | 'all') => {
+    setParams(next === addisToday() ? {} : { day: next }, { replace: true })
+    setPage(1)
+  }
+  const filters = { kind, status, search: query.trim() || undefined }
   const { data, isPending, isError, error, refetch } = useSessions({
     page,
     pageSize,
-    kind,
-    status,
-    search: query.trim() || undefined,
+    ...filters,
+    ...(!allDays && { from: day, to: day }),
   })
+  // How many sessions each day of the strip has (same filters), for its dots.
+  const strip = useSessions({
+    page: 1,
+    pageSize: 100,
+    ...filters,
+    from: shiftDay(day, -SIDE_DAYS),
+    to: shiftDay(day, SIDE_DAYS),
+  })
+  const counts: Record<string, number> = {}
+  if (!allDays) for (const s of strip.data?.data ?? []) counts[addisDate(s.startsAt)] = (counts[addisDate(s.startsAt)] ?? 0) + 1
 
   const onSearchChange = (value: string) => {
     setSearch(value)
@@ -173,6 +194,10 @@ function SessionsList() {
             }}
           />
         )}
+        <Button variant="outline" onClick={() => showDay(allDays ? addisToday() : 'all')}>
+          {allDays ? <CalendarDays /> : <CalendarRange />}
+          {allDays ? t('attendance.days.byDay') : t('attendance.days.all')}
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline">
@@ -224,6 +249,7 @@ function SessionsList() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {!allDays && <DayStrip day={day} onDay={showDay} counts={counts} />}
       {isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : isPending ? (
@@ -235,8 +261,16 @@ function SessionsList() {
       ) : data.data.length === 0 ? (
         <EmptyState
           icon={CalendarCheck}
-          title={kind || status || query ? t('attendance.noMatch') : t('attendance.noSessions')}
-          description={kind || status || query ? undefined : t('attendance.noSessionsBody')}
+          title={
+            !allDays
+              ? t('attendance.days.none', { date: formatDate(`${day}T00:00:00.000Z`) })
+              : kind || status || query
+                ? t('attendance.noMatch')
+                : t('attendance.noSessions')
+          }
+          description={
+            !allDays ? t('attendance.days.noneHint') : kind || status || query ? undefined : t('attendance.noSessionsBody')
+          }
         />
       ) : (
         <>

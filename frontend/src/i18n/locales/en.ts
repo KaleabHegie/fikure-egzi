@@ -10,6 +10,11 @@ export const en = {
     showing: 'Showing: {{filter}}',
   },
   common: {
+    savedTo: {
+      pictures: '{{name}} saved to Pictures › Fikure Egzi',
+      downloads: '{{name}} saved to Downloads › Fikure Egzi',
+    },
+    saveFailed: 'The file could not be saved.',
     refreshing: 'Refreshing…',
     showPassword: 'Show password',
     hidePassword: 'Hide password',

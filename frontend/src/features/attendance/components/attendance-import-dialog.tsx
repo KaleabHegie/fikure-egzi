@@ -37,7 +37,7 @@ export function AttendanceImportDialog({ open, onOpenChange }: { open: boolean; 
 
   const download = async (l: ImportLang) => {
     try {
-      saveBlob(await attendanceImportApi.template(l), `fikure-egzi-sessions-template-${l}.xlsx`)
+      await saveBlob(await attendanceImportApi.template(l), `fikure-egzi-sessions-template-${l}.xlsx`)
     } catch (e) {
       toast.error(getErrorMessage(e))
     }

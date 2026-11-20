@@ -42,7 +42,7 @@ export function MarksImportDialog({
 
   const download = async (l: ImportLang) => {
     try {
-      saveBlob(await markSheetApi.download(runId, l), `course-run-${runId}-marks-${l}.xlsx`)
+      await saveBlob(await markSheetApi.download(runId, l), `course-run-${runId}-marks-${l}.xlsx`)
     } catch (e) {
       toast.error(getErrorMessage(e))
     }

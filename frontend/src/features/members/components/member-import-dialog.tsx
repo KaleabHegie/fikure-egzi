@@ -50,7 +50,7 @@ export function MemberImportDialog({
 
   const download = async (l: ImportLang) => {
     try {
-      saveBlob(await membersApi.importTemplate(l), `fikure-egzi-members-template-${l}.xlsx`)
+      await saveBlob(await membersApi.importTemplate(l), `fikure-egzi-members-template-${l}.xlsx`)
     } catch (e) {
       toast.error(getErrorMessage(e))
     }

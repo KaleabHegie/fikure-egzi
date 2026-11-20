@@ -9,6 +9,11 @@ export const am: Translations = {
     showing: 'የሚታዩት፦ {{filter}}',
   },
   common: {
+    savedTo: {
+      pictures: '{{name}} በ Pictures › Fikure Egzi ውስጥ ተቀምጧል',
+      downloads: '{{name}} በ Downloads › Fikure Egzi ውስጥ ተቀምጧል',
+    },
+    saveFailed: 'ፋይሉን ማስቀመጥ አልተቻለም።',
     refreshing: 'በማደስ ላይ…',
     showPassword: 'የይለፍ ቃሉን አሳይ',
     hidePassword: 'የይለፍ ቃሉን ደብቅ',

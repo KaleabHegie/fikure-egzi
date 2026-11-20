@@ -30,6 +30,7 @@ import { MemberCoursesPanel } from '@/features/courses/components/member-courses
 import { MemberExamsPanel } from '@/features/exams/components/member-exams-panel'
 import { MemberDepartmentsPanel } from '@/features/departments/components/member-departments-panel'
 import { MemberServiceGroups } from '@/features/service-groups/components/member-service-groups'
+import { saveDataUrl } from '@/lib/download'
 import { getErrorMessage } from '@/lib/api/errors'
 import { ageFrom, formatDate, formatDateTime } from '@/lib/format'
 import { PERMISSIONS } from '@/lib/permissions'
@@ -76,11 +77,7 @@ function QrBlock({ member }: { member: Member }) {
   const { t } = useTranslation()
   const { data: qr } = useQrDataUrl(memberQrPayload(member.memberCode))
   const download = () => {
-    if (!qr) return
-    const a = document.createElement('a')
-    a.href = qr
-    a.download = `${member.memberCode}-qr.png`
-    a.click()
+    if (qr) void saveDataUrl(qr, `${member.memberCode}-qr.png`)
   }
   return (
     <div className="flex items-center gap-4 sm:flex-col sm:items-center sm:gap-2">

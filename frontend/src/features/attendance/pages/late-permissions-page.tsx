@@ -20,6 +20,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useLocalizedName } from '@/features/classes/use-localized'
 import { MemberAvatar } from '@/features/members/components/member-avatar'
 import { memberFullName } from '@/features/members/utils'
+import { saveBlob } from '@/lib/download'
+import { isNativeApp } from '@/lib/native'
 import { getErrorMessage } from '@/lib/api/errors'
 import { formatDate, formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -56,6 +58,13 @@ function useDebounced(value: string, ms = 300) {
 
 /** Opens a permission's evidence file in a new tab (it needs the sign-in, so it is fetched first). */
 async function openEvidence(id: number) {
+  // The app's web view has no tabs: the file is saved to Pictures or Downloads instead.
+  if (isNativeApp()) {
+    const blob = await permissionsApi.evidence(id)
+    const ext = blob.type === 'application/pdf' ? 'pdf' : (blob.type.split('/')[1] ?? 'bin').replace('jpeg', 'jpg')
+    await saveBlob(blob, `permission-${id}-evidence.${ext}`)
+    return
+  }
   const tab = window.open('', '_blank')
   const blob = await permissionsApi.evidence(id)
   const url = URL.createObjectURL(blob)

@@ -43,7 +43,7 @@ export function SessionSheetDialog({
 
   const download = async (l: ImportLang) => {
     try {
-      saveBlob(await attendanceImportApi.sheet(sessionId, l), `attendance-session-${sessionId}-${l}.xlsx`)
+      await saveBlob(await attendanceImportApi.sheet(sessionId, l), `attendance-session-${sessionId}-${l}.xlsx`)
     } catch (e) {
       toast.error(getErrorMessage(e))
     }

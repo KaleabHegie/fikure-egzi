@@ -1031,6 +1031,8 @@ model ExamMark {
 }
 
 /// What a permission (ፈቃድ) is for — the boxes on the paper form (ቅጽ 2).
+/// What a permission is for. New permissions are LATE_ARRIVAL, ONCE_A_WEEK or
+/// CONSECUTIVE_DAYS; the other values stay for permissions entered before.
 enum PermissionType {
   /// የሰዓት ማርፈድ: may arrive up to graceMinutes late.
   LATE_ARRIVAL
@@ -1044,6 +1046,9 @@ enum PermissionType {
   CONSECUTIVE_DAYS
   /// ሌላ (typeOther says what)
   OTHER
+  /// በሳምንት አንድ ቀን ብቻ መምጣት: comes only on the one weekday in `weekdays`;
+  /// excused from the department's sessions on every other day.
+  ONCE_A_WEEK
 }
 
 /// The department head's decision; only APPROVED permissions change attendance.
@@ -1071,6 +1076,7 @@ model LatePermission {
   /// LATE_ARRIVAL only: minutes after the start the member may arrive and count as Present.
   graceMinutes       Int?               @map("grace_minutes")
   /// Weekdays it applies on: 0 = Sunday … 6 = Saturday (every day for the absence types).
+  /// ONCE_A_WEEK: the one day the member comes (the other days are excused).
   weekdays           Json
   startsOn           DateTime           @map("starts_on") @db.Date
   endsOn             DateTime           @map("ends_on") @db.Date

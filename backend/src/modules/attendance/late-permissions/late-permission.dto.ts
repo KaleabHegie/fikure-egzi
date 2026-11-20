@@ -57,7 +57,7 @@ export class CreateLatePermissionDto {
   @ApiPropertyOptional({
     type: [Number],
     description:
-      'LATE_ARRIVAL: weekdays it applies on (0 = Sunday … 6 = Saturday). Others: every day.',
+      'LATE_ARRIVAL: weekdays it applies on (0 = Sunday … 6 = Saturday). ONCE_A_WEEK: the one day the member comes. Others: every day.',
   })
   @IsOptional()
   @IsArray()

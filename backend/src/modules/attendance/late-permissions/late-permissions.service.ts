@@ -23,8 +23,21 @@ const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 
 /** Permission types that excuse the member from a session instead of marking them Absent. */
 export const EXCUSING_TYPES: readonly PermissionType[] = [
+  PermissionType.ONCE_A_WEEK,
+  PermissionType.CONSECUTIVE_DAYS,
   PermissionType.SICK_LEAVE,
   PermissionType.MISS_STUDY,
+  PermissionType.OTHER,
+];
+
+/**
+ * The types a permission can be given as now: arriving late, coming only one
+ * day a week, leave for several days, and other (saying what). Permissions entered earlier with
+ * another type keep it (and its meaning) but can't be changed to one.
+ */
+export const OFFERED_TYPES: readonly PermissionType[] = [
+  PermissionType.LATE_ARRIVAL,
+  PermissionType.ONCE_A_WEEK,
   PermissionType.CONSECUTIVE_DAYS,
   PermissionType.OTHER,
 ];
@@ -193,7 +206,11 @@ export class LatePermissionsService {
     const weekday = weekdayOf(session.date);
     const covers = new Map<number, SessionCover>();
     for (const r of rows) {
-      if (!(r.weekdays as number[]).includes(weekday)) continue;
+      // Coming once a week: the stored day is the one they come; every other day is covered.
+      const days = r.weekdays as number[];
+      const applies =
+        r.type === PermissionType.ONCE_A_WEEK ? !days.includes(weekday) : days.includes(weekday);
+      if (!applies) continue;
       const window = r.fromTime && r.toTime;
       if (window && !(r.fromTime! < session.end && r.toTime! > session.start)) continue;
       const cover = covers.get(r.memberId) ?? { graceMinutes: 0, excuse: null, leaveEarly: null };
@@ -302,7 +319,7 @@ export class LatePermissionsService {
   }
 
   async create(dto: CreateLatePermissionDto, userId: number, scope: DepartmentScope) {
-    await this.validate(dto, scope);
+    await this.validate(dto, scope, null);
     const row = await this.prisma.$transaction(async (tx) => {
       // The form number comes from the id: insert with a unique placeholder, then stamp it.
       const created = await tx.latePermission.create({
@@ -359,7 +376,7 @@ export class LatePermissionsService {
         : current.representativeName,
       headName: has('headName') ? dto.headName : current.headName,
     };
-    await this.validate(merged, scope);
+    await this.validate(merged, scope, current.type);
     const row = await this.prisma.latePermission.update({
       where: { id },
       data: {
@@ -488,11 +505,12 @@ export class LatePermissionsService {
   /** The columns for a validated form; fields that don't fit the type are cleared. */
   private toData(dto: CreateLatePermissionDto) {
     const late = dto.type === PermissionType.LATE_ARRIVAL;
+    const byDay = late || dto.type === PermissionType.ONCE_A_WEEK;
     return {
       type: dto.type,
       typeOther: dto.type === PermissionType.OTHER ? (dto.typeOther ?? null) : null,
       graceMinutes: late ? (dto.graceMinutes ?? null) : null,
-      weekdays: late ? [...new Set(dto.weekdays ?? [])].sort((a, b) => a - b) : EVERY_DAY,
+      weekdays: byDay ? [...new Set(dto.weekdays ?? [])].sort((a, b) => a - b) : EVERY_DAY,
       startsOn: dateOnly(dto.startsOn),
       endsOn: dateOnly(dto.endsOn),
       fromTime: dto.fromTime ?? null,
@@ -510,13 +528,25 @@ export class LatePermissionsService {
     };
   }
 
-  private async validate(dto: CreateLatePermissionDto, scope: DepartmentScope) {
+  /** `previousType`: the permission's type before an edit (null for a new one). */
+  private async validate(
+    dto: CreateLatePermissionDto,
+    scope: DepartmentScope,
+    previousType: PermissionType | null,
+  ) {
     assertInScope(
       scope,
       dto.departmentId,
       'You can only give permissions for your own department.',
     );
     const errors: { field: string; messages: string[] }[] = [];
+    // An older permission may keep its old type; a new one, or a changed type, must be one offered now.
+    if (!OFFERED_TYPES.includes(dto.type) && dto.type !== previousType) {
+      errors.push({ field: 'type', messages: ['attendance.permissions.typeRetired'] });
+    }
+    if (dto.type === PermissionType.ONCE_A_WEEK && dto.weekdays?.length !== 1) {
+      errors.push({ field: 'weekdays', messages: ['attendance.permissions.chooseOneDay'] });
+    }
     if (dto.endsOn < dto.startsOn) {
       errors.push({ field: 'endsOn', messages: ['attendance.permissions.endBeforeStart'] });
     }

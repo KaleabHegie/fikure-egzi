@@ -829,6 +829,9 @@ export const am: Translations = {
       changeMember: 'ቀይር',
       noMembers: 'ከዚህ የአገልግሎት ክፍል ክፍሎች ወይም ምድቦች የሚስማማ አባል የለም',
       chooseMember: 'አባሉን ይምረጡ',
+      chooseOneDay: 'የሚመጡበትን አንድ ቀን ይምረጡ',
+      typeRetired: 'ይህ ዓይነት ፈቃድ ከአሁን በኋላ አይሰጥም። የሰዓት ማርፈድ፣ በሳምንት አንድ ቀን፣ በተከታታይ ቀናት ወይም ሌላ ይምረጡ።',
+      comesOn: '{{day}} ብቻ ይመጣሉ',
       chooseDays: 'ቢያንስ አንድ ቀን ይምረጡ',
       graceRange: 'ከ1 እስከ 240 ደቂቃ',
       endBeforeStart: 'የማብቂያው ቀን ከመጀመሪያው ቀን በፊት መሆን የለበትም',
@@ -858,6 +861,7 @@ export const am: Translations = {
       states: { active: 'በሥራ ላይ', pending: 'ውሳኔ የሚጠብቁ', upcoming: 'የሚጀምሩ', ended: 'ያበቁ', rejected: 'ያልተፈቀዱ', all: 'ሁሉም' },
       weekdays: { d0: 'እሑድ', d1: 'ሰኞ', d2: 'ማክሰኞ', d3: 'ረቡዕ', d4: 'ሐሙስ', d5: 'ዓርብ', d6: 'ቅዳሜ' },
       types: {
+        ONCE_A_WEEK: 'በሳምንት አንድ ቀን ብቻ መምጣት',
         LATE_ARRIVAL: 'የሰዓት ማርፈድ',
         SICK_LEAVE: 'ድንገተኛ የሕመም ፈቃድ',
         MISS_STUDY: 'ከመደበኛ ጥናት መቅረት',
@@ -873,6 +877,8 @@ export const am: Translations = {
       bothTimes: 'ሁለቱንም ሰዓቶች ይሙሉ ወይም ሁለቱንም ይተዉ',
       timeOrder: 'የማብቂያው ሰዓት ከመጀመሪያው በኋላ መሆን አለበት',
       fields: {
+        attendDay: 'የሚመጡበት ቀን',
+        attendDayHint: 'በሌሎቹ ቀናት ከመቅረት ይልቅ ፈቃድ ተብለው ይመዘገባሉ።',
         phone: 'የስልክ ቁጥር',
         requestedOn: 'የተጠየቀበት ቀን',
         type: 'የፈቃድ አይነት',

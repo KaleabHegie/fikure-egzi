@@ -4,9 +4,21 @@ import { attendanceKeys } from './api'
 
 export type PermissionState = 'pending' | 'rejected' | 'upcoming' | 'active' | 'ended'
 
-/** The boxes on the paper request form (ቅጽ 2). */
-export const PERMISSION_TYPES = ['LATE_ARRIVAL', 'SICK_LEAVE', 'MISS_STUDY', 'LEAVE_EARLY', 'CONSECUTIVE_DAYS', 'OTHER'] as const
+/** Every type a permission can have, including ones only older permissions use. */
+export const PERMISSION_TYPES = [
+  'LATE_ARRIVAL',
+  'ONCE_A_WEEK',
+  'CONSECUTIVE_DAYS',
+  'SICK_LEAVE',
+  'MISS_STUDY',
+  'LEAVE_EARLY',
+  'OTHER',
+] as const
 export type PermissionType = (typeof PERMISSION_TYPES)[number]
+/** The types a permission is given as now: arriving late, coming one day a week, several days away, other. */
+export const OFFERED_TYPES = ['LATE_ARRIVAL', 'ONCE_A_WEEK', 'CONSECUTIVE_DAYS', 'OTHER'] as const satisfies readonly PermissionType[]
+/** Types whose weekdays are chosen: the late days, or the one day the member comes. */
+export const byWeekday = (type: PermissionType) => type === 'LATE_ARRIVAL' || type === 'ONCE_A_WEEK'
 export const PERMISSION_DECISIONS = ['APPROVED', 'REJECTED', 'NEEDS_INFO', 'PENDING'] as const
 export type PermissionDecision = (typeof PERMISSION_DECISIONS)[number]
 
@@ -82,13 +94,15 @@ export interface LatePermissionInput {
   toTime: string | null
   reason: string
   requestedOn: string
-  contactPhone: string | null
+  /** No longer on the form (the member's own phone is on their record). */
+  contactPhone?: string | null
   memberConfirmed: boolean
   memberConfirmedOn: string | null
   decision: PermissionDecision
   decidedOn: string | null
-  representativeName: string | null
-  headName: string | null
+  /** No longer on the form; left out, an older permission keeps what it had. */
+  representativeName?: string | null
+  headName?: string | null
 }
 
 export interface PermissionListParams {

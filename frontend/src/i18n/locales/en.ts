@@ -830,6 +830,9 @@ export const en = {
       changeMember: 'Change',
       noMembers: 'No member of this department’s classes or groups matches',
       chooseMember: 'Choose the member',
+      chooseOneDay: 'Choose the one day they come',
+      typeRetired: 'This type is no longer given. Choose arriving late, once a week, several days or other.',
+      comesOn: 'Comes on {{day}} only',
       chooseDays: 'Choose at least one day',
       graceRange: 'Between 1 and 240 minutes',
       endBeforeStart: 'The end date must be on or after the start date',
@@ -859,6 +862,7 @@ export const en = {
       states: { active: 'Active', pending: 'Awaiting decision', upcoming: 'Upcoming', ended: 'Ended', rejected: 'Not approved', all: 'All' },
       weekdays: { d0: 'Sun', d1: 'Mon', d2: 'Tue', d3: 'Wed', d4: 'Thu', d5: 'Fri', d6: 'Sat' },
       types: {
+        ONCE_A_WEEK: 'Comes only once a week',
         LATE_ARRIVAL: 'Arriving late',
         SICK_LEAVE: 'Sudden sick leave',
         MISS_STUDY: 'Missing regular study',
@@ -874,6 +878,8 @@ export const en = {
       bothTimes: 'Give both times, or neither',
       timeOrder: 'The end time must be after the start time',
       fields: {
+        attendDay: 'The day they come',
+        attendDayHint: 'On the other days they are marked excused (ፈቃድ) instead of absent.',
         phone: 'Phone number',
         requestedOn: 'Date requested',
         type: 'Type of permission',

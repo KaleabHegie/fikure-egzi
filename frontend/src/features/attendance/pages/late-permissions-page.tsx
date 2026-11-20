@@ -195,7 +195,9 @@ export function LatePermissionsPage() {
                 <span className="text-xs text-muted-foreground">
                   {p.type === 'LATE_ARRIVAL'
                     ? `${t('attendance.permissions.graceShort', { minutes: p.graceMinutes ?? 0 })} · ${days(p)}`
-                    : p.fromTime && p.toTime
+                    : p.type === 'ONCE_A_WEEK'
+                      ? t('attendance.permissions.comesOn', { day: days(p) })
+                      : p.fromTime && p.toTime
                       ? `${formatTime(p.fromTime)} – ${formatTime(p.toTime)}`
                       : t('attendance.permissions.allDay')}
                 </span>

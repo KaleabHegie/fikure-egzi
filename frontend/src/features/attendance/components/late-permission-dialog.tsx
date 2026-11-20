@@ -21,7 +21,10 @@ import {
   type LatePermission,
   type LatePermissionInput,
   PERMISSION_DECISIONS,
+  OFFERED_TYPES,
   PERMISSION_TYPES,
+  byWeekday,
+  type PermissionType,
   type PermissionMember,
   usePermissionCandidates,
   usePermissionDepartments,
@@ -36,7 +39,6 @@ const schema = z
   .object({
     departmentId: z.string().min(1, msg('validation.required')),
     memberId: z.number().int().positive(msg('attendance.permissions.chooseMember')),
-    contactPhone: z.string().trim().max(20, msg('validation.tooLong', { max: 20 })),
     requestedOn: z.string().min(1, msg('validation.required')),
     type: z.enum(PERMISSION_TYPES),
     typeOther: z.string().trim().max(150, msg('validation.tooLong', { max: 150 })),
@@ -52,8 +54,6 @@ const schema = z
     memberConfirmedOn: z.string(),
     decision: z.enum(PERMISSION_DECISIONS),
     decidedOn: z.string(),
-    representativeName: z.string().trim().max(150, msg('validation.tooLong', { max: 150 })),
-    headName: z.string().trim().max(150, msg('validation.tooLong', { max: 150 })),
   })
   .refine((v) => v.type !== 'LATE_ARRIVAL' || (/^\d{1,3}$/.test(v.graceMinutes) && +v.graceMinutes >= 1 && +v.graceMinutes <= 240), {
     path: ['graceMinutes'],
@@ -62,6 +62,10 @@ const schema = z
   .refine((v) => v.type !== 'LATE_ARRIVAL' || v.weekdays.length > 0, {
     path: ['weekdays'],
     message: msg('attendance.permissions.chooseDays'),
+  })
+  .refine((v) => v.type !== 'ONCE_A_WEEK' || v.weekdays.length === 1, {
+    path: ['weekdays'],
+    message: msg('attendance.permissions.chooseOneDay'),
   })
   .refine((v) => v.type !== 'OTHER' || v.typeOther.length > 0, {
     path: ['typeOther'],
@@ -92,7 +96,6 @@ function initialValues(permission: LatePermission | undefined, departmentId: str
     return {
       departmentId,
       memberId: 0,
-      contactPhone: '',
       requestedOn: today,
       type: 'LATE_ARRIVAL',
       typeOther: '',
@@ -108,19 +111,16 @@ function initialValues(permission: LatePermission | undefined, departmentId: str
       memberConfirmedOn: today,
       decision: 'APPROVED',
       decidedOn: today,
-      representativeName: '',
-      headName: '',
     }
   }
   return {
     departmentId: String(permission.departmentId),
     memberId: permission.memberId,
-    contactPhone: permission.contactPhone ?? '',
     requestedOn: permission.requestedOn,
     type: permission.type,
     typeOther: permission.typeOther ?? '',
     graceMinutes: permission.graceMinutes ? String(permission.graceMinutes) : '30',
-    weekdays: permission.type === 'LATE_ARRIVAL' ? permission.weekdays : [0],
+    weekdays: byWeekday(permission.type) ? permission.weekdays : [0],
     startsOn: permission.startsOn,
     endsOn: permission.endsOn,
     timed: permission.fromTime !== null,
@@ -131,8 +131,6 @@ function initialValues(permission: LatePermission | undefined, departmentId: str
     memberConfirmedOn: permission.memberConfirmedOn ?? today,
     decision: permission.decision,
     decidedOn: permission.decidedOn ?? today,
-    representativeName: permission.representativeName ?? '',
-    headName: permission.headName ?? '',
   }
 }
 
@@ -191,12 +189,24 @@ export function LatePermissionDialog({
   const chooseMember = (m: PermissionMember | null) => {
     setMember(m)
     setValue('memberId', m?.id ?? 0, { shouldValidate: m !== null })
-    if (m?.phone && !form.getValues('contactPhone')) setValue('contactPhone', m.phone)
   }
+  const once = type === 'ONCE_A_WEEK'
+  // Coming once a week is one day; late arrival can be several.
   const toggleDay = (day: number) =>
-    setValue('weekdays', weekdays.includes(day) ? weekdays.filter((d) => d !== day) : [...weekdays, day].sort(), {
-      shouldValidate: true,
-    })
+    setValue(
+      'weekdays',
+      once ? [day] : weekdays.includes(day) ? weekdays.filter((d) => d !== day) : [...weekdays, day].sort(),
+      { shouldValidate: true },
+    )
+  const chooseType = (value: PermissionType) => {
+    setValue('type', value, { shouldValidate: true })
+    if (value === 'ONCE_A_WEEK' && weekdays.length !== 1) setValue('weekdays', [weekdays[0] ?? 0])
+  }
+  // The three types offered now, and an older permission's own type so it can be kept.
+  const typeOptions: PermissionType[] =
+    permission && !(OFFERED_TYPES as readonly PermissionType[]).includes(permission.type)
+      ? [...OFFERED_TYPES, permission.type]
+      : [...OFFERED_TYPES]
   const pickFile = (file: File | undefined) => {
     setFileError(null)
     if (!file) return setEvidence(null)
@@ -220,6 +230,7 @@ export function LatePermissionDialog({
 
   const submit = form.handleSubmit(async (v) => {
     const late = v.type === 'LATE_ARRIVAL'
+    const days = byWeekday(v.type)
     const decided = v.decision !== 'PENDING'
     try {
       await onSave(
@@ -229,20 +240,17 @@ export function LatePermissionDialog({
           type: v.type,
           typeOther: v.type === 'OTHER' ? v.typeOther : null,
           graceMinutes: late ? Number(v.graceMinutes) : null,
-          weekdays: late ? v.weekdays : [0, 1, 2, 3, 4, 5, 6],
+          weekdays: days ? v.weekdays : [0, 1, 2, 3, 4, 5, 6],
           startsOn: v.startsOn,
           endsOn: v.endsOn,
           fromTime: v.timed ? v.fromTime : null,
           toTime: v.timed ? v.toTime : null,
           reason: v.reason,
           requestedOn: v.requestedOn,
-          contactPhone: v.contactPhone || null,
           memberConfirmed: v.memberConfirmed,
           memberConfirmedOn: v.memberConfirmed ? v.memberConfirmedOn || null : null,
           decision: v.decision,
           decidedOn: decided ? v.decidedOn || null : null,
-          representativeName: v.representativeName || null,
-          headName: v.headName || null,
         },
         evidence,
       )
@@ -336,7 +344,6 @@ export function LatePermissionDialog({
               {errors.memberId?.message && <p className="text-sm text-destructive">{translateMessage(errors.memberId.message)}</p>}
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <TextField control={control} name="contactPhone" label={t('attendance.permissions.fields.phone')} type="tel" inputMode="tel" />
               <DateField control={control} name="requestedOn" label={t('attendance.permissions.fields.requestedOn')} required />
             </div>
           </div>
@@ -347,7 +354,7 @@ export function LatePermissionDialog({
                 {t('attendance.permissions.fields.type')} <span className="text-destructive">*</span>
               </legend>
               <div className="grid gap-1.5 sm:grid-cols-2">
-                {PERMISSION_TYPES.map((value) => (
+                {typeOptions.map((value) => (
                   <label
                     key={value}
                     className={cn(
@@ -360,7 +367,7 @@ export function LatePermissionDialog({
                       name="permission-type"
                       className="accent-primary"
                       checked={type === value}
-                      onChange={() => setValue('type', value, { shouldValidate: true })}
+                      onChange={() => chooseType(value)}
                     />
                     {t(`attendance.permissions.types.${value}`)}
                   </label>
@@ -371,8 +378,9 @@ export function LatePermissionDialog({
               <TextField control={control} name="typeOther" label={t('attendance.permissions.fields.typeOther')} required />
             )}
 
-            {type === 'LATE_ARRIVAL' && (
+            {byWeekday(type) && (
               <>
+                {type === 'LATE_ARRIVAL' && (
                 <TextField
                   control={control}
                   name="graceMinutes"
@@ -384,10 +392,13 @@ export function LatePermissionDialog({
                   max={240}
                   required
                 />
+                )}
                 <fieldset className="grid gap-2">
                   <legend className="mb-2 text-sm font-medium">
-                    {t('attendance.permissions.fields.days')} <span className="text-destructive">*</span>
+                    {once ? t('attendance.permissions.fields.attendDay') : t('attendance.permissions.fields.days')}{' '}
+                    <span className="text-destructive">*</span>
                   </legend>
+                  {once && <p className="-mt-1 text-xs text-muted-foreground">{t('attendance.permissions.fields.attendDayHint')}</p>}
                   <div className="flex flex-wrap gap-1.5">
                     {WEEKDAYS.map((day) => {
                       const on = weekdays.includes(day)
@@ -478,10 +489,6 @@ export function LatePermissionDialog({
             {decision !== 'APPROVED' && (
               <p className="text-xs text-muted-foreground">{t('attendance.permissions.onlyApprovedApply')}</p>
             )}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextField control={control} name="representativeName" label={t('attendance.permissions.fields.representative')} />
-              <TextField control={control} name="headName" label={t('attendance.permissions.fields.head')} />
-            </div>
             {decision !== 'PENDING' && (
               <DateField control={control} name="decidedOn" label={t('attendance.permissions.fields.decidedOn')} />
             )}

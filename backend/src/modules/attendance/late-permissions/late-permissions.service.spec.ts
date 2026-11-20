@@ -111,7 +111,9 @@ describe('LatePermissionsService', () => {
     const invalid: Partial<CreateLatePermissionDto>[] = [
       { startsOn: '2027-02-01' },
       { graceMinutes: null },
-      { type: 'OTHER', typeOther: null },
+      { type: 'ONCE_A_WEEK', weekdays: [0, 6] }, // comes on exactly one day
+      { type: 'ONCE_A_WEEK', weekdays: [] },
+      { type: 'OTHER', typeOther: null }, // says what it is for
       { fromTime: '09:00', toTime: null },
       { fromTime: '10:00', toTime: '09:00' },
     ];
@@ -120,6 +122,49 @@ describe('LatePermissionsService', () => {
         ValidationFailedException,
       );
     }
+  });
+
+  it('excuses someone who comes once a week on every other day, not on their day', async () => {
+    findMany.mockResolvedValue([
+      row({ memberId: 7, code: 'PRM-00007', type: 'ONCE_A_WEEK', weekdays: [6] }), // comes Saturdays
+      row({ memberId: 8, code: 'PRM-00008', type: 'ONCE_A_WEEK', weekdays: [0] }), // comes Sundays
+    ]);
+    const covers = await service.coverOn(4, sunday, {});
+    expect(covers.get(7)?.excuse).toEqual({ code: 'PRM-00007', type: 'ONCE_A_WEEK' });
+    expect(covers.has(8)).toBe(false);
+  });
+
+  it('gives new permissions only the offered types, but lets an older one keep its type', async () => {
+    classTypeCount.mockResolvedValue(1);
+    memberCount.mockResolvedValue(1);
+    await expect(service.create({ ...dto, type: 'SICK_LEAVE' }, 1, null)).rejects.toMatchObject({
+      details: [{ field: 'type', messages: ['attendance.permissions.typeRetired'] }],
+    });
+
+    const older = {
+      id: 3,
+      ...dto,
+      type: 'SICK_LEAVE',
+      graceMinutes: null,
+      weekdays: [0, 1, 2, 3, 4, 5, 6],
+      startsOn: new Date('2026-09-11'),
+      endsOn: new Date('2027-01-31'),
+      requestedOn: new Date('2026-09-10'),
+      typeOther: null,
+      fromTime: null,
+      toTime: null,
+      contactPhone: null,
+      memberConfirmed: false,
+      memberConfirmedOn: null,
+      decidedOn: null,
+      representativeName: null,
+      headName: null,
+    };
+    const findUnique = jest.fn<Fn>().mockResolvedValue(older);
+    const update = jest.fn<Fn>().mockResolvedValue({ ...older, member: {}, department: {} });
+    Object.assign(prisma.latePermission, { findUnique, update });
+    await service.update(3, { reason: 'Still sick' }, 1, null).catch(() => undefined);
+    expect(update).toHaveBeenCalled();
   });
 
   it('tells pending, rejected, upcoming, active and ended permissions apart', () => {

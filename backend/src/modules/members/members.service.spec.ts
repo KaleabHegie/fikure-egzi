@@ -31,6 +31,7 @@ describe('MembersService', () => {
   };
   const prisma = {
     classGrade: { findMany: asyncMock() },
+    classType: { count: asyncMock() },
     member: {
       findFirst: asyncMock(),
       count: asyncMock(),
@@ -426,6 +427,40 @@ describe('MembersService', () => {
       expect(tx.classPlacementHistory.createMany).toHaveBeenCalledWith({
         data: [expect.objectContaining({ memberId: 9, classTypeId: 11, classGradeId: 21 })],
       });
+    });
+
+    it("keeps a department's staff to their own members and their own classes", async () => {
+      // Not one of the department's members: not found for them.
+      prisma.member.findFirst.mockResolvedValue(null);
+      await expect(service.update(9, { phone: '0911' }, 4, null, [4])).rejects.toThrow(
+        'Member 9 not found',
+      );
+      expect(prisma.member.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 9, deletedAt: null }),
+        }),
+      );
+
+      // Their member, but moving them in another department's class (type 11) is refused.
+      prisma.member.findFirst.mockResolvedValue({
+        id: 9,
+        agreements: [],
+        classEnrollments: [
+          { classType: { id: 10 }, classGrade: { id: 1 } },
+          { classType: { id: 11 }, classGrade: { id: 20 } },
+        ],
+      });
+      prisma.classGrade.findMany.mockResolvedValue([grade(1, 10), grade(21, 11)]);
+      prisma.classType.count.mockResolvedValue(1);
+      await expect(
+        service.update(9, { classGradeIds: [1, 21] }, 4, null, [4]),
+      ).rejects.toMatchObject({
+        details: [{ field: 'classGradeIds', messages: ['members.classOutsideDepartment'] }],
+      });
+      expect(prisma.classType.count).toHaveBeenCalledWith({
+        where: { id: { in: [11] }, departmentId: { notIn: [4] } },
+      });
+      expect(tx.memberClassEnrollment.createMany).not.toHaveBeenCalled();
     });
   });
 });

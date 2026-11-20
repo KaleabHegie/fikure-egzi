@@ -296,10 +296,11 @@ export const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
     code: 'ATTENDANCE_ADMIN',
     name: 'Attendance admin',
     description:
-      "Their department's attendance (each session until the 5th day after it), reports and late permissions; views (never changes) its departments, members and classes",
+      "Their department's attendance (each session until the 5th day after it), reports and late permissions; edits its members; views (never changes) its departments and classes",
     departmentScoped: true,
     permissions: [
       ...DEPARTMENT_VIEW,
+      PERMISSIONS.MEMBERS_UPDATE,
       PERMISSIONS.ATTENDANCE_READ,
       PERMISSIONS.ATTENDANCE_TAKE,
       PERMISSIONS.ATTENDANCE_MANAGE,

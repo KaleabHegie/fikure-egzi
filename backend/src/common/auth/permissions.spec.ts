@@ -8,7 +8,8 @@ const role = (code: string) => {
 
 describe('SYSTEM_ROLES', () => {
   it.each([
-    ['ATTENDANCE_ADMIN', ['attendance.']],
+    // Attendance admins also edit their departments' members.
+    ['ATTENDANCE_ADMIN', ['attendance.', 'members.update']],
     ['EXAM_TAKER', ['exams.']],
   ])('%s views its department and works only in its own area', (code, areas) => {
     const r = role(code);
@@ -31,6 +32,14 @@ describe('SYSTEM_ROLES', () => {
     for (const p of rest) expect(areas.some((a) => p.startsWith(a))).toBe(true);
     // No dashboard, so the sidebar shows nothing else.
     expect(r.permissions).not.toContain(PERMISSIONS.DASHBOARD_READ);
+  });
+
+  it('lets attendance admins edit members but not add or delete them', () => {
+    const r = role('ATTENDANCE_ADMIN');
+    expect(r.permissions).toContain(PERMISSIONS.MEMBERS_UPDATE);
+    expect(r.permissions).not.toContain(PERMISSIONS.MEMBERS_CREATE);
+    expect(r.permissions).not.toContain(PERMISSIONS.MEMBERS_DELETE);
+    expect(role('EXAM_TAKER').permissions).not.toContain(PERMISSIONS.MEMBERS_UPDATE);
   });
 
   it('keeps the dashboard for the administrators', () => {

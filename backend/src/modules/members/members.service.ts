@@ -323,11 +323,17 @@ export class MembersService {
     return outerTx ? run(outerTx) : this.prisma.$transaction(run);
   }
 
+  /**
+   * Edits a member. A department-scoped user (e.g. an attendance admin) edits
+   * only members of their departments, and may change only their own
+   * departments' class placements.
+   */
   async update(
     id: number,
     dto: UpdateMemberDto,
     userId: number,
     ipAddress: string | null,
+    scope: DepartmentScope = null,
   ): Promise<MemberRecord> {
     const nulled = NON_NULLABLE_FIELDS.filter((field) => dto[field] === null);
     if (nulled.length > 0) {
@@ -339,7 +345,7 @@ export class MembersService {
       );
     }
 
-    const current = await this.findRow(id);
+    const current = await this.findRow(id, scope);
     if (dto.firstName || dto.fatherName || dto.grandfatherName !== undefined) {
       await this.assertUniqueName(
         {
@@ -370,6 +376,7 @@ export class MembersService {
             classGradeIds,
             current.classEnrollments.map((e) => e.classGrade.id),
           );
+    if (placements && scope !== null) await this.assertOwnClasses(current, placements, scope);
     const data: Prisma.MemberUncheckedUpdateInput = {
       ...rest,
       ...(dateOfBirth !== undefined && {
@@ -448,6 +455,7 @@ export class MembersService {
     file: { buffer: Buffer; size: number } | undefined,
     userId: number | null,
     ipAddress: string | null,
+    scope: DepartmentScope = null,
   ): Promise<MemberRecord> {
     if (!file || file.size === 0) {
       throw new ValidationFailedException([
@@ -466,7 +474,7 @@ export class MembersService {
       ]);
     }
 
-    const previous = (await this.findRow(id)).photoPath;
+    const previous = (await this.findRow(id, scope)).photoPath;
     const key = `members/${id}-${randomUUID().slice(0, 8)}.${type.ext}`;
     await this.storage.save(key, file.buffer);
 
@@ -498,8 +506,13 @@ export class MembersService {
     }
   }
 
-  async removePhoto(id: number, userId: number, ipAddress: string | null): Promise<MemberRecord> {
-    const previous = (await this.findRow(id)).photoPath;
+  async removePhoto(
+    id: number,
+    userId: number,
+    ipAddress: string | null,
+    scope: DepartmentScope = null,
+  ): Promise<MemberRecord> {
+    const previous = (await this.findRow(id, scope)).photoPath;
     const member = await this.prisma.$transaction(async (tx) => {
       const row = await tx.member.update({
         where: { id },
@@ -618,6 +631,29 @@ export class MembersService {
     if (messages.length > 0)
       throw new ValidationFailedException([{ field: 'classGradeIds', messages }]);
     return grades.map((g) => ({ classTypeId: g.classTypeId, classGradeId: g.id }));
+  }
+
+  /** A scoped user may add or remove only classes their departments run; other placements stay as they are. */
+  private async assertOwnClasses(
+    current: MemberRow,
+    next: { classTypeId: number; classGradeId: number }[],
+    scope: number[],
+  ): Promise<void> {
+    const before = current.classEnrollments.map((e) => `${e.classType.id}:${e.classGrade.id}`);
+    const after = next.map((n) => `${n.classTypeId}:${n.classGradeId}`);
+    const changed = [
+      ...before.filter((k) => !after.includes(k)),
+      ...after.filter((k) => !before.includes(k)),
+    ].map((k) => Number(k.split(':')[0]));
+    if (changed.length === 0) return;
+    const outside = await this.prisma.classType.count({
+      where: { id: { in: [...new Set(changed)] }, departmentId: { notIn: scope } },
+    });
+    if (outside > 0) {
+      throw new ValidationFailedException([
+        { field: 'classGradeIds', messages: ['members.classOutsideDepartment'] },
+      ]);
+    }
   }
 
   /** Replaces a member's class placements, keeping unchanged ones (and their assignedAt). */

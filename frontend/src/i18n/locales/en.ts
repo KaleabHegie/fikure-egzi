@@ -188,6 +188,7 @@ export const en = {
     completionWithoutPhoto: 'Without a photo',
   },
   members: {
+    classOutsideDepartment: 'You can change only the classes your department runs.',
     title: 'Members',
     count: '{{count}} registered members',
     description: 'Registered Sunday school members',
@@ -1130,7 +1131,7 @@ export const en = {
       SUPER_ADMIN: 'ፅህፈት ቤት: every module and every department, user accounts and the audit log, but not system settings or deleting accounts.',
       DEPARTMENT_ADMIN: "Manages their department's roster, attendance and courses, and creates its attendance takers and teachers.",
       ATTENDANCE_ADMIN:
-        "Their department's attendance on any day, its reports and late permissions. Sees its departments, members and classes, but can't change them.",
+        "Their department's attendance on any day, its reports and late permissions. Edits its members' details; sees its departments and classes, but can't change them.",
       EXAM_TAKER:
         "Their department's exams: creates them, adds candidates and enters marks. Sees its departments, members and classes, but can't change them.",
       ATTENDANCE_TAKER: "Only the attendance page: creates, records, closes and deletes their department's attendance.",

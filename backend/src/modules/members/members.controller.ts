@@ -97,7 +97,7 @@ export class MembersController {
     @CurrentUser() user: AuthenticatedUser,
     @ReqMeta() meta: RequestMeta,
   ) {
-    return this.members.update(id, dto, user.id, meta.ipAddress);
+    return this.members.update(id, dto, user.id, meta.ipAddress, user.departmentIds);
   }
 
   @Get(':id/history')
@@ -146,7 +146,7 @@ export class MembersController {
     @CurrentUser() user: AuthenticatedUser,
     @ReqMeta() meta: RequestMeta,
   ) {
-    return this.members.setPhoto(id, file, user.id, meta.ipAddress);
+    return this.members.setPhoto(id, file, user.id, meta.ipAddress, user.departmentIds);
   }
 
   @Delete(':id/photo')
@@ -157,7 +157,7 @@ export class MembersController {
     @CurrentUser() user: AuthenticatedUser,
     @ReqMeta() meta: RequestMeta,
   ) {
-    return this.members.removePhoto(id, user.id, meta.ipAddress);
+    return this.members.removePhoto(id, user.id, meta.ipAddress, user.departmentIds);
   }
 
   @Delete(':id')

@@ -1,6 +1,7 @@
 import { assertInScope, type DepartmentScope } from '../../common/auth/department-scope.js';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -88,7 +89,13 @@ export class ClassesService {
     await this.assertDepartment(dto.departmentId);
     const sortOrder = dto.sortOrder ?? (await this.nextTypeOrder());
     const type = await this.prisma.classType.create({ data: { ...dto, sortOrder } });
-    await this.audit.record({ userId, action: 'CREATE', entity: 'ClassType', entityId: type.id });
+    await this.audit.record({
+      userId,
+      action: 'CREATE',
+      entity: 'ClassType',
+      entityId: type.id,
+      changes: { after: auditSnapshot(type) },
+    });
     return type;
   }
 
@@ -98,7 +105,7 @@ export class ClassesService {
     userId: number,
     scope: DepartmentScope = null,
   ) {
-    await this.findType(id, scope);
+    const before = await this.findType(id, scope);
     if (dto.departmentId !== undefined)
       assertInScope(scope, dto.departmentId, OWN_DEPARTMENT_MESSAGE);
     await this.assertDepartment(dto.departmentId);
@@ -108,14 +115,14 @@ export class ClassesService {
       action: 'UPDATE',
       entity: 'ClassType',
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(before, type, dto),
     });
     return type;
   }
 
   /** Only empty types can be deleted; otherwise deactivate them to keep history. */
   async removeType(id: number, userId: number, scope: DepartmentScope = null): Promise<void> {
-    await this.findType(id, scope);
+    const before = await this.findType(id, scope);
     const [grades, enrollments] = await Promise.all([
       this.prisma.classGrade.count({ where: { classTypeId: id } }),
       this.prisma.memberClassEnrollment.count({ where: { classTypeId: id } }),
@@ -126,7 +133,13 @@ export class ClassesService {
       );
     }
     await this.prisma.classType.delete({ where: { id } });
-    await this.audit.record({ userId, action: 'DELETE', entity: 'ClassType', entityId: id });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: 'ClassType',
+      entityId: id,
+      changes: { before: auditSnapshot(before) },
+    });
   }
 
   /**
@@ -204,7 +217,7 @@ export class ClassesService {
       action: 'DELETE',
       entity: 'ClassAgreement',
       entityId: agreement.id,
-      changes: { classTypeId },
+      changes: { classTypeId, before: auditSnapshot(agreement) },
     });
   }
 
@@ -222,7 +235,13 @@ export class ClassesService {
       data: { ...dto, classTypeId, sortOrder },
       select: GRADE_SELECT,
     });
-    await this.audit.record({ userId, action: 'CREATE', entity: 'ClassGrade', entityId: grade.id });
+    await this.audit.record({
+      userId,
+      action: 'CREATE',
+      entity: 'ClassGrade',
+      entityId: grade.id,
+      changes: { after: auditSnapshot(grade) },
+    });
     return grade;
   }
 
@@ -232,7 +251,7 @@ export class ClassesService {
     userId: number,
     scope: DepartmentScope = null,
   ) {
-    await this.findGrade(id, scope);
+    const before = await this.findGrade(id, scope);
     const grade = await this.prisma.classGrade.update({
       where: { id },
       data: dto,
@@ -243,14 +262,14 @@ export class ClassesService {
       action: 'UPDATE',
       entity: 'ClassGrade',
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(before, grade, dto),
     });
     return grade;
   }
 
   /** Only grades without members can be deleted; otherwise deactivate them. */
   async removeGrade(id: number, userId: number, scope: DepartmentScope = null): Promise<void> {
-    await this.findGrade(id, scope);
+    const before = await this.findGrade(id, scope);
     const enrollments = await this.prisma.memberClassEnrollment.count({
       where: { classGradeId: id },
     });
@@ -265,7 +284,13 @@ export class ClassesService {
       );
     }
     await this.prisma.classGrade.delete({ where: { id } });
-    await this.audit.record({ userId, action: 'DELETE', entity: 'ClassGrade', entityId: id });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: 'ClassGrade',
+      entityId: id,
+      changes: { before: auditSnapshot(before) },
+    });
   }
 
   async reorderGrades(

@@ -3,6 +3,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
 import { Paginated } from '../../common/pagination/paginated.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import { detectImageType, MIME_BY_EXT } from '../../common/utils/image-type.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -101,6 +102,15 @@ const MEMBER_SELECT = {
 } satisfies Prisma.MemberSelect;
 
 type MemberRow = Prisma.MemberGetPayload<{ select: typeof MEMBER_SELECT }>;
+
+/** A member with its class and agreement links as the id lists the update form sends, for the audit diff. */
+function memberAuditView(m: MemberRow) {
+  return {
+    ...m,
+    classGradeIds: m.classEnrollments.map((e) => e.classGrade.id).sort((a, b) => a - b),
+    agreementIds: m.agreements.map((a) => a.agreement.id).sort((a, b) => a - b),
+  };
+}
 
 /** API shape: the storage path stays internal; clients only learn whether a photo exists. */
 type MemberClass = Omit<MemberRow['classEnrollments'][number], 'classType'> & {
@@ -299,7 +309,11 @@ export class MembersService {
           action: 'CREATE',
           entity: ENTITY,
           entityId: member.id,
-          changes: { memberCode: member.memberCode, ...(selfRegistered && { via: 'telegram' }) },
+          changes: {
+            memberCode: member.memberCode,
+            ...(selfRegistered && { via: 'telegram' }),
+            after: auditSnapshot(member),
+          },
           ipAddress,
         },
         tx,
@@ -394,7 +408,7 @@ export class MembersService {
           action: 'UPDATE',
           entity: ENTITY,
           entityId: id,
-          changes: { fields: Object.keys(dto) },
+          changes: auditDiff(memberAuditView(current), memberAuditView(member), dto),
           ipAddress,
         },
         tx,
@@ -405,7 +419,7 @@ export class MembersService {
 
   /** Soft delete: the row stays for history and audit, but disappears from the API. */
   async remove(id: number, userId: number, ipAddress: string | null): Promise<void> {
-    await this.findOne(id);
+    const before = await this.findRow(id);
     await this.prisma.$transaction(async (tx) => {
       await tx.member.update({
         where: { id },
@@ -415,7 +429,14 @@ export class MembersService {
       await closeClassPeriods(tx, id, today());
       await closeServicePeriods(tx, id, today());
       await this.audit.record(
-        { userId, action: 'DELETE', entity: ENTITY, entityId: id, ipAddress },
+        {
+          userId,
+          action: 'DELETE',
+          entity: ENTITY,
+          entityId: id,
+          changes: { before: auditSnapshot(before) },
+          ipAddress,
+        },
         tx,
       );
     });

@@ -1,7 +1,7 @@
-import { ListFilter, ScrollText, Search, X } from 'lucide-react'
+import { ChevronRight, ListFilter, ScrollText, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { FilterChip } from '@/components/common/filter-chip'
 import { PaginationBar } from '@/components/common/pagination-bar'
 import { EmptyState, ErrorState } from '@/components/common/states'
@@ -25,47 +25,31 @@ import { PeriodFilter, type PeriodPreset } from '@/features/attendance/component
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useAuditLog, useAuditUsers } from '../api'
+import { ACTION_STYLES, ROUTES, useAuditFormat } from '../format'
 import { AUDIT_ACTIONS, AUDIT_ENTITIES, type AuditAction, type AuditEntry, type AuditQuery } from '../types'
 
 const ALL = '__all__'
 
-const ACTION_STYLES: Record<AuditAction, string> = {
-  CREATE: 'bg-success/12 text-success',
-  UPDATE: 'bg-accent text-accent-foreground',
-  DELETE: 'bg-destructive/10 text-destructive',
-  LOGIN: 'bg-muted text-muted-foreground',
-  LOGOUT: 'bg-muted text-muted-foreground',
-}
-
-/** Where an audited record can be opened, if anywhere. */
-const ROUTES: Partial<Record<string, (id: string) => string>> = {
-  Member: (id) => `/members/${id}`,
-  Department: (id) => `/departments/${id}`,
-  AttendanceSession: (id) => `/attendance/${id}`,
-  Exam: (id) => `/exams/${id}`,
-  Course: (id) => `/courses/${id}`,
-  Asset: (id) => `/assets/${id}`,
-}
-
-/** A short, readable summary of the recorded changes. */
+/** A short, readable summary of the recorded changes: "Phone: 0911… → 0922…". */
 function useDetails() {
   const { t, i18n } = useTranslation()
-  // "phone" → "ስልክ": the audit's own labels first, then the member form's, else the raw name.
-  const field = (key: string) =>
-    i18n.exists(`audit.fields.${key}`)
-      ? t(`audit.fields.${key}` as never)
-      : i18n.exists(`members.fields.${key}`)
-        ? t(`members.fields.${key}` as never)
-        : key
-  return (changes: unknown): string => {
+  const { field, value } = useAuditFormat()
+  const sep = i18n.language === 'en' ? ', ' : '፣ '
+  return (e: AuditEntry): string => {
+    const changes = e.changes
     if (!changes || typeof changes !== 'object') return ''
-    return Object.entries(changes as Record<string, unknown>)
-      .map(([key, value]) => {
-        if (key === 'fields' && Array.isArray(value)) {
-          return t('audit.changedFields', { fields: value.map((f) => field(String(f))).join('፣ ') })
+    const c = changes as Record<string, unknown>
+    const diff = c.diff && typeof c.diff === 'object' ? (c.diff as Record<string, { from?: unknown; to: unknown }>) : null
+    return Object.entries(c)
+      .flatMap(([key, v]): string[] => {
+        if (key === 'diff' && diff) {
+          return Object.entries(diff).map(([f, ch]) =>
+            'from' in ch ? `${field(f, e.entity)}: ${value(ch.from, f)} → ${value(ch.to, f)}` : `${field(f, e.entity)}: ${value(ch.to, f)}`,
+          )
         }
-        const shown = Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value)
-        return `${field(key)}: ${shown}`
+        if (key === 'fields') return diff || !Array.isArray(v) ? [] : [t('audit.changedFields', { fields: v.map((f) => field(String(f), e.entity)).join(sep) })]
+        if (key === 'before' || key === 'after') return []
+        return [`${field(key, e.entity)}: ${typeof v === 'object' && v !== null && !Array.isArray(v) ? JSON.stringify(v) : value(v, key)}`]
       })
       .join(' · ')
   }
@@ -105,6 +89,9 @@ function FilterSub({
 export function AuditPage() {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const open = (id: string) => navigate(`/audit/${id}`, { state: { from: location.pathname + location.search } })
   const scoped = user?.departmentIds != null
   const [query, setQuery] = useState<AuditQuery>({ page: 1, pageSize: 25 })
   const [preset, setPreset] = useState<PeriodPreset>('all')
@@ -131,7 +118,7 @@ export function AuditPage() {
     clearTimeout(timer.current)
     setQuery({ page: 1, pageSize: query.pageSize })
   }
-  const entityLabel = (e: string) => (AUDIT_ENTITIES.includes(e as never) ? t(`audit.entities.${e as (typeof AUDIT_ENTITIES)[number]}`) : e)
+  const { entity: entityLabel } = useAuditFormat()
 
   // "ቃለአብ ህገ መንግስት" with "ተጠቃሚ · admin@gmail.com" under it, rather than "ተጠቃሚ #8".
   const target = (e: AuditEntry) => {
@@ -143,7 +130,7 @@ export function AuditPage() {
       <div className="min-w-0">
         <div className="max-w-64 truncate font-medium">
           {route ? (
-            <Link to={route} className="hover:underline">
+            <Link to={route} className="hover:underline" onClick={(ev) => ev.stopPropagation()}>
               {main}
             </Link>
           ) : (
@@ -265,13 +252,25 @@ export function AuditPage() {
                   <TableHead>{t('audit.action')}</TableHead>
                   <TableHead>{t('audit.what')}</TableHead>
                   <TableHead className="hidden lg:table-cell">{t('audit.details')}</TableHead>
-                  <TableHead className="hidden pr-5 xl:table-cell">{t('audit.ip')}</TableHead>
+                  <TableHead className="hidden xl:table-cell">{t('audit.ip')}</TableHead>
+                  <TableHead className="w-10 pr-4">
+                    <span className="sr-only">{t('audit.entry.open')}</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {log.data.data.map((e) => (
-                  <TableRow key={e.id}>
-                    <TableCell className="pl-5 text-sm whitespace-nowrap">{formatDateTime(e.createdAt)}</TableCell>
+                  <TableRow key={e.id} className="cursor-pointer" onClick={() => open(e.id)}>
+                    <TableCell className="pl-5 text-sm whitespace-nowrap">
+                      <Link
+                        to={`/audit/${e.id}`}
+                        state={{ from: location.pathname + location.search }}
+                        className="hover:underline"
+                        onClick={(ev) => ev.stopPropagation()}
+                      >
+                        {formatDateTime(e.createdAt)}
+                      </Link>
+                    </TableCell>
                     <TableCell>
                       {e.user ? (
                         <>
@@ -293,11 +292,14 @@ export function AuditPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-sm">{target(e)}</TableCell>
-                    <TableCell className="hidden max-w-md truncate text-xs text-muted-foreground lg:table-cell" title={details(e.changes)}>
-                      {details(e.changes)}
+                    <TableCell className="hidden max-w-md truncate text-xs text-muted-foreground lg:table-cell" title={details(e)}>
+                      {details(e)}
                     </TableCell>
-                    <TableCell className="hidden pr-5 font-mono text-xs text-muted-foreground xl:table-cell">
+                    <TableCell className="hidden font-mono text-xs text-muted-foreground xl:table-cell">
                       {e.ipAddress ?? '—'}
+                    </TableCell>
+                    <TableCell className="pr-4">
+                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
                     </TableCell>
                   </TableRow>
                 ))}

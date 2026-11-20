@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { DepartmentScope } from '../../common/auth/department-scope.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import type { CreateAssetCategoryDto, UpdateAssetCategoryDto } from './dto/asset-category.dto.js';
@@ -33,27 +34,37 @@ export class AssetCategoriesService {
       data: { ...dto, sortOrder: (last._max.sortOrder ?? 0) + 1 },
       select: SELECT,
     });
-    await this.audit.record({ userId, action: 'CREATE', entity: ENTITY, entityId: row.id });
+    await this.audit.record({
+      userId,
+      action: 'CREATE',
+      entity: ENTITY,
+      entityId: row.id,
+      changes: { after: auditSnapshot(row) },
+    });
     return row;
   }
 
   async update(id: number, dto: UpdateAssetCategoryDto, userId: number, scope: DepartmentScope) {
     this.assertOffice(scope);
-    await this.findRow(id);
-    const row = await this.prisma.assetCategory.update({ where: { id }, data: dto, select: SELECT });
+    const before = await this.findRow(id);
+    const row = await this.prisma.assetCategory.update({
+      where: { id },
+      data: dto,
+      select: SELECT,
+    });
     await this.audit.record({
       userId,
       action: 'UPDATE',
       entity: ENTITY,
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(before, row, dto),
     });
     return row;
   }
 
   async remove(id: number, userId: number, scope: DepartmentScope): Promise<void> {
     this.assertOffice(scope);
-    await this.findRow(id);
+    const before = await this.findRow(id);
     const inUse = await this.prisma.asset.count({ where: { categoryId: id } });
     if (inUse > 0) {
       throw new ValidationFailedException([
@@ -61,7 +72,13 @@ export class AssetCategoriesService {
       ]);
     }
     await this.prisma.assetCategory.delete({ where: { id } });
-    await this.audit.record({ userId, action: 'DELETE', entity: ENTITY, entityId: id });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: ENTITY,
+      entityId: id,
+      changes: { before: auditSnapshot(before) },
+    });
   }
 
   private assertOffice(scope: DepartmentScope) {

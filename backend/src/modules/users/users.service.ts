@@ -8,6 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import type { DepartmentScope } from '../../common/auth/department-scope.js';
 import { SYSTEM_ROLES } from '../../common/auth/permissions.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
 import { AppConfigService } from '../../config/app-config.service.js';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -47,6 +48,14 @@ const USER_VIEW = {
   },
 } satisfies Prisma.UserSelect;
 type UserRow = Prisma.UserGetPayload<{ select: typeof USER_VIEW }>;
+
+/** An account with its role, departments and member as the update form sends them, for the audit diff. */
+const userAuditView = (u: UserRow) => ({
+  ...u,
+  roleCode: u.roles[0]?.role.code ?? null,
+  departmentIds: u.departments.map((d) => d.department.id).sort((a, b) => a - b),
+  memberId: u.member?.id ?? null,
+});
 
 const toView = ({ roles, departments, ...u }: UserRow) => ({
   ...u,
@@ -144,7 +153,7 @@ export class UsersService {
       action: 'CREATE',
       entity: 'User',
       entityId: user.id,
-      changes: { role: role.code, departmentIds, memberId },
+      changes: { role: role.code, departmentIds, memberId, after: auditSnapshot(user) },
     });
     return toView(user);
   }
@@ -258,7 +267,11 @@ export class UsersService {
       action: 'UPDATE',
       entity: 'User',
       entityId: id,
-      changes: { fields: Object.keys(dto), role: role.code, departmentIds },
+      changes: {
+        ...auditDiff(userAuditView(target), userAuditView(user), dto),
+        role: role.code,
+        departmentIds,
+      },
     });
     return toView(user);
   }
@@ -305,7 +318,13 @@ export class UsersService {
       action: 'DELETE',
       entity: 'User',
       entityId: id,
-      changes: { email: target.email, fullName: target.fullName, role, auditLogsDeleted: count },
+      changes: {
+        email: target.email,
+        fullName: target.fullName,
+        role,
+        auditLogsDeleted: count,
+        before: auditSnapshot(target),
+      },
     });
     return { auditLogsDeleted: count };
   }

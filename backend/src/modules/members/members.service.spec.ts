@@ -249,6 +249,34 @@ describe('MembersService', () => {
         service.update(1, { firstName: null as unknown as string }, 1, null),
       ).rejects.toBeInstanceOf(ValidationFailedException);
     });
+
+    it('records what changed, from the old value to the new one', async () => {
+      const current = {
+        id: 5,
+        phone: '0911000001',
+        city: 'Addis Ababa',
+        agreements: [],
+        classEnrollments: [{ classType: { id: 10 }, classGrade: { id: 1 } }],
+      };
+      prisma.member.findFirst.mockResolvedValue(current);
+      tx.member.update.mockResolvedValue({ ...current, phone: '0911000002' });
+
+      await service.update(5, { phone: '0911000002', city: 'Addis Ababa' }, 3, null);
+
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'UPDATE',
+          entity: 'Member',
+          entityId: 5,
+          // The unchanged city is left out.
+          changes: {
+            fields: ['phone'],
+            diff: { phone: { from: '0911000001', to: '0911000002' } },
+          },
+        }),
+        tx,
+      );
+    });
   });
 
   describe('photos', () => {

@@ -53,6 +53,17 @@ export interface AuditEntry {
   createdAt: string
 }
 
+/** One field's change; `from` is missing when the old value wasn't recorded. */
+export interface AuditFieldChange {
+  from?: unknown
+  to: unknown
+}
+
+/** GET /audit/:id — one entry with the ids in its values named (field → id → name). */
+export interface AuditDetail extends AuditEntry {
+  refs: Record<string, Record<string, { am: string; en: string }>>
+}
+
 export interface AuditQuery {
   page: number
   pageSize: number

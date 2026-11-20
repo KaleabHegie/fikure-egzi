@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '../../common/auth/permissions.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -21,5 +21,11 @@ export class AuditController {
   @Get('users')
   users(@CurrentUser() user: AuthenticatedUser) {
     return this.audit.users(user);
+  }
+
+  /** One entry with every recorded value; ids of other records come with their names. */
+  @Get(':id')
+  detail(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.audit.detail(id, user);
   }
 }

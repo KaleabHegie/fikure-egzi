@@ -4,6 +4,7 @@ import { assertInScope, inScope } from '../../common/auth/department-scope.js';
 import { PERMISSIONS } from '../../common/auth/permissions.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
 import { Paginated } from '../../common/pagination/paginated.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
 import { dateOnly, today } from '../../common/utils/dates.js';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -108,6 +109,11 @@ const OFFERING_SELECT = {
 } satisfies Prisma.CourseOfferingSelect;
 type OfferingRow = Prisma.CourseOfferingGetPayload<{ select: typeof OFFERING_SELECT }>;
 
+/** A run with its teachers as the id list the update form sends, for the audit diff. */
+function offeringAuditView(o: OfferingRow) {
+  return { ...o, teacherIds: o.teachers.map((t) => t.user.id).sort((a, b) => a - b) };
+}
+
 type MemberRow = Prisma.MemberGetPayload<{ select: typeof MEMBER_NAME }>;
 const toMember = ({ photoPath, ...m }: MemberRow) => ({ ...m, hasPhoto: photoPath !== null });
 
@@ -194,7 +200,13 @@ export class CoursesService {
         select: COURSE_SELECT,
       });
       await this.audit.record(
-        { userId: actor.id, action: 'CREATE', entity: 'Course', entityId: row.id },
+        {
+          userId: actor.id,
+          action: 'CREATE',
+          entity: 'Course',
+          entityId: row.id,
+          changes: { after: auditSnapshot(row) },
+        },
         tx,
       );
       return row;
@@ -203,7 +215,7 @@ export class CoursesService {
   }
 
   async updateCourse(id: number, dto: UpdateCourseDto, actor: AuthenticatedUser) {
-    await this.courseRow(id, actor);
+    const before = await this.courseRow(id, actor);
     if (dto.departmentId !== undefined) {
       assertInScope(
         actor.departmentIds,
@@ -222,7 +234,7 @@ export class CoursesService {
       action: 'UPDATE',
       entity: 'Course',
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(before, row, dto),
     });
     return toCourse(row);
   }
@@ -234,7 +246,13 @@ export class CoursesService {
       throw new ValidationFailedException([{ field: 'id', messages: ['courses.hasRuns'] }]);
     }
     await this.prisma.course.delete({ where: { id } });
-    await this.audit.record({ userId: actor.id, action: 'DELETE', entity: 'Course', entityId: id });
+    await this.audit.record({
+      userId: actor.id,
+      action: 'DELETE',
+      entity: 'Course',
+      entityId: id,
+      changes: { before: auditSnapshot(course) },
+    });
   }
 
   /** Teachers a manager may assign: active teacher accounts in their departments. */
@@ -321,7 +339,7 @@ export class CoursesService {
       action: 'CREATE',
       entity: 'CourseOffering',
       entityId: row.id,
-      changes: { courseId: dto.courseId, teacherIds: data.teacherIds },
+      changes: { courseId: dto.courseId, teacherIds: data.teacherIds, after: auditSnapshot(row) },
     });
     return toOffering(row);
   }
@@ -376,7 +394,10 @@ export class CoursesService {
       action: 'UPDATE',
       entity: 'CourseOffering',
       entityId: id,
-      changes: { fields: Object.keys(dto), teacherIds: dto.teacherIds },
+      changes: {
+        ...auditDiff(offeringAuditView(current), offeringAuditView(row), dto),
+        teacherIds: dto.teacherIds,
+      },
     });
     return toOffering(row);
   }
@@ -391,6 +412,7 @@ export class CoursesService {
       action: 'DELETE',
       entity: 'CourseOffering',
       entityId: id,
+      changes: { before: auditSnapshot(row) },
     });
   }
 

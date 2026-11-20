@@ -5,6 +5,7 @@ import {
   inScope,
 } from '../../common/auth/department-scope.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import { editableUntil, withinEditWindow } from '../../common/auth/edit-window.js';
 import { PERMISSIONS } from '../../common/auth/permissions.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
@@ -173,7 +174,6 @@ export class ExamsService {
             },
           }),
         },
-        select: { id: true },
       });
       const members = await tx.member.findMany({
         where: {
@@ -199,6 +199,7 @@ export class ExamsService {
         name: dto.nameAm,
         classTypeId: dto.classTypeId,
         classGradeId: classGradeId ?? null,
+        after: auditSnapshot(exam),
       },
     });
     return this.findOne(exam.id, actor);
@@ -215,7 +216,7 @@ export class ExamsService {
       );
     }
     const { heldOn, ...fields } = dto;
-    await this.prisma.exam.update({
+    const updated = await this.prisma.exam.update({
       where: { id },
       data: {
         ...fields,
@@ -232,7 +233,7 @@ export class ExamsService {
       action: 'UPDATE',
       entity: ENTITY,
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(current, updated, dto),
     });
     return this.findOne(id, actor);
   }
@@ -246,7 +247,7 @@ export class ExamsService {
       action: 'DELETE',
       entity: ENTITY,
       entityId: id,
-      changes: { name: exam.nameAm },
+      changes: { name: exam.nameAm, before: auditSnapshot(exam) },
     });
   }
 

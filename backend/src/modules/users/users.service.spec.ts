@@ -153,3 +153,70 @@ describe('UsersService.create', () => {
     expect(create).not.toHaveBeenCalled();
   });
 });
+
+describe('UsersService.update', () => {
+  const target = {
+    id: 7,
+    email: 'taker@example.com',
+    fullName: 'Abebe Kebede',
+    phone: '0911000001',
+    isActive: true,
+    roles: [{ role: { code: 'ATTENDANCE_TAKER' } }],
+    departments: [],
+    member: { id: 4 },
+  };
+  const tx = {
+    userRole: { deleteMany: jest.fn<Fn>(), create: jest.fn<Fn>() },
+    userDepartment: { deleteMany: jest.fn<Fn>(), createMany: jest.fn<Fn>() },
+    user: { update: jest.fn<Fn>() },
+  };
+  const prisma = {
+    role: {
+      findUnique: jest
+        .fn<Fn>()
+        .mockResolvedValue({ id: 3, code: 'OFFICE_ADMIN', departmentScoped: false }),
+    },
+    user: { findFirst: jest.fn<Fn>().mockResolvedValue(target) },
+    $transaction: (fn: (t: unknown) => Promise<unknown>) => fn(tx),
+  };
+  const record = jest.fn<Fn>();
+  const service = new UsersService(
+    prisma as unknown as PrismaService,
+    { record } as unknown as AuditService,
+    {} as AppConfigService,
+  );
+  const officeAdmin = { id: 1, departmentIds: null } as unknown as AuthenticatedUser;
+
+  it('records each changed field with its old and new value', async () => {
+    tx.user.update.mockResolvedValue({
+      ...target,
+      fullName: 'Abebe K. Kebede',
+      roles: [{ role: { code: 'OFFICE_ADMIN' } }],
+    });
+
+    await service.update(
+      7,
+      { fullName: 'Abebe K. Kebede', phone: '0911000001', roleCode: 'OFFICE_ADMIN' },
+      officeAdmin,
+    );
+
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 1,
+        action: 'UPDATE',
+        entity: 'User',
+        entityId: 7,
+        // The unchanged phone is left out.
+        changes: {
+          fields: ['fullName', 'roleCode'],
+          diff: {
+            fullName: { from: 'Abebe Kebede', to: 'Abebe K. Kebede' },
+            roleCode: { from: 'ATTENDANCE_TAKER', to: 'OFFICE_ADMIN' },
+          },
+          role: 'OFFICE_ADMIN',
+          departmentIds: [],
+        },
+      }),
+    );
+  });
+});

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { memberScopeWhere } from '../../common/auth/department-scope.js';
 import { Paginated } from '../../common/pagination/paginated.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
@@ -12,6 +12,41 @@ import type { QueryAuditDto } from './dto/query-audit.dto.js';
 const addisDayStart = (date: string) => new Date(`${date}T00:00:00+03:00`);
 
 const USER_REF = { select: { id: true, fullName: true, email: true } } as const;
+
+type RefKind =
+  | 'department'
+  | 'classType'
+  | 'classGrade'
+  | 'serviceGroup'
+  | 'serviceTerm'
+  | 'assetCategory'
+  | 'course'
+  | 'member'
+  | 'user';
+
+/** Fields whose values are ids of other records, named on the detail page. */
+const REF_FIELDS: Record<string, RefKind> = {
+  departmentId: 'department',
+  departmentIds: 'department',
+  parentId: 'department',
+  organiserId: 'department',
+  classTypeId: 'classType',
+  classGradeId: 'classGrade',
+  classGradeIds: 'classGrade',
+  serviceGroupId: 'serviceGroup',
+  serviceGroupIds: 'serviceGroup',
+  extraServiceGroupIds: 'serviceGroup',
+  termId: 'serviceTerm',
+  serviceTermId: 'serviceTerm',
+  categoryId: 'assetCategory',
+  courseId: 'course',
+  memberId: 'member',
+  memberIds: 'member',
+  added: 'member',
+  removed: 'member',
+  userId: 'user',
+  teacherIds: 'user',
+};
 
 /**
  * Reading the audit trail. Office administrators see everything. A
@@ -69,6 +104,133 @@ export class AuditLogService {
       target: targets.get(`${r.entity}:${r.entityId}`) ?? null,
     }));
     return Paginated.of(items, total, q.page, q.pageSize);
+  }
+
+  /**
+   * One entry in full: who, when, from where, about what, and every recorded
+   * value, with the ids in it (departments, classes, members…) named.
+   */
+  async detail(id: string, actor: AuthenticatedUser) {
+    const row = /^\d{1,19}$/.test(id)
+      ? await this.prisma.auditLog.findFirst({
+          where: { AND: [await this.visibleWhere(actor), { id: BigInt(id) }] },
+          include: { user: USER_REF },
+        })
+      : null;
+    if (!row) throw new NotFoundException('Audit entry not found');
+    const targets = await auditTargets(this.prisma, [row]);
+    return {
+      ...row,
+      id: row.id.toString(),
+      target: targets.get(`${row.entity}:${row.entityId}`) ?? null,
+      refs: await this.refs(row.changes),
+    };
+  }
+
+  /** Names for the ids found in an entry's values: field → id → { am, en }. */
+  private async refs(changes: Prisma.JsonValue) {
+    const found = new Map<RefKind, Set<number>>();
+    const byField = new Map<string, number[]>();
+    const take = (field: string, value: unknown) => {
+      const kind = REF_FIELDS[field];
+      if (!kind) return;
+      const ids = (Array.isArray(value) ? value : [value]).filter(
+        (v): v is number => typeof v === 'number' && Number.isInteger(v),
+      );
+      if (ids.length === 0) return;
+      byField.set(field, [...(byField.get(field) ?? []), ...ids]);
+      const set = found.get(kind) ?? new Set<number>();
+      ids.forEach((i) => set.add(i));
+      found.set(kind, set);
+    };
+    if (changes && typeof changes === 'object' && !Array.isArray(changes)) {
+      for (const [key, value] of Object.entries(changes)) {
+        if (key === 'diff' && value && typeof value === 'object' && !Array.isArray(value)) {
+          for (const [field, change] of Object.entries(value)) {
+            if (change && typeof change === 'object' && !Array.isArray(change)) {
+              take(field, (change as Record<string, unknown>).from);
+              take(field, (change as Record<string, unknown>).to);
+            }
+          }
+        } else if ((key === 'before' || key === 'after') && value && typeof value === 'object') {
+          for (const [field, v] of Object.entries(value)) take(field, v);
+        } else {
+          take(key, value);
+        }
+      }
+    }
+    const names = new Map<string, { am: string; en: string }>();
+    const named = (kind: RefKind, rows: { id: number; nameAm: string; nameEn: string | null }[]) =>
+      rows.forEach((r) => names.set(`${kind}:${r.id}`, { am: r.nameAm, en: r.nameEn || r.nameAm }));
+    const ids = (kind: RefKind) => ({ id: { in: [...(found.get(kind) ?? [])] } });
+    const NAME = { id: true, nameAm: true, nameEn: true } as const;
+    await Promise.all(
+      [...found.keys()].map(async (kind) => {
+        switch (kind) {
+          case 'department':
+            return named(
+              kind,
+              await this.prisma.department.findMany({ where: ids(kind), select: NAME }),
+            );
+          case 'classType':
+            return named(
+              kind,
+              await this.prisma.classType.findMany({ where: ids(kind), select: NAME }),
+            );
+          case 'classGrade':
+            return named(
+              kind,
+              await this.prisma.classGrade.findMany({ where: ids(kind), select: NAME }),
+            );
+          case 'serviceGroup':
+            return named(
+              kind,
+              await this.prisma.serviceGroup.findMany({ where: ids(kind), select: NAME }),
+            );
+          case 'serviceTerm':
+            return named(
+              kind,
+              await this.prisma.serviceTerm.findMany({ where: ids(kind), select: NAME }),
+            );
+          case 'assetCategory':
+            return named(
+              kind,
+              await this.prisma.assetCategory.findMany({ where: ids(kind), select: NAME }),
+            );
+          case 'course':
+            return named(
+              kind,
+              await this.prisma.course.findMany({ where: ids(kind), select: NAME }),
+            );
+          case 'member':
+            return (
+              await this.prisma.member.findMany({
+                where: ids(kind),
+                select: { id: true, memberCode: true, firstName: true, fatherName: true },
+              })
+            ).forEach((m) => {
+              const name = `${m.firstName} ${m.fatherName} (${m.memberCode})`;
+              names.set(`member:${m.id}`, { am: name, en: name });
+            });
+          case 'user':
+            return (
+              await this.prisma.user.findMany({
+                where: ids(kind),
+                select: { id: true, fullName: true },
+              })
+            ).forEach((u) => names.set(`user:${u.id}`, { am: u.fullName, en: u.fullName }));
+        }
+      }),
+    );
+    const out: Record<string, Record<string, { am: string; en: string }>> = {};
+    for (const [field, list] of byField) {
+      const kind = REF_FIELDS[field]!;
+      for (const i of list) {
+        const name = names.get(`${kind}:${i}`);
+        if (name) (out[field] ??= {})[i] = name;
+      }
+    }
+    return out;
   }
 
   /** The people whose actions the actor may see (for the filter). */

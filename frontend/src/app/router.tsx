@@ -180,6 +180,10 @@ export const router = createBrowserRouter([
             ...page(() => import('@/features/audit/pages/audit-page'), (m) => m.AuditPage, PERMISSIONS.AUDIT_READ),
           },
           {
+            path: 'audit/:id',
+            ...page(() => import('@/features/audit/pages/audit-entry-page'), (m) => m.AuditEntryPage, PERMISSIONS.AUDIT_READ),
+          },
+          {
             path: 'users',
             ...page(() => import('@/features/users/pages/users-page'), (m) => m.UsersPage, PERMISSIONS.USERS_MANAGE),
           },

@@ -66,3 +66,54 @@ describe('AuditLogService visibility', () => {
     });
   });
 });
+
+describe('AuditLogService detail', () => {
+  const entry = {
+    id: 42n,
+    userId: 1,
+    user: { id: 1, fullName: 'Office Admin', email: 'a@b.c' },
+    action: 'UPDATE',
+    entity: 'User',
+    entityId: '8',
+    changes: {
+      fields: ['departmentIds', 'fullName'],
+      diff: { departmentIds: { from: [2], to: [4] }, fullName: { from: 'A', to: 'B' } },
+    },
+    ipAddress: null,
+    createdAt: new Date(),
+  };
+  const prisma = {
+    auditLog: { findFirst: jest.fn<(...args: unknown[]) => Promise<unknown>>() },
+    user: {
+      findMany: jest
+        .fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue([{ id: 8, fullName: 'Taker', email: 't@b.c' }]),
+    },
+    department: {
+      findMany: jest.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue([
+        { id: 2, nameAm: 'ልማት', nameEn: 'Development' },
+        { id: 4, nameAm: 'መዝሙር', nameEn: 'Mezmur' },
+      ]),
+    },
+  };
+  const service = new AuditLogService(prisma as unknown as PrismaService);
+  const office = { id: 1, departmentIds: null } as AuthenticatedUser;
+
+  it('returns the entry with the department ids in its changes named', async () => {
+    prisma.auditLog.findFirst.mockResolvedValue(entry);
+    const detail = await service.detail('42', office);
+    expect(detail.id).toBe('42');
+    expect(detail.refs).toEqual({
+      departmentIds: {
+        2: { am: 'ልማት', en: 'Development' },
+        4: { am: 'መዝሙር', en: 'Mezmur' },
+      },
+    });
+  });
+
+  it('says not found for an entry the actor may not see, or a bad id', async () => {
+    prisma.auditLog.findFirst.mockResolvedValue(null);
+    await expect(service.detail('42', office)).rejects.toThrow('Audit entry not found');
+    await expect(service.detail('abc', office)).rejects.toThrow('Audit entry not found');
+  });
+});

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import type { RequestMeta } from '../../common/decorators/request-meta.decorator.js';
+import { auditDiff } from '../../common/utils/audit-diff.js';
 import type { AuthenticatedUser, JwtPayload } from '../../common/types/authenticated-user.js';
 import { AppConfigService } from '../../config/app-config.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -167,7 +168,7 @@ export class AuthService {
   async updateProfile(userId: number, dto: UpdateProfileDto, meta: RequestMeta) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { email: true, passwordHash: true },
+      select: { email: true, passwordHash: true, fullName: true, phone: true },
     });
     const emailChanges = dto.email !== undefined && dto.email !== user.email;
     if (emailChanges) {
@@ -179,21 +180,22 @@ export class AuthService {
         });
       }
     }
-    await this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         ...(dto.fullName && { fullName: dto.fullName }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(emailChanges && { email: dto.email }),
       },
+      select: { email: true, fullName: true, phone: true },
     });
-    const fields = Object.keys(dto).filter((k) => k !== 'currentPassword');
     await this.audit.record({
       userId,
       action: 'UPDATE',
       entity: 'User',
       entityId: userId,
-      changes: { fields, ownProfile: true },
+      // auditDiff leaves out currentPassword (never logged).
+      changes: { ...auditDiff(user, updated, dto), ownProfile: true },
       ipAddress: meta.ipAddress,
     });
     return this.profile(userId);

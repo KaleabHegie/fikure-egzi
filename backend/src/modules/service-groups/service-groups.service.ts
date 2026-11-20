@@ -10,6 +10,7 @@ import {
   memberScopeWhere,
 } from '../../common/auth/department-scope.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import { dateOnly } from '../../common/utils/dates.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { MembershipStatus } from '../../generated/prisma/enums.js';
@@ -122,7 +123,13 @@ export class ServiceGroupsService {
       }
       return created;
     });
-    await this.audit.record({ userId, action: 'CREATE', entity: 'ServiceTerm', entityId: term.id });
+    await this.audit.record({
+      userId,
+      action: 'CREATE',
+      entity: 'ServiceTerm',
+      entityId: term.id,
+      changes: { after: auditSnapshot(term) },
+    });
     return term;
   }
 
@@ -151,19 +158,25 @@ export class ServiceGroupsService {
       action: 'UPDATE',
       entity: 'ServiceTerm',
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(current, term, dto),
     });
     return term;
   }
 
   async removeTerm(id: number, userId: number, scope: DepartmentScope = null): Promise<void> {
     await this.assertManagesTerms(scope);
-    await this.findTerm(id);
+    const before = await this.findTerm(id);
     if (await this.prisma.serviceGroup.count({ where: { termId: id } })) {
       throw new ConflictException("Delete or move this term's groups first.");
     }
     await this.prisma.serviceTerm.delete({ where: { id } });
-    await this.audit.record({ userId, action: 'DELETE', entity: 'ServiceTerm', entityId: id });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: 'ServiceTerm',
+      entityId: id,
+      changes: { before: auditSnapshot(before) },
+    });
   }
 
   // ── Groups ───────────────────────────────────────────────────────────────
@@ -219,6 +232,7 @@ export class ServiceGroupsService {
       action: 'CREATE',
       entity: 'ServiceGroup',
       entityId: group.id,
+      changes: { after: auditSnapshot(group) },
     });
     return group;
   }
@@ -229,7 +243,7 @@ export class ServiceGroupsService {
     userId: number,
     scope: DepartmentScope = null,
   ) {
-    await this.findGroup(id, scope);
+    const before = await this.findGroup(id, scope);
     if (dto.classGradeId !== undefined) await this.assertGradeInScope(dto.classGradeId, scope);
     const group = await this.prisma.serviceGroup.update({ where: { id }, data: dto });
     await this.audit.record({
@@ -237,19 +251,25 @@ export class ServiceGroupsService {
       action: 'UPDATE',
       entity: 'ServiceGroup',
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(before, group, dto),
     });
     return group;
   }
 
   /** Groups that already have attendance sessions keep their history and can't be deleted. */
   async removeGroup(id: number, userId: number, scope: DepartmentScope = null): Promise<void> {
-    await this.findGroup(id, scope);
+    const before = await this.findGroup(id, scope);
     if (await this.prisma.attendanceSession.count({ where: { serviceGroupId: id } })) {
       throw new ConflictException('This group has attendance sessions, so it is kept for history.');
     }
     await this.prisma.serviceGroup.delete({ where: { id } });
-    await this.audit.record({ userId, action: 'DELETE', entity: 'ServiceGroup', entityId: id });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: 'ServiceGroup',
+      entityId: id,
+      changes: { before: auditSnapshot(before) },
+    });
   }
 
   // ── Members ──────────────────────────────────────────────────────────────

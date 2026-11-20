@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { assertInScope, type DepartmentScope } from '../../../common/auth/department-scope.js';
 import { ValidationFailedException } from '../../../common/filters/all-exceptions.filter.js';
+import { auditDiff, auditSnapshot } from '../../../common/utils/audit-diff.js';
 import { dateOnly, todayIso } from '../../../common/utils/dates.js';
 import { detectImageType } from '../../../common/utils/image-type.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
@@ -320,7 +321,13 @@ export class LatePermissionsService {
         select: PERMISSION_SELECT,
       });
     });
-    await this.audit.record({ userId, action: 'CREATE', entity: ENTITY, entityId: row.id });
+    await this.audit.record({
+      userId,
+      action: 'CREATE',
+      entity: ENTITY,
+      entityId: row.id,
+      changes: { after: auditSnapshot(row) },
+    });
     return toView(row);
   }
 
@@ -367,7 +374,7 @@ export class LatePermissionsService {
       action: 'UPDATE',
       entity: ENTITY,
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(current, row, dto),
     });
     return toView(row);
   }
@@ -394,7 +401,13 @@ export class LatePermissionsService {
     const row = await this.findRow(id, scope);
     await this.prisma.latePermission.delete({ where: { id } });
     if (row.evidencePath) await this.storage.remove(row.evidencePath);
-    await this.audit.record({ userId, action: 'DELETE', entity: ENTITY, entityId: id });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: ENTITY,
+      entityId: id,
+      changes: { before: auditSnapshot(row) },
+    });
   }
 
   async setEvidence(

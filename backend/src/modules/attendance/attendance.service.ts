@@ -13,6 +13,7 @@ import {
   memberScopeWhere,
 } from '../../common/auth/department-scope.js';
 import { withinEditWindow } from '../../common/auth/edit-window.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import { PERMISSIONS } from '../../common/auth/permissions.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.js';
@@ -104,6 +105,16 @@ export function sessionGroupIds(s: Pick<Audience, 'serviceGroupId' | 'extraServi
   return [...new Set([s.serviceGroupId, ...extra])];
 }
 type SessionTimes = Pick<SessionRow, 'startsAt' | 'endsAt' | 'absentAfterMinutes'>;
+
+/** A session as its update form sees it (date and times rather than timestamps), for the audit diff. */
+function sessionAuditView(s: SessionRow) {
+  return {
+    ...s,
+    date: addisDateIso(s.startsAt),
+    startTime: addisTime(s.startsAt),
+    endTime: addisTime(s.endsAt),
+  };
+}
 
 /**
  * The department that runs a session — whose admins and attendance takers
@@ -301,6 +312,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       action: 'CREATE',
       entity: 'AttendanceSession',
       entityId: session.id,
+      changes: { after: auditSnapshot(session) },
     });
     return this.withCounts(session);
   }
@@ -350,7 +362,7 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
       action: 'UPDATE',
       entity: 'AttendanceSession',
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(sessionAuditView(current), sessionAuditView(session), dto),
     });
     return this.withCounts(session);
   }
@@ -361,13 +373,15 @@ export class AttendanceService implements OnModuleInit, OnModuleDestroy {
     scope: DepartmentScope,
     access: DayAccess = 'any',
   ): Promise<void> {
-    assertDay(addisDateIso((await this.findRow(id, scope)).startsAt), access);
+    const before = await this.findRow(id, scope);
+    assertDay(addisDateIso(before.startsAt), access);
     await this.prisma.attendanceSession.delete({ where: { id } });
     await this.audit.record({
       userId,
       action: 'DELETE',
       entity: 'AttendanceSession',
       entityId: id,
+      changes: { before: auditSnapshot(before) },
     });
   }
 

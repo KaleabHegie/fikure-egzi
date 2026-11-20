@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { assertInScope, type DepartmentScope } from '../../common/auth/department-scope.js';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import { Paginated } from '../../common/pagination/paginated.js';
 import { dateOnly } from '../../common/utils/dates.js';
 import { detectImageType, MIME_BY_EXT } from '../../common/utils/image-type.js';
@@ -142,14 +143,23 @@ export class AssetsService {
         data: { assetCode: formatAssetCode(created.id) },
         select: ASSET_SELECT,
       });
-      await this.audit.record({ userId, action: 'CREATE', entity: ENTITY, entityId: row.id }, tx);
+      await this.audit.record(
+        {
+          userId,
+          action: 'CREATE',
+          entity: ENTITY,
+          entityId: row.id,
+          changes: { after: auditSnapshot(row) },
+        },
+        tx,
+      );
       return row;
     });
     return toAsset(asset);
   }
 
   async update(id: number, dto: UpdateAssetDto, userId: number, scope: DepartmentScope) {
-    await this.findRow(id, scope);
+    const before = await this.findRow(id, scope);
     if (dto.departmentId !== undefined) {
       assertInScope(scope, dto.departmentId, 'You can only hand assets to your own departments.');
       await this.assertDepartment(dto.departmentId);
@@ -170,16 +180,23 @@ export class AssetsService {
       action: 'UPDATE',
       entity: ENTITY,
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(before, row, dto),
     });
     return toAsset(row);
   }
 
   async remove(id: number, userId: number, scope: DepartmentScope): Promise<void> {
-    const { photoPath } = await this.findRow(id, scope);
+    const before = await this.findRow(id, scope);
+    const { photoPath } = before;
     await this.prisma.asset.delete({ where: { id } });
     if (photoPath) await this.storage.remove(photoPath).catch(() => undefined);
-    await this.audit.record({ userId, action: 'DELETE', entity: ENTITY, entityId: id });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: ENTITY,
+      entityId: id,
+      changes: { before: auditSnapshot(before) },
+    });
   }
 
   // ── Photo ────────────────────────────────────────────────────────────────

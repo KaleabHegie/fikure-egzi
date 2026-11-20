@@ -1,6 +1,7 @@
 import { assertInScope, type DepartmentScope } from '../../common/auth/department-scope.js';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ValidationFailedException } from '../../common/filters/all-exceptions.filter.js';
+import { auditDiff, auditSnapshot } from '../../common/utils/audit-diff.js';
 import { DepartmentRole } from '../../generated/prisma/enums.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -96,6 +97,7 @@ export class DepartmentsService {
       action: 'CREATE',
       entity: 'Department',
       entityId: department.id,
+      changes: { after: auditSnapshot(department) },
     });
     return department;
   }
@@ -109,7 +111,8 @@ export class DepartmentsService {
   ) {
     assertInScope(scope, parentId, ROSTER_SCOPE_MESSAGE);
     const parent = await this.findOne(parentId);
-    if (!parent.isActive) throw new ConflictException('An inactive department cannot create sub-departments.');
+    if (!parent.isActive)
+      throw new ConflictException('An inactive department cannot create sub-departments.');
     const isParentMember = await this.prisma.departmentMembership.count({
       where: { departmentId: parentId, memberId: dto.headMemberId, member: { deletedAt: null } },
     });
@@ -133,9 +136,25 @@ export class DepartmentsService {
           createdById: userId,
         },
       });
-      await openServicePeriod(tx, { memberId: headMemberId, departmentId: department.id, role: DepartmentRole.HEAD }, today(), userId);
+      await openServicePeriod(
+        tx,
+        { memberId: headMemberId, departmentId: department.id, role: DepartmentRole.HEAD },
+        today(),
+        userId,
+      );
       await this.audit.record(
-        { userId, action: 'CREATE', entity: 'Department', entityId: department.id, changes: { parentId, headMemberId, membershipId: membership.id } },
+        {
+          userId,
+          action: 'CREATE',
+          entity: 'Department',
+          entityId: department.id,
+          changes: {
+            parentId,
+            headMemberId,
+            membershipId: membership.id,
+            after: auditSnapshot(department),
+          },
+        },
         tx,
       );
       return department;
@@ -155,14 +174,14 @@ export class DepartmentsService {
       action: 'UPDATE',
       entity: 'Department',
       entityId: id,
-      changes: { fields: Object.keys(dto) },
+      changes: auditDiff(current, department, dto),
     });
     return department;
   }
 
   /** Only departments with no sub-departments and nobody serving can be deleted. */
   async remove(id: number, userId: number): Promise<void> {
-    await this.findOne(id);
+    const before = await this.findOne(id);
     if (await this.prisma.asset.count({ where: { departmentId: id } })) {
       throw new ConflictException(
         'This department is responsible for assets. Give them to another department first.',
@@ -188,7 +207,13 @@ export class DepartmentsService {
       );
     }
     await this.prisma.department.delete({ where: { id } });
-    await this.audit.record({ userId, action: 'DELETE', entity: 'Department', entityId: id });
+    await this.audit.record({
+      userId,
+      action: 'DELETE',
+      entity: 'Department',
+      entityId: id,
+      changes: { before: auditSnapshot(before) },
+    });
   }
 
   async reorder(parentId: number | null, ids: number[], userId: number): Promise<void> {
@@ -275,7 +300,7 @@ export class DepartmentsService {
             action: 'CREATE',
             entity: 'DepartmentMembership',
             entityId: created.id,
-            changes: { departmentId, memberId: dto.memberId, role },
+            changes: { departmentId, memberId: dto.memberId, role, after: auditSnapshot(created) },
           },
           tx,
         );
@@ -332,7 +357,7 @@ export class DepartmentsService {
           entity: 'DepartmentMembership',
           entityId: id,
           changes: {
-            fields: Object.keys(dto),
+            ...auditDiff(membership, updated, dto),
             ...(roleChanged && { from: membership.role, to: dto.role }),
           },
         },
@@ -349,7 +374,13 @@ export class DepartmentsService {
       await tx.departmentMembership.delete({ where: { id } });
       await closeServicePeriods(tx, membership.memberId, today(), membership.departmentId);
       await this.audit.record(
-        { userId, action: 'DELETE', entity: 'DepartmentMembership', entityId: id },
+        {
+          userId,
+          action: 'DELETE',
+          entity: 'DepartmentMembership',
+          entityId: id,
+          changes: { before: auditSnapshot(membership) },
+        },
         tx,
       );
     });
